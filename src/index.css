@@ -1,0 +1,149 @@
+@import "tailwindcss";
+
+:root {
+  --bg-oatmeal: #F9F7F3;
+  --bg-oatmeal-card: #FFFFFF;
+  --bg-oatmeal-subtle: #F2EFE9;
+  --text-espresso: #2C2724;
+  --text-espresso-muted: #6E655F;
+  --action-terracotta: #D06C4E;
+  --trust-sage: #7A907C;
+  --trust-sage-bg: #E8EFE9;
+  --trust-sage-text: #485B4A;
+}
+
+body {
+  background-color: #F9F7F3;
+  color: #2C2724;
+  font-family: 'Inter', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.overflow-y-auto,
+.overflow-y-scroll {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Warm brown-tinted drop shadows so cards float off the Oatmeal canvas */
+.shadow-warm {
+  box-shadow: 0 18px 42px -12px rgba(44, 39, 36, 0.16), 0 4px 14px -4px rgba(44, 39, 36, 0.08);
+}
+
+.shadow-warm-sm {
+  box-shadow: 0 6px 20px -6px rgba(44, 39, 36, 0.10), 0 2px 6px -2px rgba(44, 39, 36, 0.06);
+}
+
+/* Custom styles for mobile TikTok / Reels snap container */
+.snap-y-mandatory {
+  scroll-snap-type: y mandatory;
+}
+
+.snap-start {
+  scroll-snap-align: start;
+}
+
+.snap-stop-always {
+  scroll-snap-stop: always;
+}
+
+/* Heart burst animation */
+@keyframes heartFloat {
+  0% {
+    transform: scale(0.3) translateY(0) rotate(0deg);
+    opacity: 0;
+  }
+  20% {
+    transform: scale(1.3) translateY(-20px) rotate(-8deg);
+    opacity: 1;
+  }
+  60% {
+    transform: scale(1) translateY(-60px) rotate(8deg);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(0.8) translateY(-110px) rotate(0deg);
+    opacity: 0;
+  }
+}
+
+.animate-heart-float {
+  animation: heartFloat 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Text stroke for readable video captions over bright frames */
+.text-shadow-subtle {
+  text-shadow: 0 1px 3px rgba(44, 39, 36, 0.8), 0 2px 8px rgba(44, 39, 36, 0.6);
+}
+
+.text-shadow-strong {
+  text-shadow: 0 2px 4px rgba(44, 39, 36, 0.95), 0 4px 12px rgba(44, 39, 36, 0.8);
+}
+
+/* Wren Mascot Micro-Animations */
+@keyframes wrenTiltHop {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-3px) rotate(-8deg);
+  }
+  50% {
+    transform: translateY(0) rotate(6deg);
+  }
+  75% {
+    transform: translateY(-2px) rotate(-5deg);
+  }
+}
+
+@keyframes wrenHappyFlutter {
+  0%, 100% {
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+  20% {
+    transform: translateY(-7px) scale(1.08) rotate(-10deg);
+  }
+  40% {
+    transform: translateY(-3px) scale(1.05) rotate(10deg);
+  }
+  60% {
+    transform: translateY(-8px) scale(1.1) rotate(-8deg);
+  }
+  80% {
+    transform: translateY(-2px) scale(1.03) rotate(6deg);
+  }
+}
+
+@keyframes wrenGentleBob {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-2px) rotate(3deg);
+  }
+}
+
+.animate-wren-thinking {
+  animation: wrenTiltHop 0.9s ease-in-out infinite;
+}
+
+.animate-wren-flutter {
+  animation: wrenHappyFlutter 0.85s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.animate-wren-idle {
+  animation: wrenGentleBob 3s ease-in-out infinite;
+}
+

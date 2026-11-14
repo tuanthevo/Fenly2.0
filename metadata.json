@@ -1,0 +1,6 @@
+{
+  "name": "PerchPass",
+  "description": "Short-form vertical video discovery for rooms for rent with instant filters, neighborhood walkability exploration, direct messaging, and AI staging & lease concierge.",
+  "requestFramePermissions": ["camera", "microphone", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
