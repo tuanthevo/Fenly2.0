@@ -1402,7 +1402,7 @@ export function buildStructuredViralTourPlan(params: {
     voiceover_script: voiceoverScript,
     viral_caption: viralCaption,
     total_duration_seconds: 15,
-    model_used: 'gemini-2.5-flash',
+    model_used: 'gemini-3.8-flash',
   };
 }
 

@@ -1097,7 +1097,7 @@ export const GuidedViralTourStudio: React.FC<GuidedViralTourStudioProps> = ({
           <Sparkles className="w-4 h-4 shrink-0" />
           <span>
             {isGeneratingTour
-              ? 'Analyzing 5 Clips with Gemini 2.5 Flash...'
+              ? 'Analyzing 5 Clips with Gemini 3.8 Flash...'
               : 'Generate Viral Home Tour with Gemini'}
           </span>
         </button>
@@ -1118,7 +1118,7 @@ export const GuidedViralTourStudio: React.FC<GuidedViralTourStudioProps> = ({
             <div>
               <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-amber-300">
                 <Wand2 className="w-3.5 h-3.5" />
-                <span>Gemini 2.5 Flash • 15-Sec Viral Tour</span>
+                <span>Gemini 3.8 Flash • 15-Sec Viral Tour</span>
               </span>
               <h4 className="text-xs sm:text-sm font-extrabold text-white">
                 Viral Tour Preview Player (9:16)
