@@ -23,6 +23,7 @@ import { LENGTH_PRESETS, PACE_PRESETS, buildViralEditPlan } from '../remotion/vi
 import { STYLE_INFO, violatesFairHousing, MAX_HOOK_CHARS, MAX_TAG_CHARS } from '../remotion/viral/copy';
 import { analyzeClipInBrowser } from '../remotion/viral/analyzeClipInBrowser';
 import { fetchViralAiHints } from '../remotion/viral/aiCopy';
+import { makeAiMusic } from '../remotion/viral/aiMusic';
 import {
   DEFAULT_EDIT_SETTINGS,
   applyEditPatch,
@@ -253,6 +254,36 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
     });
   };
 
+  // AI music: an original track with the feel of a song the host likes (one server call per tap)
+  const [songInput, setSongInput] = useState(initialSettings?.music?.inspiredBy ?? '');
+  const [musicJob, setMusicJob] = useState<{ phase: 'idle' | 'working' } | { phase: 'error'; message: string }>({ phase: 'idle' });
+  const musicAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => musicAbort.current?.abort(), []);
+  const makeMusic = async () => {
+    const song = songInput.trim();
+    if (!song || musicJob.phase === 'working') return;
+    musicAbort.current?.abort();
+    const controller = new AbortController();
+    musicAbort.current = controller;
+    setMusicJob({ phase: 'working' });
+    try {
+      const track = await makeAiMusic(song, controller.signal);
+      if (controller.signal.aborted) return;
+      ownMusicUrls.current.add(track.src);
+      setSettings((prev) => {
+        if (prev.music && ownMusicUrls.current.has(prev.music.src)) {
+          URL.revokeObjectURL(prev.music.src);
+          ownMusicUrls.current.delete(prev.music.src);
+        }
+        return { ...prev, music: prev.music ? { ...track, volume: prev.music.volume } : track };
+      });
+      setMusicJob({ phase: 'idle' });
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setMusicJob({ phase: 'error', message: error instanceof Error ? error.message : 'We couldn’t make music right now.' });
+    }
+  };
+
   // Edit by typing: common requests are handled on the device; the rest goes to a small text-only AI call
   const [aiRequest, setAiRequest] = useState('');
   const [aiEdit, setAiEdit] = useState<AiEditState>({ phase: 'idle' });
@@ -447,6 +478,68 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
   );
   const fixedWarnings = plan.warnings.filter((w) => w.severity === 'fixed');
 
+  const aiMusicField = (
+    <div className="space-y-1.5" data-testid="viral-ai-music">
+      <div className="flex items-center gap-1.5">
+        <input
+          data-testid="viral-song-input"
+          value={songInput}
+          maxLength={120}
+          placeholder="Type a song you like, e.g. “Golden Hour”"
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSongInput(e.target.value)}
+          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              makeMusic();
+            }
+          }}
+          className="flex-1 min-w-0 px-2.5 py-2 rounded-xl border border-[#2C2724]/20 bg-white text-[11px] font-semibold text-[#2C2724] focus:outline-none focus:border-[#D06C4E]"
+        />
+        <button
+          type="button"
+          data-testid="viral-make-music"
+          onClick={makeMusic}
+          disabled={!songInput.trim() || musicJob.phase === 'working'}
+          className="shrink-0 px-3 py-2 rounded-xl bg-[#D06C4E] hover:bg-[#b85b3f] text-white text-[10px] font-extrabold flex items-center gap-1 active:scale-95 disabled:bg-[#2C2724]/15 disabled:text-[#6E655F]"
+        >
+          {musicJob.phase === 'working' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Music className="w-3.5 h-3.5" />}
+          {music?.inspiredBy ? 'New track' : 'Make music'}
+        </button>
+      </div>
+      {musicJob.phase === 'working' && (
+        <p className="text-[10px] font-semibold text-[#6E655F]">Composing an original track in that mood (about 10 seconds)…</p>
+      )}
+      {musicJob.phase === 'error' && (
+        <p data-testid="viral-music-error" className="text-[10px] font-semibold text-[#9A4A33]">
+          {musicJob.message}
+        </p>
+      )}
+      {music && (
+        <div className="p-2 rounded-xl bg-[#E8EFE9] border border-[#7A907C]/50 space-y-1.5" data-testid="viral-music-chosen">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[10px] font-extrabold text-[#485B4A] truncate">
+              {music.name}
+              {music.inspiredBy ? <span className="font-semibold"> · feel of “{music.inspiredBy}”</span> : null}
+            </p>
+            <button
+              type="button"
+              data-testid="viral-music-remove"
+              onClick={() => update({ music: null })}
+              className="shrink-0 text-[10px] font-extrabold text-[#6E655F] hover:text-[#2C2724]"
+            >
+              Remove
+            </button>
+          </div>
+          <audio src={music.src} controls preload="none" className="w-full h-8" />
+        </div>
+      )}
+      <p className="text-[10px] text-[#6E655F] leading-snug">
+        We make a new instrumental with a similar mood, not the song itself, so it’s safe to post. For a trending sound, you
+        can still add one inside TikTok or Reels.
+      </p>
+    </div>
+  );
+
   return (
     <div
       data-testid="viral-video-editor"
@@ -602,7 +695,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
         </>
       )}
 
-{/* Quality warnings */}
+      {/* Quality warnings */}
       {retakeWarnings.length > 0 && (
         <div className="space-y-1.5" data-testid="viral-editor-warnings">
           {retakeWarnings.map((w, i) => {
@@ -808,7 +901,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
         </>
       )}
 
-{/* Shots in edit order */}
+      {/* Shots in edit order */}
       <div className="space-y-1.5">
         <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#6E655F]">
           Shots in order (tap a callout to edit it)
@@ -901,6 +994,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
             <Music className="w-3 h-3" />
             Music
           </span>
+          {aiMusicField}
           <div className="flex items-center gap-1.5">
             <button
               type="button"
@@ -957,7 +1051,18 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
         </>
       )}
 
-{/* Caption */}
+      {/* Create Listing: AI music only */}
+      {mode === 'create' && (
+        <div className="space-y-1.5" data-testid="viral-music-create">
+          <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#6E655F] flex items-center gap-1">
+            <Music className="w-3 h-3" />
+            Music (optional)
+          </span>
+          {aiMusicField}
+        </div>
+      )}
+
+      {/* Caption */}
       <div className="p-2.5 rounded-xl bg-[#F9F7F3] border border-[#2C2724]/10 space-y-1.5">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#6E655F]">Caption</span>
@@ -1049,6 +1154,8 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
                 data-testid="viral-use-video-btn"
                 onClick={() => {
                   handedOffUrls.current.add(exportState.url);
+                  // The music now belongs to the listing too: don't free it when this editor closes
+                  if (settings.music) ownMusicUrls.current.delete(settings.music.src);
                   onVideoReady({ blob: exportState.blob, url: exportState.url, plan, caption: plan.caption, edit: editSnapshot() });
                 }}
                 className="w-full py-2 rounded-xl bg-[#7A907C] hover:bg-[#6a7f6c] text-white text-[11px] font-extrabold flex items-center justify-center gap-1.5 active:scale-95"

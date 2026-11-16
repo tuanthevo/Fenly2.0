@@ -13,6 +13,11 @@ import { GoogleGenAI } from "@google/genai";
 export const GEMINI_FLASH_MODEL = "gemini-3.8-flash";
 export const GEMINI_FLASH_LITE_MODEL = "gemini-3.1-flash-lite";
 export const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-lite-image";
+/**
+ * Lyria 3 clip: a 30-second original instrumental (MP3, 44.1 kHz stereo, SynthID
+ * watermark). Called through the Interactions API, not generateContent.
+ */
+export const GEMINI_MUSIC_MODEL = "lyria-3-clip-preview";
 
 let client: GoogleGenAI | null = null;
 
@@ -32,5 +37,17 @@ export const ai = {
       },
     });
     return client.models;
+  },
+  /** Interactions API (used for music generation) */
+  get interactions() {
+    client ??= new GoogleGenAI({
+      apiKey: process.env.GEMINI_API_KEY || "",
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
+    return client.interactions;
   },
 };

@@ -20,6 +20,7 @@ import {
   GEMINI_FLASH_MODEL,
   GEMINI_FLASH_LITE_MODEL,
   GEMINI_IMAGE_MODEL,
+  GEMINI_MUSIC_MODEL,
 } from "./gemini.js";
 import {
   evaluateLayer2OffPlatformAttempt,
@@ -39,6 +40,7 @@ import {
   sanitizeEditPatch,
   type ViralEditSettings,
 } from "../src/remotion/viral/editSettings.js";
+import { buildMusicPrompt, musicLabel, sanitizeMusicMood } from "../src/remotion/viral/musicMood.js";
 import type { ViralAiHints } from "../src/remotion/viral/types.js";
 
 const app = express();
@@ -1217,6 +1219,65 @@ Rules:
   } catch (error) {
     console.error("Viral edit request failed:", error instanceof Error ? error.message : error);
     res.json({ patch: local(), source: "local", latencyMs: Date.now() - startTime });
+  }
+});
+
+// Background music from "a song you like" (/api/viral/music). The song is never sent to the
+// music model: the lite text model first describes its feel (genre, mood, tempo, energy,
+// instruments), musicMood.ts strips any word from the host's input, and Lyria makes a new
+// 30-second instrumental from that description. Returns the MP3 as base64 (~0.5 MB, well
+// under Vercel's 4.5 MB response limit). One call per tap, only when the host asks.
+app.post("/api/viral/music", async (req, res) => {
+  const startTime = Date.now();
+  const song = typeof req.body?.song === "string" ? req.body.song.trim().slice(0, 120) : "";
+  if (!song) {
+    res.status(400).json({ error: "Type a song you like." });
+    return;
+  }
+  if (!process.env.GEMINI_API_KEY) {
+    res.status(503).json({ error: "AI music isn't set up on this server." });
+    return;
+  }
+  try {
+    const described = await ai.models.generateContent({
+      model: GEMINI_FLASH_LITE_MODEL,
+      contents: `A host wants background music for a rental tour video with the same feel as this song: "${song}".
+Describe its musical feel only: genre (1-3 words), 1-3 mood words, tempo in BPM, energy (calm | medium | upbeat), and 1-4 instruments.
+If you don't know the song, infer a fitting feel from the words. Never include the song title, the artist, or lyrics in any field.`,
+      config: {
+        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            genre: { type: Type.STRING },
+            moods: { type: Type.ARRAY, items: { type: Type.STRING } },
+            bpm: { type: Type.NUMBER },
+            energy: { type: Type.STRING, enum: ["calm", "medium", "upbeat"] },
+            instruments: { type: Type.ARRAY, items: { type: Type.STRING } },
+          },
+          required: ["genre", "moods", "bpm", "energy", "instruments"],
+        },
+      },
+    });
+    const mood = sanitizeMusicMood(JSON.parse(described.text || "{}"), song);
+    const interaction = await ai.interactions.create({
+      model: GEMINI_MUSIC_MODEL,
+      input: buildMusicPrompt(mood),
+      store: false,
+    });
+    const audio = interaction.output_audio;
+    if (!audio?.data) throw new Error("No audio came back");
+    res.json({
+      audioBase64: audio.data,
+      mimeType: audio.mime_type || "audio/mpeg",
+      mood,
+      label: musicLabel(mood),
+      latencyMs: Date.now() - startTime,
+    });
+  } catch (error) {
+    console.error("Viral music failed:", error instanceof Error ? error.message : error);
+    res.status(502).json({ error: "We couldn't make music right now. Try another song or try again." });
   }
 });
 

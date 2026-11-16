@@ -13,12 +13,14 @@ import { NATURAL_LOOK, normalizeLook } from './look';
 import type { ClipAnalysis, ViralAiHints, ViralLength, ViralListingInfo, ViralLook, ViralPace, ViralStyleId } from './types';
 
 export type ViralMusicChoice = {
-  /** blob: URL of a track the host uploaded (saved with the listing) */
+  /** blob: URL of the track (AI-made or uploaded; saved with the listing) */
   src: string;
-  /** File name, shown in the editor */
+  /** Shown in the editor: a file name, or "Original track · synthwave · 96 BPM" */
   name: string;
   /** 0..1 */
   volume: number;
+  /** For AI tracks: the song the host typed, so they can see what it was based on */
+  inspiredBy?: string;
 };
 
 export type ViralEditSettings = {

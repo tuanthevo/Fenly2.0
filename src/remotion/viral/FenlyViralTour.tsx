@@ -206,6 +206,8 @@ const MusicBed: React.FC<{ plan: ViralEditPlan }> = ({ plan }) => {
     <Audio
       name="Music"
       src={music.src}
+      // AI tracks are 30 s clips and a full tour runs 30-45 s: loop rather than go silent
+      loop
       trimBefore={Math.round(music.startSec * fps)}
       volume={interpolate(frame, [0, 4, plan.totalFrames - 10, plan.totalFrames - 1], [0, music.volume, music.volume, 0], clamp)}
     />
