@@ -11,7 +11,6 @@ import {
 } from 'lucide-react';
 import { RoomListing, UserProfile } from '../types';
 import {
-  createInitialViralTourSlots,
   ViralTourSlotConfig,
   GeminiViralTourPlan,
   AiLoadedPictureInfo,
@@ -22,6 +21,12 @@ import {
   GuidedViralTourStudio,
   RecordedViralSlotMedia,
 } from './GuidedViralTourStudio';
+import { GuidedShotCapture } from './GuidedShotCapture';
+import {
+  createGuidedShotSlots,
+  canProceedWithShots,
+  MIN_SHOTS_TO_PROCEED,
+} from '../utils/guidedShots';
 
 interface PostRoomModalProps {
   isOpen: boolean;
@@ -67,9 +72,9 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
   const [aiGeneratedCopy, setAiGeneratedCopy] = useState<AiListingCopyOutput | null>(null);
   const [isGeneratingAiCopy, setIsGeneratingAiCopy] = useState<boolean>(false);
 
-  // Guided Viral Home Tour Studio state (5 slots + recorded/uploaded clips + Gemini plan)
+  // Guided 5-shot capture state (5 shots + recorded/uploaded clips + Gemini plan)
   const [viralSlots, setViralSlots] = useState<ViralTourSlotConfig[]>(() =>
-    createInitialViralTourSlots()
+    createGuidedShotSlots()
   );
   const [recordedViralMedia, setRecordedViralMedia] = useState<
     Record<number, RecordedViralSlotMedia>
@@ -77,21 +82,25 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
   const [generatedViralPlan, setGeneratedViralPlan] =
     useState<GeminiViralTourPlan | null>(null);
 
-  // Combine uploaded pictures + loaded 5-slot pictures
+  const hasEnoughShots = canProceedWithShots(recordedViralMedia);
+
+  // Combine uploaded pictures + frames from the captured guided shots
   const allLoadedPictures = useMemo<AiLoadedPictureInfo[]>(() => {
-    const slotPics: AiLoadedPictureInfo[] = viralSlots.map((slot) => {
+    const capturedSlots = viralSlots.filter((slot) => recordedViralMedia[slot.slotNumber]);
+    const slotPics: AiLoadedPictureInfo[] = capturedSlots.map((slot) => {
       const media = recordedViralMedia[slot.slotNumber];
-      const activeTitle =
-        slot.isSwapped && slot.alternateTitle ? slot.alternateTitle : slot.title;
+      const activeTitle = (
+        slot.isSwapped && slot.alternateTitle ? slot.alternateTitle : slot.title
+      ).replace(/^(Video|Shot) \d+:\s*/i, '');
       const activeSubtitle =
         slot.isSwapped && slot.alternateSubtitle
           ? slot.alternateSubtitle
           : slot.subtitle;
       return {
         id: slot.id,
-        label: `${activeTitle.replace(/^Video \d+:\s*/i, '')} (${activeSubtitle})`,
+        label: `${activeTitle} (${activeSubtitle})`,
         url: media?.thumbnailUrl || slot.sampleThumbnailUrl,
-        visualCue: `${activeTitle.replace(/^Video \d+:\s*/i, '')} — ${activeSubtitle}`,
+        visualCue: `${activeTitle} — ${activeSubtitle}`,
         base64Data: media?.inlineDataBase64,
         mimeType: media?.mimeType,
       };
@@ -235,10 +244,14 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
   };
 
   const publishListingWithPlan = (planOverride?: GeminiViralTourPlan | null) => {
+    if (!hasEnoughShots) return;
     const finalPlan = planOverride || generatedViralPlan;
-    const viralScenes = viralSlots.map((slot, idx) => {
+    const capturedSlots = viralSlots.filter((slot) => recordedViralMedia[slot.slotNumber]);
+    const viralScenes = capturedSlots.map((slot, idx) => {
       const media = recordedViralMedia[slot.slotNumber];
-      const clipPlan = finalPlan?.clips[idx];
+      const clipPlan =
+        finalPlan?.clips.find((c) => c.slotNumber === slot.slotNumber) || finalPlan?.clips[idx];
+      const isLastClip = idx === capturedSlots.length - 1;
       const activeTitle =
         slot.isSwapped && slot.alternateTitle ? slot.alternateTitle : slot.title;
       const featureCallout =
@@ -246,9 +259,8 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
           ? finalPlan?.feature_callouts?.[slot.slotNumber - 2]
           : undefined;
       return {
-        label: `Clip ${slot.slotNumber}/5 • ${activeTitle}`,
-        caption:
-          slot.slotNumber === 5
+        label: `Clip ${idx + 1}/${capturedSlots.length} • ${activeTitle}`,
+        caption: isLastClip
             ? finalPlan?.cta_overlay || "Tap 'Book Tour' to see it in person"
             : featureCallout || clipPlan?.overlay_badge || slot.movementBadge,
         imageUrl: media?.thumbnailUrl || slot.sampleThumbnailUrl,
@@ -257,12 +269,11 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
         trimEnd: clipPlan?.trim_end ?? 3.5,
         playbackSpeed: clipPlan?.playback_speed ?? (slot.pacerType === 'walking' ? 0.75 : 0.85),
         hookOverlay: finalPlan?.hook_overlay,
-        isCtaClip: slot.slotNumber === 5,
+        isCtaClip: isLastClip,
       };
     });
 
-    const firstVideoUrl =
-      recordedViralMedia[1]?.videoUrl || viralSlots[0].sampleVideoUrl;
+    const firstVideoUrl = viralScenes.find((s) => s.videoUrl)?.videoUrl || '';
 
     const finalTitle =
       effectiveTitle.trim() ||
@@ -758,8 +769,16 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
             )}
           </div>
 
-          {/* STEP 2: GUIDED VIRAL HOME TOUR STUDIO */}
+          {/* STEP 2: GUIDED 5-SHOT VIDEO CAPTURE */}
+          <GuidedShotCapture
+            recordedMedia={recordedViralMedia}
+            onUpdateRecordedMedia={setRecordedViralMedia}
+          />
+
+          {/* STEP 3: GEMINI VIRAL TOUR FROM THE CAPTURED SHOTS */}
           <GuidedViralTourStudio
+            hideCaptureControls
+            minClipsToGenerate={MIN_SHOTS_TO_PROCEED}
             monthlyRent={price}
             beds={beds}
             baths={baths}
@@ -779,11 +798,18 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
           <div className="p-3.5 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm">
             <button
               type="submit"
-              className="w-full py-3 bg-[#D06C4E] hover:bg-[#b85b3f] text-white font-extrabold text-xs rounded-xl shadow-warm-sm transition-all flex items-center justify-center gap-2 active:scale-95"
+              data-testid="publish-listing-btn"
+              disabled={!hasEnoughShots}
+              className="w-full py-3 bg-[#D06C4E] hover:bg-[#b85b3f] text-white font-extrabold text-xs rounded-xl shadow-warm-sm transition-all flex items-center justify-center gap-2 active:scale-95 disabled:bg-[#2C2724]/15 disabled:text-[#6E655F] disabled:shadow-none disabled:cursor-not-allowed disabled:active:scale-100"
             >
               <Upload className="w-4 h-4" />
               <span>Publish Listing to Feed</span>
             </button>
+            {!hasEnoughShots && (
+              <p className="text-[10px] text-center text-[#6E655F] mt-1.5">
+                Capture at least {MIN_SHOTS_TO_PROCEED} guided shots in Step 2 to publish.
+              </p>
+            )}
           </div>
         </form>
       </div>

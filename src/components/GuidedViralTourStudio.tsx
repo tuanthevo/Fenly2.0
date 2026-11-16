@@ -41,6 +41,8 @@ export interface RecordedViralSlotMedia {
   durationSec: number;
   inlineDataBase64?: string;
   mimeType?: string;
+  /** True when the source clip was horizontal and is center-cropped to 9:16 */
+  isLandscape?: boolean;
 }
 
 interface GuidedViralTourStudioProps {
@@ -59,6 +61,10 @@ interface GuidedViralTourStudioProps {
   generatedPlan: GeminiViralTourPlan | null;
   onUpdateGeneratedPlan: (plan: GeminiViralTourPlan | null) => void;
   onAttachAndPublishListing: (plan: GeminiViralTourPlan) => void;
+  /** Hide the built-in slot cards and camera when clips come from GuidedShotCapture */
+  hideCaptureControls?: boolean;
+  /** Clips needed before Gemini generation unlocks (default 5) */
+  minClipsToGenerate?: number;
 }
 
 export const GuidedViralTourStudio: React.FC<GuidedViralTourStudioProps> = ({
@@ -75,6 +81,8 @@ export const GuidedViralTourStudio: React.FC<GuidedViralTourStudioProps> = ({
   generatedPlan,
   onUpdateGeneratedPlan,
   onAttachAndPublishListing,
+  hideCaptureControls = false,
+  minClipsToGenerate = 5,
 }) => {
   // 1. Pre-Flight Checklist State
   const [preFlightChecked, setPreFlightChecked] = useState<boolean>(false);
@@ -122,7 +130,9 @@ export const GuidedViralTourStudio: React.FC<GuidedViralTourStudioProps> = ({
     slots.find((s) => s.slotNumber === activeCameraSlotNumber) || null;
 
   const completedSlotCount = Object.keys(recordedMedia).length;
-  const allFiveSlotsComplete = completedSlotCount >= 5;
+  // Named for the original 5-clip rule; the threshold is configurable
+  const allFiveSlotsComplete = completedSlotCount >= minClipsToGenerate;
+  const capturedSlots = slots.filter((s) => Boolean(recordedMedia[s.slotNumber]));
 
   // Helper to capture a JPEG frame + base64 from the current camera video element
   const captureVideoElementFrame = useCallback(
@@ -739,7 +749,7 @@ export const GuidedViralTourStudio: React.FC<GuidedViralTourStudioProps> = ({
     if (!allFiveSlotsComplete) return;
     setIsGeneratingTour(true);
     try {
-      const clipsMetadata = slots.map((s) => {
+      const clipsMetadata = capturedSlots.map((s) => {
         const media = recordedMedia[s.slotNumber];
         return {
           slotNumber: s.slotNumber,
@@ -765,7 +775,7 @@ export const GuidedViralTourStudio: React.FC<GuidedViralTourStudioProps> = ({
           neighborhood,
           city,
           amenities: amenities.slice(0, 2),
-          slots,
+          slots: capturedSlots,
           clipsMetadata,
         }),
       });
@@ -784,7 +794,7 @@ export const GuidedViralTourStudio: React.FC<GuidedViralTourStudioProps> = ({
           neighborhood,
           city,
           amenities,
-          slots,
+          slots: capturedSlots,
         });
         onUpdateGeneratedPlan(fallback);
         setActivePreviewClipIdx(0);
@@ -799,7 +809,7 @@ export const GuidedViralTourStudio: React.FC<GuidedViralTourStudioProps> = ({
         neighborhood,
         city,
         amenities,
-        slots,
+        slots: capturedSlots,
       });
       onUpdateGeneratedPlan(fallback);
       setActivePreviewClipIdx(0);
@@ -882,11 +892,14 @@ export const GuidedViralTourStudio: React.FC<GuidedViralTourStudioProps> = ({
               </span>
             </div>
             <p className="text-[11px] text-[#F9F7F3]/75">
-              5 vertical clips • 90° check-deposit alignment • Gemini 15-sec viral tour
+              {hideCaptureControls
+                ? 'Turns your guided shots into a Gemini 15-sec viral tour'
+                : '5 vertical clips • 90° check-deposit alignment • Gemini 15-sec viral tour'}
             </p>
           </div>
         </div>
 
+        {!hideCaptureControls && (
         <button
           type="button"
           data-testid="quick-fill-all-slots-btn"
@@ -896,8 +909,11 @@ export const GuidedViralTourStudio: React.FC<GuidedViralTourStudioProps> = ({
           <Upload className="w-3 h-3" />
           <span>Load 5 Desktop Test Clips</span>
         </button>
+        )}
       </div>
 
+      {!hideCaptureControls && (
+      <>
       {/* COMPONENT 1A: 1-TAP PRE-FLIGHT CHECKLIST BANNER */}
       <button
         type="button"
@@ -1080,6 +1096,8 @@ export const GuidedViralTourStudio: React.FC<GuidedViralTourStudioProps> = ({
           );
         })}
       </div>
+      </>
+      )}
 
       {/* COMPONENT 4A: GENERATE VIRAL HOME TOUR WITH GEMINI BUTTON */}
       <div className="pt-1">
@@ -1097,13 +1115,15 @@ export const GuidedViralTourStudio: React.FC<GuidedViralTourStudioProps> = ({
           <Sparkles className="w-4 h-4 shrink-0" />
           <span>
             {isGeneratingTour
-              ? 'Analyzing 5 Clips with Gemini 3.8 Flash...'
+              ? `Analyzing ${completedSlotCount} Clips with Gemini 3.8 Flash...`
               : 'Generate Viral Home Tour with Gemini'}
           </span>
         </button>
         {!allFiveSlotsComplete && (
           <p className="text-[10px] text-center text-zinc-400 mt-1.5">
-            Record or upload all 5 clips above (or click &ldquo;Load 5 Desktop Test Clips&rdquo;) to unlock Gemini generation.
+            {hideCaptureControls
+              ? `Capture at least ${minClipsToGenerate} guided shots above to unlock Gemini generation.`
+              : 'Record or upload all 5 clips above (or click “Load 5 Desktop Test Clips”) to unlock Gemini generation.'}
           </p>
         )}
       </div>
