@@ -983,7 +983,7 @@ app.post("/api/viral/copy", async (req, res) => {
       }
     }
     parts.push({
-      text: `You write on-screen text for a ~10 second vertical rental tour video (TikTok / Reels / Shorts).
+      text: `You write on-screen text for a 15-30 second vertical rental tour video (TikTok / Reels / Shorts).
 Listing facts:
 - Rent: ${rentLabel}
 - ${listing.beds} bed, ${listing.baths} bath, ${String(listing.roomType || "")}${listing.squareFeet ? `, ${listing.squareFeet} sq ft` : ""}
@@ -994,8 +994,9 @@ Each image above is the best frame of one guided shot. Return JSON:
 1. hookText: a headline of at most 64 characters that contains the exact rent "${rentLabel}" and the neighborhood "${neighborhood}". Example: "What ${rentLabel} gets you in ${neighborhood}".
 2. hookSlotNumber: the shot (one of ${slotNumbers.join(", ")}) that looks most striking as the opening frame.
 3. tags: for each shot, a 2-3 word callout naming something specific you can see ("Double vanity", "Walk-in closet"). Max 22 characters.
-4. perkLabel: a 2-3 word name for the standout perk in the last shot, if you can see it.
-5. warnings: only problems you can see in a frame: a person or the camera operator in a mirror, heavy clutter, a countertop or wall close-up with no room visible, a sideways frame, or very dark footage. Give a short, kind tip to fix it. Return an empty list if the frames look fine.
+4. details: for each shot, a second 2-3 word callout naming a different specific thing you can see in that frame ("Gas range", "Rain shower", "Big window"). Max 22 characters. Leave a shot out if nothing else clearly stands out; never guess at things you cannot see.
+5. perkLabel: a 2-3 word name for the standout perk in the last shot, if you can see it.
+6. warnings: only problems you can see in a frame: a person or the camera operator in a mirror, heavy clutter, a countertop or wall close-up with no room visible, a sideways frame, or very dark footage. Give a short, kind tip to fix it. Return an empty list if the frames look fine.
 Rules: no emoji; plain words; never describe who should or should not live there (no age, gender, family status, religion, nationality, disability, or "perfect for students / professionals / couples").`,
     });
 
@@ -1019,6 +1020,17 @@ Rules: no emoji; plain words; never describe who should or should not live there
                   tag: { type: Type.STRING },
                 },
                 required: ["slotNumber", "tag"],
+              },
+            },
+            details: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  slotNumber: { type: Type.INTEGER },
+                  detail: { type: Type.STRING },
+                },
+                required: ["slotNumber", "detail"],
               },
             },
             perkLabel: { type: Type.STRING },
@@ -1054,6 +1066,14 @@ Rules: no emoji; plain words; never describe who should or should not live there
       if (tag && slotNumbers.includes(t.slotNumber)) tags[t.slotNumber] = tag;
     }
     if (Object.keys(tags).length > 0) hints.tags = tags;
+    const details: Record<number, string> = {};
+    for (const d of Array.isArray(raw.details) ? raw.details : []) {
+      const detail = clean(d?.detail, 22);
+      if (detail && slotNumbers.includes(d.slotNumber) && detail.toLowerCase() !== (tags[d.slotNumber] || "").toLowerCase()) {
+        details[d.slotNumber] = detail;
+      }
+    }
+    if (Object.keys(details).length > 0) hints.details = details;
     const perk = clean(raw.perkLabel, 22);
     if (perk) hints.perkLabel = perk;
     const warnings: { slotNumber: number; tip: string }[] = [];

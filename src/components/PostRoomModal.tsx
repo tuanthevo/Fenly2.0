@@ -99,8 +99,9 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
       roomType,
       squareFeet: Number(squareFeet) || undefined,
       amenities: selectedAmenities,
+      leaseTerm,
     }),
-    [price, beds, baths, neighborhood, city, roomType, squareFeet, selectedAmenities]
+    [price, beds, baths, neighborhood, city, roomType, squareFeet, selectedAmenities, leaseTerm]
   );
   const [viralVideo, setViralVideo] = useState<ViralVideoResult | null>(null);
   const [retakeSlot, setRetakeSlot] = useState<number | null>(null);

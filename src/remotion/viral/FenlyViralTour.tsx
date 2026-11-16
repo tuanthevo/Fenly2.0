@@ -19,6 +19,7 @@ import { colorCorrection } from '@remotion/effects/color-correction';
 import { blur } from '@remotion/effects/blur';
 import { brandFont } from './fonts';
 import {
+  Callout,
   CloserReveal,
   EndCard,
   HookHeadline,
@@ -60,6 +61,51 @@ function gradeEffects(plan: ViralEditPlan, shot: ViralShot, blurRadius: number) 
   ];
 }
 
+/**
+ * The footage of one shot. With a speed ramp it is two back-to-back segments
+ * of the same clip: the ramp (fast, hidden under the incoming cut's motion
+ * blur) and the settle, which picks up exactly where the ramp left off.
+ */
+const ShotFootage: React.FC<{ plan: ViralEditPlan; shot: ViralShot; blurRadius: number }> = ({ plan, shot, blurRadius }) => {
+  const { fps } = useVideoConfig();
+  const trim = shot.srcStartSec * fps;
+  const common = {
+    src: shot.src,
+    volume: plan.audio.roomSoundVolume,
+    objectFit: 'cover' as const,
+    style: { width: '100%', height: '100%' },
+    maxCanvasSinkFrameSize: { width: 1280, height: 1280 },
+    effects: gradeEffects(plan, shot, blurRadius),
+  };
+  if (shot.rampFrames <= 0) {
+    return (
+      <Video
+        {...common}
+        name={`${shot.room} footage`}
+        trimBefore={Math.round(trim)}
+        playbackRate={shot.playbackRate}
+        muted={!plan.audio.keepRoomSound}
+      />
+    );
+  }
+  return (
+    <>
+      <Sequence name="Speed ramp" durationInFrames={shot.rampFrames}>
+        <Video {...common} name={`${shot.room} ramp`} trimBefore={Math.round(trim)} playbackRate={shot.rampRate} muted />
+      </Sequence>
+      <Sequence name="Settle" from={shot.rampFrames} premountFor={Math.min(shot.rampFrames, 15)}>
+        <Video
+          {...common}
+          name={`${shot.room} footage`}
+          trimBefore={Math.round(trim + shot.rampFrames * shot.rampRate)}
+          playbackRate={shot.playbackRate}
+          muted={!plan.audio.keepRoomSound}
+        />
+      </Sequence>
+    </>
+  );
+};
+
 const ShotLayer: React.FC<{
   plan: ViralEditPlan;
   shot: ViralShot;
@@ -67,7 +113,6 @@ const ShotLayer: React.FC<{
   outKind: ViralCutKind | null;
 }> = ({ plan, shot, inKind, outKind }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
   const d = shot.durationInFrames;
 
   // Motion blur while a whip / zoom transition is moving this shot
@@ -81,33 +126,29 @@ const ShotLayer: React.FC<{
       : 0;
   const blurRadius = Math.max(blurIn, blurOut);
 
-  // Slow push-in keeps every shot moving; the hook starts a little tighter
+  // Slow push-in keeps every shot moving. The opener starts tight and settles
+  // while the headline is up, then pushes in again under the facts.
+  const hookExit = Math.max(1, Math.min(d, plan.hookExitFrame - shot.startFrame));
   const zoom =
     shot.role === 'hook'
-      ? interpolate(frame, [0, d], [1.12, 1.03], { ...clamp, easing: Easing.bezier(0.33, 0, 0.67, 1) })
-      : interpolate(frame, [0, d], [1, 1.07], clamp);
+      ? frame < hookExit
+        ? interpolate(frame, [0, hookExit], [1.12, 1], { ...clamp, easing: Easing.bezier(0.33, 0, 0.67, 1) })
+        : interpolate(frame, [hookExit, d], [1, 1.06], clamp)
+      : interpolate(frame, [0, d], [1, 1.08], clamp);
 
   const endCardLocal = plan.endCard.fromFrame - shot.startFrame;
 
   return (
     <AbsoluteFill style={{ backgroundColor: FENN.espresso, overflow: 'hidden' }}>
       <AbsoluteFill style={{ scale: zoom }}>
-        <Video
-          name={`${shot.room} footage`}
-          src={shot.src}
-          trimBefore={Math.round(shot.srcStartSec * fps)}
-          playbackRate={shot.playbackRate}
-          muted={!plan.audio.keepRoomSound}
-          volume={plan.audio.roomSoundVolume}
-          objectFit="cover"
-          style={{ width: '100%', height: '100%' }}
-          maxCanvasSinkFrameSize={{ width: 1280, height: 1280 }}
-          effects={gradeEffects(plan, shot, blurRadius)}
-        />
+        <ShotFootage plan={plan} shot={shot} blurRadius={blurRadius} />
       </AbsoluteFill>
       {shot.role === 'tour' && shot.tag ? (
         <RoomTag text={shot.tag} inFrame={shot.tagInFrame} outFrame={d - shot.outOverlapFrames - 1} />
       ) : null}
+      {shot.callouts.map((c, i) => (
+        <Callout key={`${c.text}-${i}`} text={c.text} kind={c.kind} inFrame={c.inFrame} outFrame={c.outFrame} row={c.row} />
+      ))}
       {shot.role === 'closer' && shot.tag ? (
         <CloserReveal kicker={shot.kicker} label={shot.tag} inFrame={shot.tagInFrame} outFrame={endCardLocal} />
       ) : null}

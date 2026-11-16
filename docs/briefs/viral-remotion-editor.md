@@ -92,7 +92,7 @@ rules without updating its tests.
 2. Temporarily set `USE_LOCAL_SAMPLES = true` and those durations in `sample.ts`.
    Revert before committing.
 3. `npm run remotion:studio`: scrub the timeline. `npm run remotion:render`, then
-   check with ffprobe: 1080x1920, 30 fps, about 10 s, AAC audio.
+   check with ffprobe: 1080x1920, 30 fps, about 25-30 s (full tour), AAC audio.
 4. Pull frames at 0 s, 1 s, 3 s, 4.5 s, 7 s, 8.8 s and the last frame. Compare them
    with the preview and check:
    - Portrait clips are upright, not sideways (rotation metadata).
@@ -152,7 +152,7 @@ Roll" with the 5 samples → Step 3. Check each of these:
 - The analysis finishes and the Player loops.
 - Switching style and pace updates the Player.
 - Editing a callout updates the video.
-- "Make my video" produces an MP4 that plays at 1080x1920, about 10 s.
+- "Make my video" produces an MP4 that plays at 1080x1920, about 25-30 s (full tour) or ~13 s (teaser).
 - "Use this video on my listing" then Publish plays the MP4 in the feed.
 - No console errors.
 - No `GEMINI` value anywhere in `dist/` after `npm run build` (the vite plugin enforces this).
@@ -166,7 +166,7 @@ and any API fixes from step 2.
 ## Done when
 
 - [ ] All Remotion packages on one version; `npm run lint` and the tests pass.
-- [ ] `remotion render` makes a ~10 s 1080x1920 video from the 5 sample clips.
+- [ ] `remotion render` makes a ~25-30 s 1080x1920 video from the 5 sample clips.
       Upright footage, text inside the safe zone, frame 0 matches the last frame.
 - [ ] Create Listing Step 3 shows the editor and the live Player. Style, pace,
       callout and opener changes update the preview.

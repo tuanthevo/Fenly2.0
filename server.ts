@@ -10,6 +10,7 @@
  */
 import dotenv from "dotenv";
 import express from "express";
+import http from "http";
 import path from "path";
 import apiApp from "./server/app.js";
 
@@ -24,11 +25,20 @@ async function startServer() {
 
   // API routes first, so /api/* never falls through to the frontend.
   app.use(apiApp);
+  const httpServer = http.createServer(app);
 
   if (!isProduction) {
     const { createServer: createViteServer } = await import("vite");
+    // Live reload runs over this same port. Without it the page never hears
+    // Vite's "dependencies re-bundled, reload" message and can go blank.
+    // AI Studio sets DISABLE_HMR=true, which turns it off completely.
+    const liveReload = process.env.DISABLE_HMR !== "true";
     const vite = await createViteServer({
-      server: { middlewareMode: true, hmr: false },
+      server: {
+        middlewareMode: true,
+        hmr: liveReload,
+        ws: liveReload ? { server: httpServer } : false,
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -40,7 +50,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Fenly full-stack server running on http://localhost:${PORT}`);
   });
 }

@@ -8,6 +8,7 @@ import {
   computeFrameSignals,
   exposureBoostForLuma,
   findBestWindow,
+  findCleanRange,
 } from './clipSignals';
 import type { ClipSample } from './types';
 
@@ -148,4 +149,45 @@ test('clips shorter than the window still get a window', () => {
   const short = samples.slice(0, 5);
   const { window } = findBestWindow(short, { sampleFps: 6 });
   assert.equal(window.startSec, 0);
+});
+
+test('the clean range grows the best window back to where the room comes into view', () => {
+  // [start, end] of usable footage, read off the real clips frame by frame
+  const expected: Record<string, [number, number]> = {
+    kitchen: [2.667, 8.667], // the slat-wall whip ends at ~2.6 s
+    bedroom: [4.167, 9.0], // opens on the door frame for 4 s
+    bathroom: [2.167, 8.5],
+    closet: [1.333, 6.0],
+    living: [2.833, 5.833], // stucco wall, then a pan, for ~2.8 s
+  };
+  for (const [name, [start, end]] of Object.entries(expected)) {
+    const { samples, durationSec } = samplesOf(name);
+    const a = analyzeSamples(samples, durationSec, { sampleFps: 6 });
+    assert.ok(Math.abs(a.clean!.startSec - start) < 0.01, `${name} clean from ${a.clean!.startSec}`);
+    assert.ok(Math.abs(a.clean!.endSec - end) < 0.01, `${name} clean to ${a.clean!.endSec}`);
+    assert.ok(a.clean!.startSec <= a.best.startSec && a.clean!.endSec >= a.best.endSec - 1e-9);
+    assert.ok(a.clean!.meanMotion! > 0.02 && a.clean!.meanMotion! < 0.12, `${name} motion ${a.clean!.meanMotion}`);
+  }
+  // The slow bedroom walk moves less than the brisk bathroom walk (speeds get matched in plan.ts)
+  const motion = (name: string) => {
+    const { samples, durationSec } = samplesOf(name);
+    return analyzeSamples(samples, durationSec, { sampleFps: 6 }).clean!.meanMotion!;
+  };
+  assert.ok(motion('bedroom') < motion('bathroom') / 2);
+});
+
+test('a clean range never reaches into a blank wall, and needs no usable frames to exist', () => {
+  const samples: ClipSample[] = Array.from({ length: 24 }, (_, i) => ({
+    t: i / 6,
+    luma: 0.7,
+    detail: 0.006,
+    structure: 0.01,
+    corr: 0,
+    motion: 0.004,
+    balance: 0.2,
+  }));
+  const { window } = findBestWindow(samples, { sampleFps: 6 });
+  const clean = findCleanRange(samples, window, 4, { sampleFps: 6 });
+  assert.equal(clean.startSec, window.startSec);
+  assert.equal(clean.endSec, window.endSec);
 });

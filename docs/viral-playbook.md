@@ -10,7 +10,8 @@ that already works.
 
 | Signal | What it means for us | Source |
 | --- | --- | --- |
-| Finishing a video is one of TikTok's strongest interest signals | Keep it short (≈10 s) and loop it, so completion and rewatches are high | [TikTok Newsroom: How TikTok recommends videos](https://newsroom.tiktok.com/en-us/how-tiktok-recommends-videos-for-you/) |
+| Finishing a video is one of TikTok's strongest interest signals | Every section earns its seconds, and the end loops back to frame 0 so finishing and rewatching are easy | [TikTok Newsroom: How TikTok recommends videos](https://newsroom.tiktok.com/en-us/how-tiktok-recommends-videos-for-you/) |
+| Length: 2026 data favors ~20-35 s for a tour. TikTok videos around 30 s get the highest engagement rate; Reels of 30-60 s get the highest reach; real-estate guides land on 20-30 s for listing Reels. 7-10 s clips finish more often but give the algorithm far less watch time per view | Default to a ~25-30 s **full tour**; keep a ~13 s **teaser** for a second post or Stories | [Socialinsider: TikTok length](https://www.socialinsider.io/blog/how-long-are-tiktok-videos/), [Socialinsider: Reels statistics 2026](https://socialinsider.io/blog/instagram-reels-statistics/), [Typito: listing Reels](https://dunphy.typito.com/blog/how-to-create-instagram-reels-for-property-listings), [OpusClip: TikTok retention](https://www.opus.pro/blog/tiktok-length-format-retention-data), [ttcalculator: completion vs. watch time](https://ttcalculator.net/data/engagement/completion-rate-by-video-length/) |
 | Instagram ranks Reels by how likely people are to reshare and to watch to the end | Same: short, loopable, worth sending to a friend | [Open Influence summary of Mosseri's ranking post](https://openinfluence.com/?p=27806) |
 | Instagram won't recommend posts that explicitly ask for shares, comments or tags | End on a genuine question ("Would you pay $1,450/mo for this?"), never "comment YES" | [Social Media Today](https://www.socialmediatoday.com/news/instagram-says-using-certain-ctas-can-impact-post-reach/717732/), [clarification](https://www.socialmediatoday.com/news/instagram-clarifies-advice-on-single-word-ctas-and-longer-reels/718151/) |
 | Eligible Reels are original and have no visible watermarks (your own logo is fine) | Export a clean MP4 and upload it to each app; never repost a TikTok download | [Instagram: Recommendations and originality](https://creators.instagram.com/recommendations-and-originality), [Mosseri on own logos](https://www.socialmediatoday.com/news/instagram-clarifies-that-including-your-own-logo-on-a-reel-is-ok/730852/) |
@@ -36,14 +37,35 @@ that already works.
   ([revid TikTok safe-zone checker](https://www.revid.ai/tiktok-safe-zone),
   [cross-platform guide](https://wildandfreetools.com/blog/vertical-video-safe-zones-guide-2026/))
 
+## Section timing (full tour, balanced pace, 5 guided 7 s shots ≈ 27 s)
+
+| Section | Length | Speed | What's on screen | Why |
+| --- | --- | --- | --- | --- |
+| Hook | headline reading time: 1.2 s + 0.22 s/word, 2.5-3.2 s (≈2.7 s for "What $1,450/mo gets you in Mission District") | 1.0x, no ramp | best frame of the best shot, price + place headline, slow settle from 1.12x zoom | viewers decide in 0-3 s; frame 0 is also the cover |
+| Answer | ≈3 s, same shot keeps rolling | 1.0x (0.85x if footage is short) | "1 bed · 1 bath", "220 sq ft", best amenity, popping in 0.2 s apart; price chip appears | pays off the hook's question right away |
+| Each room | ≈5 s (shorter when the clip has less clean footage, never under 2.6 s) | 2x ramp for the first ~11 frames (under the whip/zoom cut), then matched to camera movement, 0.95-1.35x | room tag at 0.3 s, a second callout at ~2.3 s | something new every ~2 s; a slow shuffle is sped up, a brisk walk stays near real time |
+| Re-hook | 1.2 s, on the room nearest 45% of the runtime | | "Wait for the best part" | carries viewers through the mid-video dip |
+| Perk | ≈3.4 s | 2x ramp into 0.85x slow motion | "THE BEST PART" + the perk, big | the payoff gets the slow, readable moment |
+| End card | ≈3.2 s | footage keeps rolling (may hold its last frame here only) | price question, place, specs, "Tour it on Fenn" | ~10 words need ~3 s to read |
+| Loop | last ~0.3 s | | the opening shot fades back in | the replay starts seamlessly |
+
+Pace scales the sections: snappy ×0.85 (≈24 s), relaxed ×1.15 (≈31 s). The
+teaser keeps the hook (≈2.3 s) and runs ~2.2 s rooms at 1.1-1.6x (≈13 s).
+Guided shots record 7 s so each room has ~5 s of clean footage after the
+tap-to-record shake.
+
 ## Rules → code
 
 | Rule | Implementation |
 | --- | --- |
 | Best shot first; price + neighborhood headline fully visible on frame 0 (also the cover) | `plan.ts` `pickHookSlot`, `overlays.tsx` `HookTitle` |
 | Hook styles: price hook, guess the rent (price hidden until the end card), POV | `copy.ts` `defaultHook`, `STYLE_INFO` |
-| ≈10 s total; a new room every ~1.35 s; hero shots 1.0x, rooms 1.35x | `plan.ts` `PACE_PRESETS`, `SPEED` |
+| Section lengths and speeds above; full tour (default) or teaser | `plan.ts` `LENGTH_PRESETS`, `PACE_PRESETS`, `hookReadSec` |
+| Sections shrink to the clean footage a clip has instead of slowing to a crawl or showing a wall | `plan.ts` `fitSource`, `clipSignals.ts` `findCleanRange` |
+| Room speed matched to camera movement | `plan.ts` `motionMatchedRate` (uses the analysis' `meanMotion`) |
+| Speed ramp into rooms and the perk | `FenlyViralTour.tsx` `ShotFootage` (two back-to-back segments of the same clip) |
 | Cleanest stretch of each clip (no wall, no door edge, no whip pan), auto-brightened | `clipSignals.ts` (tuned on real phone clips, see the fixture test) |
+| Listing facts answer the hook; a second callout per room (Gemini sees the frame, else listing facts and the lease) | `copy.ts` `heroFacts`, `listingFacts`; `overlays.tsx` `Callout`; `/api/viral/copy` `details` |
 | Whip / zoom transitions with motion blur, a light-leak hit on the payoff | `transitions.tsx`, `FenlyViralTour.tsx` `ShotLayer` |
 | 2-3 word room callouts, readable in a second with the sound off | `copy.ts` `cleanTag`, `overlays.tsx` `RoomTag` |
 | Mid-video open loop ("Wait for the best part") | `plan.ts` `rehook`, `overlays.tsx` `ReHook` |

@@ -14,7 +14,7 @@ import {
   Wand2,
 } from 'lucide-react';
 import { FenlyViralTour } from '../remotion/viral/FenlyViralTour';
-import { PACE_PRESETS, buildViralEditPlan } from '../remotion/viral/plan';
+import { LENGTH_PRESETS, PACE_PRESETS, buildViralEditPlan } from '../remotion/viral/plan';
 import { STYLE_INFO, violatesFairHousing, MAX_HOOK_CHARS, MAX_TAG_CHARS } from '../remotion/viral/copy';
 import { analyzeClipInBrowser } from '../remotion/viral/analyzeClipInBrowser';
 import { fetchViralAiHints } from '../remotion/viral/aiCopy';
@@ -29,6 +29,7 @@ import type {
   ViralAiHints,
   ViralClipInput,
   ViralEditPlan,
+  ViralLength,
   ViralListingInfo,
   ViralPace,
   ViralStyleId,
@@ -99,10 +100,10 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
   );
   const clipKey = clips.map((c) => c.src).join('|');
 
-  // Local clip analysis (runs on the device, one clip at a time)
+  // Local clip analysis (runs on the device, two clips at a time)
   const analysisCache = useRef(new Map<string, ClipAnalysis | null>());
   const [analysisVersion, setAnalysisVersion] = useState(0);
-  const [analyzing, setAnalyzing] = useState<{ index: number; total: number; fraction: number } | null>(null);
+  const [analyzing, setAnalyzing] = useState<{ done: number; total: number; fraction: number } | null>(null);
 
   useEffect(() => {
     const pending = clips.filter((c) => !analysisCache.current.has(c.src));
@@ -111,20 +112,37 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
       return;
     }
     const controller = new AbortController();
-    (async () => {
-      for (let i = 0; i < pending.length; i++) {
-        if (controller.signal.aborted) return;
-        setAnalyzing({ index: i, total: pending.length, fraction: 0 });
+    const fractions = pending.map(() => 0);
+    let finished = 0;
+    const report = () =>
+      setAnalyzing({
+        done: finished,
+        total: pending.length,
+        fraction: fractions.reduce((a, b) => a + b, 0) / pending.length,
+      });
+    report();
+    let next = 0;
+    const worker = async () => {
+      while (!controller.signal.aborted && next < pending.length) {
+        const i = next++;
         const result = await analyzeClipInBrowser(pending[i].src, {
           signal: controller.signal,
-          onProgress: (fraction) => setAnalyzing({ index: i, total: pending.length, fraction }),
+          onProgress: (fraction) => {
+            fractions[i] = fraction;
+            report();
+          },
         });
         if (controller.signal.aborted) return;
         analysisCache.current.set(pending[i].src, result);
+        fractions[i] = 1;
+        finished += 1;
+        report();
         setAnalysisVersion((v) => v + 1);
       }
-      setAnalyzing(null);
-    })();
+    };
+    Promise.all([worker(), worker()]).then(() => {
+      if (!controller.signal.aborted) setAnalyzing(null);
+    });
     return () => controller.abort();
     // clipKey changes whenever a shot is added, replaced or retaken
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -158,10 +176,12 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
 
   // Host choices
   const [style, setStyle] = useState<ViralStyleId>('price-hook');
+  const [length, setLength] = useState<ViralLength>('full');
   const [pace, setPace] = useState<ViralPace>('balanced');
   const [hookSlot, setHookSlot] = useState<number | null>(null);
   const [hookDraft, setHookDraft] = useState<string | null>(null);
   const [tagEdits, setTagEdits] = useState<Record<number, string>>({});
+  const [detailEdits, setDetailEdits] = useState<Record<number, string>>({});
   const [sfxOn, setSfxOn] = useState(true);
   const [roomSound, setRoomSound] = useState(false);
   const [effectsOn] = useState(supportsWebGL2);
@@ -178,10 +198,12 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
         },
         {
           style,
+          length,
           pace,
           hookSlotNumber: hookSlot,
           hookTextOverride: hookDraft,
           tagOverrides: tagEdits,
+          detailOverrides: detailEdits,
           ai: activeHints,
           sfx: sfxOn,
           keepRoomSound: roomSound,
@@ -193,7 +215,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
     }
     // analysisVersion tells us the cache changed
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clips, listing, style, pace, hookSlot, hookDraft, tagEdits, activeHints, sfxOn, roomSound, effectsOn, analysisVersion]);
+  }, [clips, listing, style, length, pace, hookSlot, hookDraft, tagEdits, detailEdits, activeHints, sfxOn, roomSound, effectsOn, analysisVersion]);
 
   const planKey = useMemo(() => (plan ? JSON.stringify(plan) : ''), [plan]);
 
@@ -270,6 +292,9 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
   const hookValue = hookDraft ?? plan.hook.text;
   const hookNeedsCare = hookDraft !== null && violatesFairHousing(hookDraft);
   const retakeWarnings = plan.warnings.filter((w) => w.severity === 'retake');
+  const aiCopyUsed = Boolean(
+    activeHints && (activeHints.hookText || Object.keys(activeHints.tags ?? {}).length || Object.keys(activeHints.details ?? {}).length)
+  );
   const fixedWarnings = plan.warnings.filter((w) => w.severity === 'fixed');
 
   return (
@@ -296,7 +321,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
             analyzing ? 'bg-[#F2EFE9] text-[#6E655F]' : 'bg-[#E8EFE9] text-[#485B4A]'
           }`}
         >
-          {analyzing ? `Checking shot ${analyzing.index + 1}/${analyzing.total}` : 'Ready'}
+          {analyzing ? `Checking shots ${analyzing.done}/${analyzing.total}` : 'Ready'}
         </span>
       </div>
 
@@ -309,7 +334,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
           <div className="h-1.5 rounded-full bg-[#2C2724]/10 overflow-hidden">
             <div
               className="h-full bg-[#D06C4E] transition-all"
-              style={{ width: `${Math.round(((analyzing.index + analyzing.fraction) / analyzing.total) * 100)}%` }}
+              style={{ width: `${Math.round(analyzing.fraction * 100)}%` }}
             />
           </div>
         </div>
@@ -423,6 +448,39 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
             Tip: describe the place, not who should live there (fair-housing rules for rental ads).
           </p>
         )}
+        {aiCopyUsed && hookDraft === null && (
+          <p data-testid="viral-ai-copy-note" className="text-[10px] font-semibold text-[#485B4A] flex items-center gap-1">
+            <Sparkles className="w-3 h-3 shrink-0" />
+            AI looked at your shots and wrote the callouts{style === 'price-hook' && activeHints?.hookText ? ' and hook' : ''}.
+          </p>
+        )}
+      </div>
+
+      {/* Length */}
+      <div className="space-y-1.5">
+        <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#6E655F]">Length</span>
+        <div className="grid grid-cols-2 gap-1.5">
+          {(Object.keys(LENGTH_PRESETS) as ViralLength[]).map((id) => (
+            <button
+              key={id}
+              type="button"
+              data-testid={`viral-length-${id}`}
+              onClick={() => setLength(id)}
+              className={`py-1.5 px-1 rounded-xl text-[10px] font-extrabold border transition-all active:scale-95 ${
+                length === id
+                  ? 'bg-[#2C2724] text-[#F9F7F3] border-[#2C2724]'
+                  : 'bg-[#F9F7F3] text-[#2C2724] border-[#2C2724]/20 hover:bg-[#F2EFE9]'
+              }`}
+            >
+              {LENGTH_PRESETS[id].label} · {LENGTH_PRESETS[id].approxLabel}
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] text-[#6E655F] leading-snug">
+          {length === 'full'
+            ? 'Every room gets about 5 seconds, with facts and a perk reveal. Best for TikTok and Reels.'
+            : 'A quick loop of every room. Good for a second post or Stories.'}
+        </p>
       </div>
 
       {/* Pace */}
@@ -469,15 +527,29 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
               {shot.role === 'hook' ? (
                 <p className="text-[10px] text-[#6E655F]">Shows the hook headline</p>
               ) : (
-                <input
-                  data-testid={`viral-tag-input-${shot.slotNumber}`}
-                  value={tagEdits[shot.slotNumber] ?? shot.tag}
-                  maxLength={MAX_TAG_CHARS}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    setTagEdits((prev) => ({ ...prev, [shot.slotNumber]: e.target.value }))
-                  }
-                  className="w-full mt-0.5 px-2 py-1 rounded-lg border border-[#2C2724]/15 bg-white text-[10px] font-bold text-[#2C2724] uppercase focus:outline-none focus:border-[#D06C4E]"
-                />
+                <>
+                  <input
+                    data-testid={`viral-tag-input-${shot.slotNumber}`}
+                    value={tagEdits[shot.slotNumber] ?? shot.tag}
+                    maxLength={MAX_TAG_CHARS}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setTagEdits((prev) => ({ ...prev, [shot.slotNumber]: e.target.value }))
+                    }
+                    className="w-full mt-0.5 px-2 py-1 rounded-lg border border-[#2C2724]/15 bg-white text-[10px] font-bold text-[#2C2724] uppercase focus:outline-none focus:border-[#D06C4E]"
+                  />
+                  {shot.role === 'tour' && length === 'full' && (
+                    <input
+                      data-testid={`viral-detail-input-${shot.slotNumber}`}
+                      value={detailEdits[shot.slotNumber] ?? shot.callouts.find((c) => c.row === 1)?.text ?? ''}
+                      placeholder="Second callout (optional)"
+                      maxLength={MAX_TAG_CHARS}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setDetailEdits((prev) => ({ ...prev, [shot.slotNumber]: e.target.value }))
+                      }
+                      className="w-full mt-1 px-2 py-1 rounded-lg border border-dashed border-[#2C2724]/20 bg-white text-[10px] font-bold text-[#6E655F] uppercase placeholder:normal-case placeholder:font-semibold focus:outline-none focus:border-[#D06C4E]"
+                    />
+                  )}
+                </>
               )}
             </div>
             {shot.role !== 'hook' && (

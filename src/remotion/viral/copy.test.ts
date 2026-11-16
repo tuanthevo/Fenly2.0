@@ -1,8 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  bedBathLabel,
   cleanTag,
   defaultHook,
+  heroFacts,
+  leaseFact,
+  listingFacts,
   defaultTags,
   hashtagsFor,
   hookFontSizeFor,
@@ -86,4 +90,26 @@ test('fair-housing guard catches who-should-live-here phrasing only', () => {
 test('five unique hashtags', () => {
   const tags = hashtagsFor(listing);
   assert.deepEqual(tags, ['#EchoPark', '#LosAngelesApartments', '#ApartmentForRent', '#ApartmentTour', '#FennRentals']);
+});
+
+test('listing facts for the full tour: beds and baths, size, amenities, then the lease', () => {
+  const room: ViralListingInfo = {
+    monthlyRent: 1450,
+    beds: '1',
+    baths: 1,
+    neighborhood: 'Mission District',
+    city: 'San Francisco',
+    squareFeet: 220,
+    amenities: ['Private Bath', 'In-Unit W/D', 'High-Speed WiFi', 'Utilities Included'],
+    leaseTerm: '6 Months',
+  };
+  assert.equal(bedBathLabel(room), '1 bed · 1 bath');
+  assert.equal(bedBathLabel({ ...room, beds: 2, baths: 1.5 }), '2 beds · 1.5 baths');
+  assert.equal(bedBathLabel({ ...room, beds: 'Studio' }), 'Studio · 1 bath');
+  assert.deepEqual(heroFacts(room, ['In-unit laundry', 'Private bath']), ['1 bed · 1 bath', '220 sq ft', 'Utilities included']);
+  assert.deepEqual(heroFacts({ ...room, squareFeet: undefined, amenities: [] }), ['1 bed · 1 bath', '6-month lease']);
+  assert.deepEqual(listingFacts(room, ['Utilities included', 'In-unit laundry', 'Private bath']), ['Fast WiFi', '6-month lease']);
+  assert.equal(leaseFact({ ...room, leaseTerm: '12+ Months' }), '12+ month lease');
+  assert.equal(leaseFact({ ...room, leaseTerm: 'Month-to-month' }), 'Month-to-month');
+  assert.equal(leaseFact({ ...room, leaseTerm: undefined }), '');
 });

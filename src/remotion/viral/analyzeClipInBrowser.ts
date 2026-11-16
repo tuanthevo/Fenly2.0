@@ -42,20 +42,29 @@ function once(target: HTMLVideoElement, event: string, timeoutMs: number): Promi
   });
 }
 
-async function seek(video: HTMLVideoElement, t: number): Promise<void> {
+/**
+ * Waiting for the presented frame matters on iOS Safari, where requestVideoFrameCallback
+ * fires after a seek. Chrome draws the new frame as soon as 'seeked' fires and never
+ * calls back for a paused seek, so after two misses we stop waiting (each miss costs
+ * 120 ms; it used to make analysis take ~30 s for five clips).
+ */
+type FrameWait = { enabled: boolean; misses: number };
+
+async function seek(video: HTMLVideoElement, t: number, frameWait: FrameWait): Promise<void> {
   if (Math.abs(video.currentTime - t) < 0.001 && video.readyState >= 2) return;
   const seeked = once(video, 'seeked', SEEK_TIMEOUT_MS);
   video.currentTime = t;
   await seeked;
-  // Make sure the decoded frame is actually presented before we read it
   const withFrameCallback = video as HTMLVideoElement & {
     requestVideoFrameCallback?: (cb: () => void) => number;
   };
-  if (typeof withFrameCallback.requestVideoFrameCallback === 'function') {
-    await Promise.race([
-      new Promise<void>((resolve) => withFrameCallback.requestVideoFrameCallback!(() => resolve())),
-      new Promise<void>((resolve) => window.setTimeout(resolve, 120)),
+  if (frameWait.enabled && typeof withFrameCallback.requestVideoFrameCallback === 'function') {
+    const result = await Promise.race([
+      new Promise<'frame'>((resolve) => withFrameCallback.requestVideoFrameCallback!(() => resolve('frame'))),
+      new Promise<'timeout'>((resolve) => window.setTimeout(() => resolve('timeout'), 120)),
     ]);
+    if (result === 'frame') frameWait.misses = 0;
+    else if (++frameWait.misses >= 2) frameWait.enabled = false;
   }
 }
 
@@ -99,10 +108,11 @@ export async function analyzeClipInBrowser(
     const count = Math.max(1, Math.floor(usable * fps));
     const samples: ClipSample[] = [];
     let prev: FrameState | null = null;
+    const frameWait: FrameWait = { enabled: true, misses: 0 };
     for (let i = 0; i < count; i++) {
       if (options.signal?.aborted) return null;
       const t = Math.min(i / fps, Math.max(0, duration - 0.05));
-      await seek(video, t);
+      await seek(video, t, frameWait);
       ctx.drawImage(video, sx, sy, sw, sh, 0, 0, SAMPLE_W, SAMPLE_H);
       const { data } = ctx.getImageData(0, 0, SAMPLE_W, SAMPLE_H);
       const { signals, state } = computeFrameSignals(data, prev);

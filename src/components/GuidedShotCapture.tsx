@@ -624,7 +624,7 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
               data-testid="guided-camera-shutter-btn"
               onClick={handleRecordTap}
               disabled={phase !== 'ready'}
-              aria-label="Start 3-2-1 countdown and record 4.5 seconds"
+              aria-label={`Start 3-2-1 countdown and record ${GUIDED_RECORDING_MS / 1000} seconds`}
               className="w-[72px] h-[72px] rounded-full border-4 border-white flex items-center justify-center disabled:opacity-50 transition-transform active:scale-90"
             >
               <span
@@ -635,7 +635,7 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
             </button>
             <span className="text-[11px] font-bold text-[#F9F7F3]/75">
               {phase === 'ready'
-                ? 'Tap to start • 3-2-1, then 4.5s auto-stop'
+                ? `Tap to start • 3-2-1, then ${GUIDED_RECORDING_MS / 1000}s auto-stop`
                 : phase === 'recording'
                 ? 'Stops automatically'
                 : ' '}
@@ -857,7 +857,7 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
           <div>
             <h4 className="font-extrabold text-xs text-[#2C2724]">Guided 5-Shot Video</h4>
             <p className="text-[10px] text-[#6E655F]">
-              Never filmed a room before? Follow each card. 4 seconds per shot.
+              Never filmed a room before? Follow each card. {GUIDED_RECORDING_MS / 1000} seconds per shot.
             </p>
           </div>
         </div>
@@ -1001,7 +1001,9 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
                   ) : (
                     <Camera className="w-3.5 h-3.5 shrink-0" />
                   )}
-                  <span>{isDone ? 'Retake Guided 4s Clip' : 'Record Guided 4s Clip'}</span>
+                  <span>
+                    {isDone ? 'Retake' : 'Record'} Guided {GUIDED_RECORDING_MS / 1000}s Clip
+                  </span>
                 </button>
                 <button
                   type="button"

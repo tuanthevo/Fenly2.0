@@ -9,6 +9,8 @@
 
 export type ViralStyleId = 'price-hook' | 'guess-rent' | 'pov';
 export type ViralPace = 'snappy' | 'balanced' | 'relaxed';
+/** 'full' is the ~30 s room tour (default); 'teaser' is a ~15 s loop for discovery */
+export type ViralLength = 'full' | 'teaser';
 export type ViralCutKind = 'whip-left' | 'whip-right' | 'zoom-through' | 'flash' | 'light-leak';
 export type ViralShotRole = 'hook' | 'tour' | 'closer';
 export type ViralSfxKind = 'whoosh' | 'pop' | 'ding';
@@ -23,6 +25,8 @@ export type ViralListingInfo = {
   roomType?: string;
   squareFeet?: number;
   amenities: string[];
+  /** RoomListing['leaseTerm'], e.g. "6 Months" (becomes a "6-month lease" callout) */
+  leaseTerm?: string;
 };
 
 /** One measurement per sampled frame, from the local clip analyzer (clipSignals.ts). */
@@ -60,6 +64,16 @@ export type ClipWindow = {
   meanLuma: number;
   meanCorr: number;
   minCorr: number;
+  /** Mean frame-to-frame change (camera movement), used to match speeds across shots */
+  meanMotion?: number;
+};
+
+/** A stretch of usable footage: the room is in view and the camera is steady. */
+export type ClipRange = {
+  startSec: number;
+  endSec: number;
+  /** Mean frame-to-frame change across the range (camera movement) */
+  meanMotion?: number;
 };
 
 export type ClipAnalysis = {
@@ -67,6 +81,11 @@ export type ClipAnalysis = {
   sampleFps: number;
   /** The cleanest stretch of footage (bright, steady, no wall or door edge filling the frame) */
   best: ClipWindow;
+  /**
+   * All the usable footage around the best window. Long shots play from here
+   * instead of slowing down or showing the wall the clip opened on.
+   */
+  clean?: ClipRange;
   /** Exposure correction in stops for colorCorrection(), -0.25..0.6 */
   exposureBoost: number;
   /** 0..1 usefulness of the best window */
@@ -99,6 +118,8 @@ export type ViralAiHints = {
   hookSlotNumber?: number;
   /** 2-3 word callout per slot, e.g. { 3: 'Double vanity' } */
   tags?: Record<number, string>;
+  /** Second callout per slot (full tour): another thing you can see, e.g. { 2: 'Gas range' } */
+  details?: Record<number, string>;
   perkLabel?: string;
   /** Cleanest window per slot, in source seconds; speed = playback multiplier */
   windows?: Record<number, { startSec: number; endSec?: number; speed?: number }>;
@@ -113,6 +134,21 @@ export type HookCopy = {
   segments: HookSegment[];
   /** Plain text of the headline (segments joined) */
   text: string;
+};
+
+export type ViralCalloutKind = 'room' | 'fact';
+
+/** A text beat on a shot after (or instead of) its room tag. */
+export type ViralCallout = {
+  text: string;
+  /** 'room' names something you can see (terracotta dot); 'fact' is listing info (sage dot) */
+  kind: ViralCalloutKind;
+  /** Local frame (inside the shot) where it pops in */
+  inFrame: number;
+  /** Local frame where it is gone */
+  outFrame: number;
+  /** Stack position: 0 is the room-tag row, -1 sits above it, 1 below */
+  row: number;
 };
 
 export type ViralShot = {
@@ -140,6 +176,11 @@ export type ViralShot = {
   kicker: string;
   /** Local frame (inside the shot) where the callout pops in */
   tagInFrame: number;
+  /** Listing facts on the opener, a second detail on each room (full tour) */
+  callouts: ViralCallout[];
+  /** Speed ramp into the shot: the first rampFrames play at rampRate, then playbackRate (0 = no ramp) */
+  rampFrames: number;
+  rampRate: number;
   isLandscape: boolean;
 };
 
@@ -166,12 +207,13 @@ export type ViralEndCard = {
 };
 
 export type ViralEditPlan = {
-  version: 1;
+  version: 2;
   fps: number;
   width: number;
   height: number;
   style: ViralStyleId;
   pace: ViralPace;
+  length: ViralLength;
   hook: HookCopy;
   hookFontSize: number;
   /** Absolute frame where the hook headline starts to leave */
@@ -214,12 +256,16 @@ export type BuildViralPlanInput = {
 export type BuildViralPlanOptions = {
   style?: ViralStyleId;
   pace?: ViralPace;
+  /** 'full' (~30 s, default) or 'teaser' (~15 s) */
+  length?: ViralLength;
   /** Host override for the opening shot */
   hookSlotNumber?: number | null;
   /** Host-edited headline; replaces the generated one */
   hookTextOverride?: string | null;
   /** Host-edited callouts per slot */
   tagOverrides?: Record<number, string>;
+  /** Host-edited second callouts per slot (full tour); an empty string removes it */
+  detailOverrides?: Record<number, string>;
   /** Host-edited closer callout */
   perkOverride?: string | null;
   ai?: ViralAiHints | null;

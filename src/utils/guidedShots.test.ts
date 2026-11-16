@@ -12,12 +12,13 @@ import {
   isLandscape,
 } from './guidedShots';
 
-test('Guided 5-shot list has the 5 shots in order with 4.5s recording', () => {
+test('Guided 5-shot list has the 5 shots in order with 7s recording', () => {
   assert.deepEqual(
     GUIDED_SHOTS.map((s) => s.name),
     ['Bedroom Hook', 'Kitchen & Shared Space', 'Bathroom Peek', 'Closet & Storage', 'Standout Perk']
   );
-  assert.equal(GUIDED_RECORDING_MS, 4500);
+  assert.equal(GUIDED_RECORDING_MS, 7000);
+  assert.ok(GUIDED_SHOTS.every((s) => s.instruction.includes(`(${GUIDED_RECORDING_MS / 1000} sec)`)));
   const slots = createGuidedShotSlots();
   assert.equal(slots.length, 5);
   assert.equal(slots[0].title, 'Shot 1: Bedroom Hook');

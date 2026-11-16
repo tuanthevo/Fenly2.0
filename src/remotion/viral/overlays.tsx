@@ -10,7 +10,7 @@
 import React from 'react';
 import { AbsoluteFill, Easing, interpolate, useCurrentFrame } from 'remotion';
 import { FENN, SAFE, TYPE } from './theme';
-import type { HookCopy, ViralEditPlan } from './types';
+import type { HookCopy, ViralCalloutKind, ViralEditPlan } from './types';
 
 const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' } as const;
 const easeOut = Easing.bezier(0.16, 1, 0.3, 1);
@@ -222,6 +222,19 @@ export const PriceChip: React.FC<{ plan: ViralEditPlan }> = ({ plan }) => {
   );
 };
 
+/** Callout rows, bottom left above the caption area: row 0 is the room tag, -1 above it, 1 below. */
+const CALLOUT_TOP = 1196;
+const CALLOUT_ROW_GAP = 108;
+
+const popIn = (frame: number, inFrame: number, outFrame: number) => ({
+  scale: interpolate(frame, [inFrame, inFrame + 8], [0.55, 1], {
+    ...clamp,
+    easing: Easing.spring({ damping: 12 }),
+    output: 'perceptual-scale',
+  }),
+  opacity: interpolate(frame, [inFrame, inFrame + 3, outFrame - 3, outFrame], [0, 1, 1, 0], clamp),
+});
+
 /** 2-3 word room callout, bottom left (above the caption area), pops in after the transition settles. */
 export const RoomTag: React.FC<{ text: string; inFrame: number; outFrame: number }> = ({
   text,
@@ -234,15 +247,10 @@ export const RoomTag: React.FC<{ text: string; inFrame: number; outFrame: number
     <div
       style={{
         position: 'absolute',
-        top: 1196,
+        top: CALLOUT_TOP,
         left: SAFE.left,
         transformOrigin: 'left center',
-        scale: interpolate(frame, [inFrame, inFrame + 8], [0.55, 1], {
-          ...clamp,
-          easing: Easing.spring({ damping: 12 }),
-          output: 'perceptual-scale',
-        }),
-        opacity: interpolate(frame, [inFrame, inFrame + 3, outFrame - 3, outFrame], [0, 1, 1, 0], clamp),
+        ...popIn(frame, inFrame, outFrame),
       }}
     >
       <div
@@ -261,6 +269,59 @@ export const RoomTag: React.FC<{ text: string; inFrame: number; outFrame: number
         }}
       >
         <span style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: FENN.terracotta }} />
+        {text}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * A second, smaller text beat: listing facts on the opener ("1 bed · 1 bath")
+ * or one more detail on a room. Sage dot for listing facts, terracotta for
+ * something you can see.
+ */
+export const Callout: React.FC<{
+  text: string;
+  kind: ViralCalloutKind;
+  inFrame: number;
+  outFrame: number;
+  row: number;
+}> = ({ text, kind, inFrame, outFrame, row }) => {
+  const frame = useCurrentFrame();
+  if (frame < inFrame || frame > outFrame) return null;
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: CALLOUT_TOP + row * CALLOUT_ROW_GAP,
+        left: SAFE.left,
+        transformOrigin: 'left center',
+        ...popIn(frame, inFrame, outFrame),
+      }}
+    >
+      <div
+        style={{
+          ...pill,
+          gap: 16,
+          padding: '14px 30px 14px 22px',
+          borderRadius: 22,
+          backgroundColor: kind === 'fact' ? 'rgba(44, 39, 36, 0.88)' : FENN.oatmeal,
+          color: kind === 'fact' ? FENN.oatmeal : FENN.espresso,
+          fontSize: TYPE.chip,
+          fontWeight: 800,
+          letterSpacing: '0.03em',
+          textTransform: 'uppercase',
+          boxShadow: '0 10px 28px rgba(44, 39, 36, 0.32)',
+        }}
+      >
+        <span
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: 10,
+            backgroundColor: kind === 'fact' ? FENN.sage : FENN.terracotta,
+          }}
+        />
         {text}
       </div>
     </div>

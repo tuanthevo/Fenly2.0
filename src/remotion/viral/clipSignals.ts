@@ -17,7 +17,7 @@
  * edges and slat panels before the room is revealed). Pure functions only;
  * analyzeClipInBrowser.ts does the DOM sampling.
  */
-import type { ClipAnalysis, ClipSample, ClipWindow } from './types';
+import type { ClipAnalysis, ClipRange, ClipSample, ClipWindow } from './types';
 
 export const SAMPLE_W = 72;
 export const SAMPLE_H = 128;
@@ -238,8 +238,56 @@ export function findBestWindow(
       meanLuma: best.s.meanLuma,
       meanCorr: best.s.meanCorr,
       minCorr: best.s.minCorr,
+      meanMotion: best.s.meanMotion,
     },
     detail: best.s,
+  };
+}
+
+/** The room is in view (not a wall, door edge or black frame). */
+function isUsableFrame(s: ClipSample): boolean {
+  return frameQuality(s) >= 0.3 && s.luma >= 0.1;
+}
+
+/**
+ * Grows the best window into the whole run of usable footage around it: room
+ * in view and steady from sample to sample, bridging a single blurry sample.
+ * A 5 s shot can then play from where the room comes into view instead of
+ * slowing down, or starting on the wall the clip opened on.
+ */
+export function findCleanRange(
+  samples: ClipSample[],
+  window: ClipWindow,
+  durationSec: number,
+  options: BestWindowOptions = {}
+): ClipRange {
+  const fps = options.sampleFps ?? DEFAULT_SAMPLE_FPS;
+  const minStart = (options.minStartSec ?? 0.25) - 1e-6;
+  const steady = (s: ClipSample) => s.corr >= 0.6;
+  let lo = samples.findIndex((s) => s.t >= window.startSec - 1e-6);
+  if (lo < 0) lo = 0;
+  let hi = lo;
+  while (hi + 1 < samples.length && samples[hi + 1].t < window.endSec - 1e-6) hi++;
+
+  // Earlier footage joins when its frame is usable and the step into the run is steady
+  const canPrepend = (j: number) => j >= 0 && samples[j].t >= minStart && isUsableFrame(samples[j]) && steady(samples[j + 1]);
+  while (lo > 0) {
+    if (canPrepend(lo - 1)) lo -= 1;
+    else if (canPrepend(lo - 2) && steady(samples[lo - 1])) lo -= 2;
+    else break;
+  }
+  const canAppend = (j: number) => j < samples.length && isUsableFrame(samples[j]) && steady(samples[j]);
+  while (hi < samples.length - 1) {
+    if (canAppend(hi + 1)) hi += 1;
+    else if (canAppend(hi + 2)) hi += 2;
+    else break;
+  }
+  const run = samples.slice(lo + 1, hi + 1);
+  const meanMotion = run.length ? run.reduce((a, s) => a + s.motion, 0) / run.length : window.meanMotion ?? 0;
+  return {
+    startSec: Math.min(samples[lo].t, window.startSec),
+    endSec: Math.min(durationSec, Math.max(samples[hi].t + 1 / fps, window.endSec)),
+    meanMotion,
   };
 }
 
@@ -276,6 +324,7 @@ export function analyzeSamples(
     durationSec,
     sampleFps,
     best: window,
+    clean: findCleanRange(samples, window, durationSec, options),
     exposureBoost,
     quality: clamp(window.score, 0, 1),
     hookScore: window.score + 0.15 * detail.brightness,

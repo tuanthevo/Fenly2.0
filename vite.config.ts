@@ -58,6 +58,23 @@ export default defineConfig(({mode}) => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    optimizeDeps: {
+      // The viral video editor is lazy-loaded, so Vite would only discover these
+      // packages when it first opens and re-bundle mid-session. The open page then
+      // mixes two copies of React and goes blank ("Invalid hook call"). Pre-bundling
+      // them at startup keeps one copy.
+      include: [
+        'remotion',
+        '@remotion/player',
+        '@remotion/media',
+        '@remotion/transitions',
+        '@remotion/effects/blur',
+        '@remotion/effects/color-correction',
+        '@remotion/effects/light-leak',
+        '@remotion/google-fonts/PlusJakartaSans',
+        '@remotion/web-renderer',
+      ],
+    },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modify—file watching is disabled to prevent flickering during agent edits.

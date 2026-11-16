@@ -18,8 +18,8 @@ export const GUIDED_SHOTS: GuidedShot[] = [
     slotNumber: 1,
     name: 'Bedroom Hook',
     instruction:
-      'Turn ALL lights on & open blinds. Stand at the bedroom doorway and take 3 slow steps forward (4 sec).',
-    movementCue: '3 slow steps forward',
+      'Turn ALL lights on & open blinds. Stand at the bedroom doorway and walk slowly in, about 5 small steps (7 sec).',
+    movementCue: '5 slow steps in',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&w=900&q=80',
   },
@@ -27,7 +27,7 @@ export const GUIDED_SHOTS: GuidedShot[] = [
     slotNumber: 2,
     name: 'Kitchen & Shared Space',
     instruction:
-      'Stand at the kitchen entrance and walk slowly toward the island or counter (4 sec).',
+      'Stand at the kitchen entrance and walk slowly toward the island or counter (7 sec).',
     movementCue: 'Walk slowly toward the counter',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=900&q=80',
@@ -36,7 +36,7 @@ export const GUIDED_SHOTS: GuidedShot[] = [
     slotNumber: 3,
     name: 'Bathroom Peek',
     instruction:
-      'Step slowly toward the open bathroom door—keep yourself out of the mirror (4 sec).',
+      'Step slowly toward the open bathroom door, then hold still—keep yourself out of the mirror (7 sec).',
     movementCue: 'Step toward the door • stay out of the mirror',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=900&q=80',
@@ -44,8 +44,8 @@ export const GUIDED_SHOTS: GuidedShot[] = [
   {
     slotNumber: 4,
     name: 'Closet & Storage',
-    instruction: 'Open the closet doors wide and take 2 slow steps forward (4 sec).',
-    movementCue: '2 slow steps forward',
+    instruction: 'Open the closet doors wide, take 2 slow steps forward, then hold still (7 sec).',
+    movementCue: '2 slow steps, then hold',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=900&q=80',
   },
@@ -53,8 +53,8 @@ export const GUIDED_SHOTS: GuidedShot[] = [
     slotNumber: 5,
     name: 'Standout Perk',
     instruction:
-      'Walk 2 slow steps toward the best perk—in-unit laundry, balcony, parking, or sunny view (4 sec).',
-    movementCue: '2 slow steps toward the perk',
+      'Walk slowly toward the best perk—in-unit laundry, balcony, parking, or sunny view—then hold on it (7 sec).',
+    movementCue: 'Walk to the perk, then hold',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=900&q=80',
   },
@@ -62,7 +62,11 @@ export const GUIDED_SHOTS: GuidedShot[] = [
 
 export const GUIDED_PRE_SHOT_REMINDER = "Lights ON • Walk forward • Don't pan side-to-side";
 export const GUIDED_COUNTDOWN_STEP_MS = 1000;
-export const GUIDED_RECORDING_MS = 4500;
+/**
+ * 7 s per shot gives the editor ~5 s of clean footage per room for the ~30 s
+ * full tour (the first moment of each clip is the tap-to-record shake).
+ */
+export const GUIDED_RECORDING_MS = 7000;
 export const MIN_CLIP_DURATION_SEC = 2;
 export const MIN_SHOTS_TO_PROCEED = 3;
 

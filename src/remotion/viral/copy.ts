@@ -199,6 +199,70 @@ const PERKS: [amenity: string, label: string][] = [
   ['Transit Nearby', 'Near transit'],
 ];
 
+/** Listing facts that can ride on a shot as a sage "fact" callout, in priority order. */
+const AMENITY_FACTS: [amenity: string, label: string][] = [
+  ['Utilities Included', 'Utilities included'],
+  ['Furnished', 'Comes furnished'],
+  ['High-Speed WiFi', 'Fast WiFi'],
+  ['Transit Nearby', 'Near transit'],
+  ['Pet Friendly', 'Pet friendly'],
+  ['AC', 'Central AC'],
+  ['Parking', 'Parking included'],
+  ['In-Unit W/D', 'In-unit laundry'],
+  ['Private Bath', 'Private bath'],
+  ['Balcony', 'Private balcony'],
+  ['Gym', 'Gym access'],
+];
+
+const countLabel = (value: number | string, noun: string): string => {
+  const n = typeof value === 'number' ? value : Number(String(value).trim());
+  if (!Number.isFinite(n) || String(value).trim() === '') return String(value ?? '').trim();
+  return `${n} ${noun}${n === 1 ? '' : 's'}`;
+};
+
+/** "1 bed · 1 bath" (or "Studio · 1 bath"). */
+export function bedBathLabel(listing: ViralListingInfo): string {
+  return [countLabel(listing.beds, 'bed'), countLabel(listing.baths, 'bath')].filter(Boolean).join(' · ');
+}
+
+/**
+ * The answer to the hook, shown on the opener after the headline leaves (full
+ * tour): beds and baths, size, and the best amenity no other callout uses.
+ */
+export function heroFacts(listing: ViralListingInfo, used: string[] = []): string[] {
+  const taken = new Set(used.map((u) => u.toLowerCase()));
+  const facts = [bedBathLabel(listing)];
+  if (listing.squareFeet && listing.squareFeet > 0) {
+    facts.push(`${Math.round(listing.squareFeet).toLocaleString('en-US')} sq ft`);
+  }
+  const extra = listingFacts(listing, [...taken]).at(0);
+  if (extra) facts.push(extra);
+  return facts.filter(Boolean).slice(0, 3);
+}
+
+/** "6 Months" -> "6-month lease", "Month-to-month" stays as is. */
+export function leaseFact(listing: ViralListingInfo): string {
+  const term = (listing.leaseTerm || '').trim();
+  const m = /^(\d+\+?)\s*months?$/i.exec(term);
+  if (m) return m[1].endsWith('+') ? `${m[1]} month lease` : `${m[1]}-month lease`;
+  return /month.to.month/i.test(term) ? 'Month-to-month' : '';
+}
+
+/** Amenity facts, then the lease, minus anything another callout already says. */
+export function listingFacts(listing: ViralListingInfo, used: string[] = []): string[] {
+  const taken = new Set(used.map((u) => u.toLowerCase()));
+  const lease = leaseFact(listing);
+  return [...amenityFacts(listing, used), ...(lease && !taken.has(lease.toLowerCase()) ? [lease] : [])];
+}
+
+/** Amenity facts not already said by another callout, best first. */
+export function amenityFacts(listing: ViralListingInfo, used: string[] = []): string[] {
+  const taken = new Set(used.map((u) => u.toLowerCase()));
+  return AMENITY_FACTS.filter(([amenity, label]) => listing.amenities.includes(amenity) && !taken.has(label.toLowerCase())).map(
+    ([, label]) => label
+  );
+}
+
 /** The standout perk for the closing shot, from the listing's amenities. */
 export function pickPerk(amenities: string[]): string {
   for (const [amenity, label] of PERKS) {

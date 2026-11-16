@@ -15,11 +15,11 @@ export const USE_LOCAL_SAMPLES = false;
 const REMOTE_SAMPLE = 'https://remotion.media/video.mp4';
 
 const LOCAL_SAMPLES: { slotNumber: number; room: string; file: string; durationSec: number }[] = [
-  { slotNumber: 1, room: 'Bedroom Hook', file: 'samples/shot-1.mov', durationSec: 4.5 },
-  { slotNumber: 2, room: 'Kitchen & Shared Space', file: 'samples/shot-2.mov', durationSec: 4.5 },
-  { slotNumber: 3, room: 'Bathroom Peek', file: 'samples/shot-3.mov', durationSec: 4.5 },
-  { slotNumber: 4, room: 'Closet & Storage', file: 'samples/shot-4.mov', durationSec: 4.5 },
-  { slotNumber: 5, room: 'Standout Perk', file: 'samples/shot-5.mov', durationSec: 4.5 },
+  { slotNumber: 1, room: 'Bedroom Hook', file: 'samples/shot-1.mov', durationSec: 7 },
+  { slotNumber: 2, room: 'Kitchen & Shared Space', file: 'samples/shot-2.mov', durationSec: 7 },
+  { slotNumber: 3, room: 'Bathroom Peek', file: 'samples/shot-3.mov', durationSec: 7 },
+  { slotNumber: 4, room: 'Closet & Storage', file: 'samples/shot-4.mov', durationSec: 7 },
+  { slotNumber: 5, room: 'Standout Perk', file: 'samples/shot-5.mov', durationSec: 7 },
 ];
 
 export const SAMPLE_LISTING: ViralListingInfo = {
@@ -31,6 +31,7 @@ export const SAMPLE_LISTING: ViralListingInfo = {
   roomType: 'Private Room',
   squareFeet: 220,
   amenities: ['Private Bath', 'In-Unit W/D', 'High-Speed WiFi', 'Utilities Included'],
+  leaseTerm: '6 Months',
 };
 
 const SAMPLE_CLIPS: ViralClipInput[] = LOCAL_SAMPLES.map((s) => ({
