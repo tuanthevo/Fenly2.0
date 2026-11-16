@@ -4,7 +4,9 @@ import { readFileSync } from 'node:fs';
 import {
   SAMPLE_H,
   SAMPLE_W,
+  OPENING_COVERAGE_MIN,
   analyzeSamples,
+  columnCoverage,
   computeFrameSignals,
   exposureBoostForLuma,
   findBestWindow,
@@ -190,4 +192,67 @@ test('a clean range never reaches into a blank wall, and needs no usable frames 
   const clean = findCleanRange(samples, window, 4, { sampleFps: 6 });
   assert.equal(clean.startSec, window.startSec);
   assert.equal(clean.endSec, window.endSec);
+});
+
+/**
+ * The host's 5 guided shots (bedroom, kitchen, bathroom, walk-in closet,
+ * living room), measured with computeFrameSignals at 6 fps including column
+ * coverage and side bands. The bedroom clip walks down a hallway for ~4.5 s,
+ * the bathroom and closet open past a door edge, and a pillar covers the right
+ * side of the living room for most of its clip.
+ */
+const guided = JSON.parse(
+  readFileSync(new URL('./fixtures/guided-shots.json', import.meta.url), 'utf8')
+) as { sampleFps: number; cols: (keyof ClipSample)[]; clips: Record<string, { durationSec: number; rows: number[][] }> };
+
+function guidedAnalysis(name: string) {
+  const clip = guided.clips[name];
+  const samples = clip.rows.map((row) => {
+    const s = {} as ClipSample;
+    guided.cols.forEach((col, i) => {
+      (s as Record<string, number>)[col] = row[i];
+    });
+    return s;
+  });
+  return { samples, analysis: analyzeSamples(samples, clip.durationSec, { sampleFps: guided.sampleFps }) };
+}
+
+test('column coverage spots a door edge or pillar along one side', () => {
+  const room = roomLikeFrame();
+  const full = columnCoverage(computeFrameSignals(room, null).state.luma);
+  assert.equal(full.coverage, 1);
+  assert.equal(full.edgeRight, 0);
+  // Paint the right quarter flat, like a door edge filling that side
+  const door = roomLikeFrame();
+  for (let y = 0; y < SAMPLE_H; y++) {
+    for (let x = 54; x < SAMPLE_W; x++) {
+      const i = (y * SAMPLE_W + x) * 4;
+      door[i] = door[i + 1] = door[i + 2] = 225;
+    }
+  }
+  const { signals } = computeFrameSignals(door, null);
+  assert.ok(signals.coverage! > 0.65 && signals.coverage! < 0.8, `coverage ${signals.coverage}`);
+  assert.ok(Math.abs(signals.edgeRight! - 0.25) < 0.05, `edgeRight ${signals.edgeRight}`);
+  assert.equal(signals.edgeLeft, 0);
+  assert.equal(computeFrameSignals(solidFrame(200), null).signals.coverage, 0);
+});
+
+test('on the real guided shots, every room opens with the whole room in view', () => {
+  const opensAfter: Record<string, number> = { bedroom: 4.8, bathroom: 3.0, closet: 2.6 };
+  for (const [name, minStart] of Object.entries(opensAfter)) {
+    const { samples, analysis } = guidedAnalysis(name);
+    const start = analysis.clean!.startSec;
+    assert.ok(start >= minStart, `${name} opens at ${start}, before ${minStart}`);
+    const first = samples.find((s) => Math.abs(s.t - start) < 1e-3)!;
+    assert.ok(first.coverage! >= OPENING_COVERAGE_MIN, `${name} first frame coverage ${first.coverage}`);
+  }
+});
+
+test('on the real guided shots, only the living-room pillar is cropped, on its right side', () => {
+  const living = guidedAnalysis('living').analysis.reframe;
+  assert.equal(living?.side, 'right');
+  assert.ok(living!.band > 0.1 && living!.band < 0.25, `band ${living?.band}`);
+  for (const name of ['bedroom', 'kitchen', 'bathroom', 'closet']) {
+    assert.equal(guidedAnalysis(name).analysis.reframe, null, name);
+  }
 });

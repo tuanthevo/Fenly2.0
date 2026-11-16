@@ -952,6 +952,8 @@ Return strict JSON with:
 // Viral room-tour copy pass (/api/viral/copy): Gemini 3.8 Flash reads one
 // 360x640 frame per shot and returns ViralAiHints. Every field is optional; the
 // editor validates each one in plan.ts and falls back to its local rules.
+/** Longest AI hook we accept: 8 words + a price is about the 3.2 s the hook stays on screen. */
+const MAX_AI_HOOK_WORDS = 8;
 app.post("/api/viral/copy", async (req, res) => {
   const startTime = Date.now();
   const body = req.body || {};
@@ -991,7 +993,7 @@ Listing facts:
 - Amenities: ${amenities}
 
 Each image above is the best frame of one guided shot. Return JSON:
-1. hookText: a headline of at most 64 characters that contains the exact rent "${rentLabel}" and the neighborhood "${neighborhood}". Example: "What ${rentLabel} gets you in ${neighborhood}".
+1. hookText: a headline of at most 7 words and 64 characters that contains the exact rent "${rentLabel}" and the neighborhood "${neighborhood}". Example: "What ${rentLabel} gets you in ${neighborhood}".
 2. hookSlotNumber: the shot (one of ${slotNumbers.join(", ")}) that looks most striking as the opening frame.
 3. tags: for each shot, a 2-3 word callout naming something specific you can see ("Double vanity", "Walk-in closet"). Max 22 characters.
 4. details: for each shot, a second 2-3 word callout naming a different specific thing you can see in that frame ("Gas range", "Rain shower", "Big window"). Max 22 characters. Leave a shot out if nothing else clearly stands out; never guess at things you cannot see.
@@ -1058,7 +1060,11 @@ Rules: no emoji; plain words; never describe who should or should not live there
     };
     const hints: ViralAiHints = {};
     const hookText = clean(raw.hookText, 64);
-    if (hookText && hookText.includes(rentLabel)) hints.hookText = hookText;
+    // The hook is on screen for at most ~3.2 s: past 8 words nobody finishes reading it, so the
+    // editor's own 7-word headline ("What $X/mo gets you in ...") is used instead.
+    if (hookText && hookText.includes(rentLabel) && hookText.split(" ").length <= MAX_AI_HOOK_WORDS) {
+      hints.hookText = hookText;
+    }
     if (slotNumbers.includes(raw.hookSlotNumber)) hints.hookSlotNumber = raw.hookSlotNumber;
     const tags: Record<number, string> = {};
     for (const t of Array.isArray(raw.tags) ? raw.tags : []) {

@@ -87,6 +87,7 @@ export function computeFrameSignals(
     }
   }
   const detail = gxSum / ((width - 1) * height) + gySum / (width * (height - 1));
+  const { coverage, edgeLeft, edgeRight } = columnCoverage(luma, width, height);
   const stripMeans = strips.map((s, k) => (stripCounts[k] ? s / stripCounts[k] : 0));
   const maxStrip = Math.max(...stripMeans);
   const balance = maxStrip > 1e-6 ? Math.min(...stripMeans) / maxStrip : 0;
@@ -132,8 +133,69 @@ export function computeFrameSignals(
       corr: clamp(corr, -1, 1),
       motion,
       balance,
+      coverage,
+      edgeLeft,
+      edgeRight,
     },
     state: { luma, coarse, coarseStd },
+  };
+}
+
+/**
+ * Column detail below this (mean |dx| + |dy| per pixel, 5-column average)
+ * means "nothing to see": a painted wall, a door edge, a pillar. Tuned on the
+ * host's clips: hallway walls and door edges sit at 0.005-0.025, rooms above 0.04.
+ */
+export const COLUMN_DETAIL_MIN = 0.03;
+
+/**
+ * How much of the frame shows the room, by column, and how wide a featureless
+ * band runs along each side. A band may contain a few detailed columns (the
+ * door frame's own lines): it is the widest stretch from the edge that is at
+ * least 85% featureless and ends on a featureless column.
+ */
+export function columnCoverage(
+  luma: ArrayLike<number>,
+  width = SAMPLE_W,
+  height = SAMPLE_H
+): { coverage: number; edgeLeft: number; edgeRight: number } {
+  const col = new Float32Array(width);
+  for (let x = 0; x < width - 1; x++) {
+    let s = 0;
+    for (let y = 0; y < height - 1; y++) {
+      const i = y * width + x;
+      s += Math.abs(luma[i + 1] - luma[i]) + Math.abs(luma[i + width] - luma[i]);
+    }
+    col[x] = s / (height - 1);
+  }
+  col[width - 1] = col[width - 2] ?? 0;
+  const low: boolean[] = [];
+  for (let x = 0; x < width; x++) {
+    let s = 0;
+    let c = 0;
+    for (let k = -2; k <= 2; k++) {
+      const j = x + k;
+      if (j >= 0 && j < width) {
+        s += col[j];
+        c += 1;
+      }
+    }
+    low.push(s / c < COLUMN_DETAIL_MIN);
+  }
+  const band = (fromRight: boolean) => {
+    let best = 0;
+    let lowCount = 0;
+    for (let k = 0; k < width; k++) {
+      const x = fromRight ? width - 1 - k : k;
+      if (low[x]) lowCount += 1;
+      if (low[x] && lowCount / (k + 1) >= 0.85) best = k + 1;
+    }
+    return best / width;
+  };
+  return {
+    coverage: low.filter((l) => !l).length / width,
+    edgeLeft: band(false),
+    edgeRight: band(true),
   };
 }
 
@@ -145,12 +207,18 @@ export function exposureBoostForLuma(meanLuma: number): number {
   return 0;
 }
 
+/** 1 when at least 90% of the columns show the room, 0 at 60% or less (missing = older data, counts as 1). */
+export function coverageFactor(coverage: number | undefined): number {
+  return coverage === undefined ? 1 : clamp((coverage - 0.6) / 0.3, 0, 1);
+}
+
 /** How usable a single frame is as the first frame after a cut (0..1). */
 export function frameQuality(s: ClipSample): number {
   return (
     clamp(s.structure / 0.18, 0, 1) *
     clamp(s.detail / 0.04, 0, 1) *
-    clamp((s.balance - 0.15) / 0.45, 0, 1)
+    clamp((s.balance - 0.15) / 0.45, 0, 1) *
+    coverageFactor(s.coverage)
   );
 }
 
@@ -167,7 +235,7 @@ export type WindowScore = {
 
 export function scoreWindow(samples: ClipSample[]): WindowScore {
   const n = samples.length;
-  const mean = (k: keyof ClipSample) => samples.reduce((a, s) => a + s[k], 0) / n;
+  const mean = (k: 'luma' | 'detail' | 'structure' | 'balance') => samples.reduce((a, s) => a + s[k], 0) / n;
   const meanLuma = mean('luma');
   const structure = clamp(mean('structure') / 0.18, 0, 1) * clamp(mean('detail') / 0.04, 0, 1);
   const after = samples.slice(1);
@@ -175,7 +243,10 @@ export function scoreWindow(samples: ClipSample[]): WindowScore {
   const meanCorr = corrs.reduce((a, c) => a + c, 0) / corrs.length;
   const minCorr = Math.min(...corrs);
   const meanMotion = after.length ? after.reduce((a, s) => a + s.motion, 0) / after.length : 0;
-  const balance = clamp((mean('balance') - 0.25) / 0.45, 0, 1);
+  const meanCoverage = samples.every((s) => s.coverage === undefined)
+    ? undefined
+    : samples.reduce((a, s) => a + (s.coverage ?? 1), 0) / n;
+  const balance = clamp((mean('balance') - 0.25) / 0.45, 0, 1) * coverageFactor(meanCoverage);
   const corrected = meanLuma * 2 ** exposureBoostForLuma(meanLuma);
   const brightness = 1 - clamp(Math.abs(corrected - 0.6) / 0.3, 0, 1);
   const steadiness = clamp((meanCorr - 0.6) / 0.35, 0, 1);
@@ -244,6 +315,9 @@ export function findBestWindow(
   };
 }
 
+/** A shot may open on footage only when at least this share of the frame shows the room. */
+export const OPENING_COVERAGE_MIN = 0.9;
+
 /** The room is in view (not a wall, door edge or black frame). */
 function isUsableFrame(s: ClipSample): boolean {
   return frameQuality(s) >= 0.3 && s.luma >= 0.1;
@@ -269,8 +343,11 @@ export function findCleanRange(
   let hi = lo;
   while (hi + 1 < samples.length && samples[hi + 1].t < window.endSec - 1e-6) hi++;
 
-  // Earlier footage joins when its frame is usable and the step into the run is steady
-  const canPrepend = (j: number) => j >= 0 && samples[j].t >= minStart && isUsableFrame(samples[j]) && steady(samples[j + 1]);
+  // Earlier footage joins when its frame is usable, shows the whole room (it may be the first
+  // frame viewers see after the cut, so no door edge or pillar) and the step into the run is steady
+  const showsRoom = (s: ClipSample) => (s.coverage ?? 1) >= OPENING_COVERAGE_MIN;
+  const canPrepend = (j: number) =>
+    j >= 0 && samples[j].t >= minStart && isUsableFrame(samples[j]) && showsRoom(samples[j]) && steady(samples[j + 1]);
   while (lo > 0) {
     if (canPrepend(lo - 1)) lo -= 1;
     else if (canPrepend(lo - 2) && steady(samples[lo - 1])) lo -= 2;
@@ -289,6 +366,28 @@ export function findCleanRange(
     endSec: Math.min(durationSec, Math.max(samples[hi].t + 1 / fps, window.endSec)),
     meanMotion,
   };
+}
+
+/**
+ * A featureless band (pillar, door edge, wall) that stays along one side of
+ * the usable footage: its typical width (75th percentile, so a band that is
+ * there most of the time counts). Null when there is none, or when both sides
+ * have one (cropping one side would not help).
+ */
+export function sideBand(samples: ClipSample[], range: ClipRange): ClipAnalysis['reframe'] {
+  const inRange = samples.filter((s) => s.t >= range.startSec - 1e-6 && s.t < range.endSec - 1e-6);
+  if (inRange.length === 0 || inRange.every((s) => s.edgeLeft === undefined && s.edgeRight === undefined)) return null;
+  const p75 = (values: number[]) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.75))];
+  };
+  const left = p75(inRange.map((s) => s.edgeLeft ?? 0));
+  const right = p75(inRange.map((s) => s.edgeRight ?? 0));
+  const MIN_BAND = 0.05;
+  if (left >= MIN_BAND && right >= MIN_BAND) return null;
+  if (right >= MIN_BAND) return { side: 'right', band: Math.round(right * 1000) / 1000 };
+  if (left >= MIN_BAND) return { side: 'left', band: Math.round(left * 1000) / 1000 };
+  return null;
 }
 
 export const WARNING_TIPS = {
@@ -320,11 +419,13 @@ export function analyzeSamples(
   } else if (window.minCorr < 0.45 || window.meanCorr < 0.75) {
     warnings.push({ kind: 'shaky', severity: 'retake', tip: WARNING_TIPS.shaky });
   }
+  const clean = findCleanRange(samples, window, durationSec, options);
   return {
     durationSec,
     sampleFps,
     best: window,
-    clean: findCleanRange(samples, window, durationSec, options),
+    clean,
+    reframe: sideBand(samples, clean),
     exposureBoost,
     quality: clamp(window.score, 0, 1),
     hookScore: window.score + 0.15 * detail.brightness,

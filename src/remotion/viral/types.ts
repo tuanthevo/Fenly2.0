@@ -45,6 +45,15 @@ export type ClipSample = {
   motion: number;
   /** min/max edge detail across 3 vertical strips (low = a wall or door edge fills part of the frame) */
   balance: number;
+  /**
+   * Share of the frame's columns that show real detail (0..1). Low when a
+   * wall, door edge or pillar covers part of the view. Missing = 1 (older data).
+   */
+  coverage?: number;
+  /** Width (0..1 of the frame) of a featureless band along the left edge, e.g. a door edge */
+  edgeLeft?: number;
+  /** Width (0..1 of the frame) of a featureless band along the right edge */
+  edgeRight?: number;
 };
 
 export type ClipWarningKind = 'dark' | 'shaky' | 'blank' | 'short' | 'ai';
@@ -88,6 +97,12 @@ export type ClipAnalysis = {
   clean?: ClipRange;
   /** Exposure correction in stops for colorCorrection(), -0.25..0.6 */
   exposureBoost: number;
+  /**
+   * A wall, pillar or door edge that stays along one side of the usable
+   * footage: the shot zooms in a little, anchored to the other side, to crop
+   * it out. `band` is its typical width (0..1 of the frame).
+   */
+  reframe?: { side: 'left' | 'right'; band: number } | null;
   /** 0..1 usefulness of the best window */
   quality: number;
   /** Used to pick the opening (hook) shot */
@@ -182,6 +197,12 @@ export type ViralShot = {
   rampFrames: number;
   rampRate: number;
   isLandscape: boolean;
+  /**
+   * Crops a wall or door edge off one side: the footage is scaled by `scale`
+   * around `originX` (0 = keep the left edge, 100 = keep the right edge).
+   * scale 1 = no reframe.
+   */
+  reframe: { scale: number; originX: number };
 };
 
 export type ViralCut = {

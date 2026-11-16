@@ -2,7 +2,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { analyzeSamples } from './clipSignals';
-import { buildViralEditPlan, checkPlan, hookReadSec, motionMatchedRate, LENGTH_PRESETS, PACE_PRESETS, SPEED } from './plan';
+import {
+  buildViralEditPlan,
+  checkPlan,
+  hookReadSec,
+  motionMatchedRate,
+  reframeFor,
+  LENGTH_PRESETS,
+  MAX_HOOK_SHIFT_SEC,
+  NUMBER_READ_SEC,
+  PACE_PRESETS,
+  REFRAME_MAX_SCALE,
+  SPEED,
+} from './plan';
 import type { ClipAnalysis, ClipSample, ViralClipInput, ViralEditPlan, ViralListingInfo, ViralShot } from './types';
 
 const listing: ViralListingInfo = {
@@ -130,10 +142,26 @@ test('the headline stays up for its reading time, then the listing facts answer 
   assert.equal(plan.endCard.big, '$1,450/mo');
 });
 
-test('headline reading time: ~2.7 s for 7 words, capped for long hooks, shorter for the teaser', () => {
-  assert.ok(Math.abs(hookReadSec('What $1,450/mo gets you in Mission District', 'full', 'balanced') - 2.74) < 0.01);
+test('headline reading time: ~2.7 s for 7 words, +0.3 s per number, capped for long hooks, shorter for the teaser', () => {
+  // 1.2 s + 7 words x 0.22 s + 1 number x 0.3 s
+  assert.ok(Math.abs(hookReadSec('What $1,450/mo gets you in Mission District', 'full', 'balanced') - 3.04) < 0.01);
+  assert.ok(Math.abs(hookReadSec('POV: you just moved into Mission District', 'full', 'balanced') - 2.74) < 0.01);
+  assert.equal(NUMBER_READ_SEC, 0.3);
   assert.equal(hookReadSec('This $1,450 room in the Mission comes with a private bath and laundry', 'full', 'balanced'), 3.2);
-  assert.ok(hookReadSec('What $1,450/mo gets you in Mission District', 'teaser', 'balanced') < 2.5);
+  const teaser = hookReadSec('What $1,450/mo gets you in Mission District', 'teaser', 'balanced');
+  assert.ok(teaser < hookReadSec('What $1,450/mo gets you in Mission District', 'full', 'balanced'));
+  assert.ok(teaser <= LENGTH_PRESETS.teaser.hook.maxSec);
+});
+
+test('a wall or door edge along one side is cropped with a small zoom anchored on the other side', () => {
+  assert.deepEqual(reframeFor(null), { scale: 1, originX: 50 });
+  assert.deepEqual(reframeFor({ side: 'right', band: 0.04 }), { scale: 1, originX: 50 }); // too thin to bother
+  const pillar = reframeFor({ side: 'right', band: 0.15 });
+  assert.equal(pillar.originX, 0); // keep the left side
+  assert.ok(Math.abs(pillar.scale - 1 / 0.85) < 0.002);
+  const door = reframeFor({ side: 'left', band: 0.4 });
+  assert.equal(door.originX, 100);
+  assert.equal(door.scale, REFRAME_MAX_SCALE); // never zoom past 1.25x
 });
 
 test('rooms are sped up or slowed down to match how fast the camera moves', () => {
@@ -183,7 +211,7 @@ test('real phone clips: every shot plays clean footage (no opening wall), about 
   }
   // The hook opens on a clean frame near the analysis' best moment
   const bedroom = clips[0].analysis!;
-  assert.ok(plan.shots[0].srcStartSec >= bedroom.best.startSec - 1.5 - 1e-3, `hook from ${plan.shots[0].srcStartSec}`);
+  assert.ok(plan.shots[0].srcStartSec >= bedroom.best.startSec - MAX_HOOK_SHIFT_SEC - 1e-3, `hook from ${plan.shots[0].srcStartSec}`);
   // Long rooms play from where the room comes into view and keep their ramp
   assert.ok(plan.shots.filter((s) => s.role === 'tour').every((s) => s.rampFrames > 0));
 });
@@ -378,4 +406,39 @@ test('a single clip still renders: hook headline, facts, then the end card', () 
 
 test('no clips is an error', () => {
   assert.throws(() => buildViralEditPlan({ listing, clips: [] }));
+});
+
+test('a late best frame keeps the cover; the facts move to the end card instead of an unreadable beat', () => {
+  // The kitchen from the host's guided shots, with the best frame where the browser found it (6.5 s)
+  const fx = JSON.parse(readFileSync(new URL('./fixtures/guided-shots.json', import.meta.url), 'utf8')) as {
+    cols: (keyof ClipSample)[];
+    clips: Record<string, { durationSec: number; rows: number[][] }>;
+  };
+  const clipOf = (name: string, slotNumber: number, room: string): ViralClipInput => {
+    const clip = fx.clips[name];
+    const samples = clip.rows.map((row) => {
+      const s = {} as ClipSample;
+      fx.cols.forEach((col, i) => {
+        (s as Record<string, number>)[col] = row[i];
+      });
+      return s;
+    });
+    return { slotNumber, room, src: `${name}.mov`, durationSec: clip.durationSec, analysis: analyzeSamples(samples, clip.durationSec, { sampleFps: 6 }) };
+  };
+  const kitchen = clipOf('kitchen', 2, 'Kitchen & Shared Space');
+  kitchen.analysis = { ...kitchen.analysis!, best: { ...kitchen.analysis!.best, startSec: 6.5, endSec: 8.17 } };
+  const clips = [clipOf('bedroom', 1, 'Bedroom Hook'), kitchen, clipOf('bathroom', 3, 'Bathroom Peek'), clipOf('closet', 4, 'Closet & Storage'), clipOf('living', 5, 'Standout Perk')];
+  const plan = buildViralEditPlan(
+    { listing, clips },
+    { hookSlotNumber: 2, hookTextOverride: 'You just found a $1,450/mo room in Mission District' }
+  );
+  const opener = plan.shots[0];
+  assert.equal(opener.slotNumber, 2);
+  // The cover stays near the best frame, on clean footage: 2.5 s earlier this clip shows a cluttered corner
+  assert.ok(opener.srcStartSec >= kitchen.analysis!.clean!.startSec - 1e-6);
+  assert.ok(opener.srcStartSec >= 6.5 - MAX_HOOK_SHIFT_SEC - 1e-6, `opener from ${opener.srcStartSec}`);
+  // Too little footage for a readable facts beat: it is dropped, and the facts still reach the end card
+  assert.ok(!opener.callouts.some((c) => c.kind === 'fact'));
+  assert.match(plan.endCard.sub, /1 bd/);
+  assert.match(plan.endCard.sub, /220 sq ft/);
 });

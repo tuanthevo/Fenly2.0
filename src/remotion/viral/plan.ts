@@ -54,6 +54,7 @@ import { VIDEO } from './theme';
 import type {
   BuildViralPlanInput,
   BuildViralPlanOptions,
+  ClipAnalysis,
   ClipRange,
   ClipWarning,
   HookCopy,
@@ -146,7 +147,11 @@ export const CLOSER_OVERLAY_FRAMES = 12;
 /** Guided slots that usually make the best opener: bedroom, perk, kitchen. */
 export const SLOT_HOOK_PRIOR: Record<number, number> = { 1: 0.1, 2: 0.06, 3: 0, 4: -0.05, 5: 0.08 };
 
-/** The hook may start this much before its best frame to make room for the facts beat. */
+/**
+ * The hook may start this much before its best frame to make room for the facts beat. Keep it
+ * small: frame 0 is the cover, and 2.5 s earlier the host's kitchen clip showed a cluttered
+ * corner instead of the kitchen. When the beat does not fit, the facts still reach the end card.
+ */
 export const MAX_HOOK_SHIFT_SEC = 1.5;
 /** A facts beat shorter than this is dropped (the facts still appear on the end card). */
 const MIN_FACTS_SEC = 1.2;
@@ -192,11 +197,33 @@ export function orderShots(clips: ViralClipInput[], hookSlot: number): ViralClip
   return [hook, ...rest.filter((c) => c !== closer), closer];
 }
 
-/** Headline reading time: a beat to land, then about 4.5 words per second, within the preset's range. */
+/** Extra reading time for each number in a headline ("$1,450/mo", "220 sq ft"): numbers are read slower than words. */
+export const NUMBER_READ_SEC = 0.3;
+
+/**
+ * Headline reading time: a beat to land, about 4.5 words per second, plus a
+ * little more for each number, within the preset's range.
+ */
 export function hookReadSec(text: string, length: ViralLength, pace: ViralPace): number {
   const h = LENGTH_PRESETS[length].hook;
-  const words = text.trim().split(/\s+/).filter(Boolean).length;
-  return clamp((h.baseSec + h.perWordSec * words) * PACE_PRESETS[pace].hookScale, h.minSec, h.maxSec * PACE_PRESETS[pace].hookScale);
+  const tokens = text.trim().split(/\s+/).filter(Boolean);
+  const numbers = tokens.filter((t) => /\d/.test(t)).length;
+  const raw = h.baseSec + h.perWordSec * tokens.length + NUMBER_READ_SEC * numbers;
+  return clamp(raw * PACE_PRESETS[pace].hookScale, h.minSec, h.maxSec * PACE_PRESETS[pace].hookScale);
+}
+
+/** Smallest side band worth cropping, and the most we zoom to crop it (more looks soft on phone footage). */
+export const REFRAME_MIN_BAND = 0.08;
+export const REFRAME_MAX_SCALE = 1.25;
+
+/**
+ * Turns a side band from the clip analysis (a pillar or door edge that stays
+ * in view) into a zoom anchored on the other side, so the band is cropped off.
+ */
+export function reframeFor(reframe: ClipAnalysis['reframe']): ViralShot['reframe'] {
+  if (!reframe || !(reframe.band >= REFRAME_MIN_BAND)) return { scale: 1, originX: 50 };
+  const scale = Math.min(REFRAME_MAX_SCALE, 1 / (1 - Math.min(reframe.band, 0.5)));
+  return { scale: Math.round(scale * 1000) / 1000, originX: reframe.side === 'right' ? 0 : 100 };
 }
 
 type SourceInfo = { duration: number; preferred: number; clean: ClipRange; motion: number | null };
@@ -526,6 +553,7 @@ export function buildViralEditPlan(input: BuildViralPlanInput, options: BuildVir
       rampFrames: fit.rampFrames,
       rampRate: fit.rampRate,
       isLandscape: Boolean(clip.isLandscape),
+      reframe: reframeFor(clip.analysis?.reframe),
     });
     cursor += primary[i];
   }

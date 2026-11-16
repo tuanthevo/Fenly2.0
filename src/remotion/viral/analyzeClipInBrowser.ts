@@ -95,7 +95,18 @@ export async function analyzeClipInBrowser(
     canvas.width = SAMPLE_W;
     canvas.height = SAMPLE_H;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return null;
+    // Downscale in two smoothed steps (1080 px -> 288 -> 72). A single drawImage to 72 px barely
+    // filters, so wall and stucco texture alias into fake detail and a pillar or door edge stops
+    // looking featureless. Two steps match the area-averaged samples the thresholds were tuned on.
+    const mid = document.createElement('canvas');
+    mid.width = SAMPLE_W * 4;
+    mid.height = SAMPLE_H * 4;
+    const midCtx = mid.getContext('2d');
+    if (!ctx || !midCtx) return null;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    midCtx.imageSmoothingEnabled = true;
+    midCtx.imageSmoothingQuality = 'high';
 
     // Center 9:16 crop: the part of the frame the feed shows (landscape clips get cropped)
     const target = 9 / 16;
@@ -113,7 +124,8 @@ export async function analyzeClipInBrowser(
       if (options.signal?.aborted) return null;
       const t = Math.min(i / fps, Math.max(0, duration - 0.05));
       await seek(video, t, frameWait);
-      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, SAMPLE_W, SAMPLE_H);
+      midCtx.drawImage(video, sx, sy, sw, sh, 0, 0, mid.width, mid.height);
+      ctx.drawImage(mid, 0, 0, mid.width, mid.height, 0, 0, SAMPLE_W, SAMPLE_H);
       const { data } = ctx.getImageData(0, 0, SAMPLE_W, SAMPLE_H);
       const { signals, state } = computeFrameSignals(data, prev);
       prev = state;

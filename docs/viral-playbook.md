@@ -41,7 +41,7 @@ that already works.
 
 | Section | Length | Speed | What's on screen | Why |
 | --- | --- | --- | --- | --- |
-| Hook | headline reading time: 1.2 s + 0.22 s/word, 2.5-3.2 s (≈2.7 s for "What $1,450/mo gets you in Mission District") | 1.0x, no ramp | best frame of the best shot, price + place headline, slow settle from 1.12x zoom | viewers decide in 0-3 s; frame 0 is also the cover |
+| Hook | headline reading time: 1.2 s + 0.22 s/word + 0.3 s per number, 2.5-3.2 s (≈3.0 s for "What $1,450/mo gets you in Mission District") | 1.0x, no ramp | best frame of the best shot, price + place headline, slow settle from 1.12x zoom | viewers decide in 0-3 s; frame 0 is also the cover |
 | Answer | ≈3 s, same shot keeps rolling | 1.0x (0.85x if footage is short) | "1 bed · 1 bath", "220 sq ft", best amenity, popping in 0.2 s apart; price chip appears | pays off the hook's question right away |
 | Each room | ≈5 s (shorter when the clip has less clean footage, never under 2.6 s) | 2x ramp for the first ~11 frames (under the whip/zoom cut), then matched to camera movement, 0.95-1.35x | room tag at 0.3 s, a second callout at ~2.3 s | something new every ~2 s; a slow shuffle is sped up, a brisk walk stays near real time |
 | Re-hook | 1.2 s, on the room nearest 45% of the runtime | | "Wait for the best part" | carries viewers through the mid-video dip |
@@ -65,6 +65,10 @@ tap-to-record shake.
 | Room speed matched to camera movement | `plan.ts` `motionMatchedRate` (uses the analysis' `meanMotion`) |
 | Speed ramp into rooms and the perk | `FenlyViralTour.tsx` `ShotFootage` (two back-to-back segments of the same clip) |
 | Cleanest stretch of each clip (no wall, no door edge, no whip pan), auto-brightened | `clipSignals.ts` (tuned on real phone clips, see the fixture test) |
+| A room opens only where at least 90% of the frame shows the room (column coverage), never in the hallway or behind a door edge | `clipSignals.ts` `columnCoverage`, `OPENING_COVERAGE_MIN`, `findCleanRange` (tested on the host's 5 guided shots, `fixtures/guided-shots.json`) |
+| A pillar, wall or door edge that stays along one side is cropped with a small zoom (≤ 1.25x) anchored on the other side | `clipSignals.ts` `sideBand`, `plan.ts` `reframeFor`, `FenlyViralTour.tsx` `reframeStyle` |
+| Browser sampling downscales in two smoothed steps, so wall texture doesn't alias into fake detail | `analyzeClipInBrowser.ts` |
+| Gemini hooks over 8 words are dropped for the editor's own 7-word headline (the hook is on screen ≤ 3.2 s) | `server/app.ts` `MAX_AI_HOOK_WORDS` |
 | Listing facts answer the hook; a second callout per room (Gemini sees the frame, else listing facts and the lease) | `copy.ts` `heroFacts`, `listingFacts`; `overlays.tsx` `Callout`; `/api/viral/copy` `details` |
 | Whip / zoom transitions with motion blur, a light-leak hit on the payoff | `transitions.tsx`, `FenlyViralTour.tsx` `ShotLayer` |
 | 2-3 word room callouts, readable in a second with the sound off | `copy.ts` `cleanTag`, `overlays.tsx` `RoomTag` |

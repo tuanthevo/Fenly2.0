@@ -106,6 +106,15 @@ const ShotFootage: React.FC<{ plan: ViralEditPlan; shot: ViralShot; blurRadius: 
   );
 };
 
+/**
+ * The shot's push-in zoom, combined with its reframe: a wall or door edge
+ * along one side is cropped by zooming in a little, anchored on the other side.
+ */
+function reframeStyle(shot: ViralShot, zoom: number): React.CSSProperties {
+  const reframe = shot.reframe ?? { scale: 1, originX: 50 };
+  return { scale: zoom * reframe.scale, transformOrigin: `${reframe.originX}% 50%` };
+}
+
 const ShotLayer: React.FC<{
   plan: ViralEditPlan;
   shot: ViralShot;
@@ -140,7 +149,7 @@ const ShotLayer: React.FC<{
 
   return (
     <AbsoluteFill style={{ backgroundColor: FENN.espresso, overflow: 'hidden' }}>
-      <AbsoluteFill style={{ scale: zoom }}>
+      <AbsoluteFill style={reframeStyle(shot, zoom)}>
         <ShotFootage plan={plan} shot={shot} blurRadius={blurRadius} />
       </AbsoluteFill>
       {shot.role === 'tour' && shot.tag ? (
@@ -174,7 +183,7 @@ const LoopBridge: React.FC<{ plan: ViralEditPlan }> = ({ plan }) => {
       }}
     >
       <AbsoluteFill style={{ backgroundColor: FENN.espresso, overflow: 'hidden' }}>
-        <AbsoluteFill style={{ scale: 1.12 }}>
+        <AbsoluteFill style={reframeStyle(hook, 1.12)}>
           <Video
             name="Loop bridge footage"
             src={hook.src}

@@ -38,6 +38,20 @@ Read it first, and keep it in sync with any change you make.
 5. **Explain trade-offs to the user** in plain words ("the room labels now stay
    0.4 s longer, so the video is 1.5 s longer"), not in frame counts.
 
+## Lessons from past audits
+
+- **Measure what the app measures.** The CLI render skips clip analysis, and the
+  browser analyzer once saw walls as "detail" because a one-step 72 px downscale
+  aliased their texture. Judge the app's export, and check analyzer numbers in the
+  page (`analyzeClipInBrowser`) against `fixtures/guided-shots.json`.
+- **The cover beats every other beat.** Moving the opener 2.5 s earlier to fit
+  the facts beat put a cluttered corner on frame 0. Facts can move to the end
+  card; frame 0 can't move.
+- **Some problems are in the footage.** A pillar in the way can only be cropped so
+  far (≤ 1.25x). Past that, surface Gemini's Quick Retake tip instead of hiding it.
+- **Gemini's copy varies per call.** Compare renders on structure and placement,
+  not on the exact words.
+
 ## The non-negotiables
 
 | # | Rule | Why |
