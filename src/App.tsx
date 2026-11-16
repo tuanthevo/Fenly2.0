@@ -14,6 +14,12 @@ import {
   SubmittedApplication
 } from './types';
 import { INITIAL_ROOMS, INITIAL_CONVERSATIONS } from './data/mockRooms';
+import {
+  isHostListing,
+  loadSavedListings,
+  mergeSavedListings,
+  syncSavedListings,
+} from './utils/listingStore';
 import { INITIAL_USER_PROFILE } from './data/userProfile';
 import {
   maskAndScanMessage,
@@ -52,6 +58,38 @@ import { FennMascot, FennStickerSheetModal } from './components/FennMascot';
 export default function App() {
   // --- STATE ---
   const [rooms, setRooms] = useState<RoomListing[]>(INITIAL_ROOMS);
+
+  // Listings the host publishes are kept on this device (IndexedDB) so they
+  // and their videos survive a reload. Nothing is saved until the saved ones
+  // have loaded, so a quick save can't wipe them.
+  const [savedListingsLoaded, setSavedListingsLoaded] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    loadSavedListings()
+      .then((saved) => {
+        if (cancelled || saved.length === 0) return;
+        setRooms((prev) => mergeSavedListings(saved, prev));
+      })
+      .catch((error) => console.warn('Could not load saved listings:', error))
+      .finally(() => {
+        if (!cancelled) setSavedListingsLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const hostRooms = useMemo(() => rooms.filter(isHostListing), [rooms]);
+  const hostRoomsKey = useMemo(() => JSON.stringify(hostRooms), [hostRooms]);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  useEffect(() => {
+    if (!savedListingsLoaded) return;
+    // One save at a time, in order
+    saveQueueRef.current = saveQueueRef.current
+      .then(() => syncSavedListings(hostRooms))
+      .catch((error) => console.warn('Could not save listings:', error));
+    // hostRoomsKey changes exactly when a host listing changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hostRoomsKey, savedListingsLoaded]);
   const [currentRoomIndex, setCurrentRoomIndex] = useState<number>(0);
   const [rapidSwipeCount, setRapidSwipeCount] = useState<number>(0);
   const [isMuted, setIsMuted] = useState<boolean>(true);

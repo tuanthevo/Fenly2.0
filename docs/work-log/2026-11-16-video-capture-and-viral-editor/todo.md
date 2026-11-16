@@ -10,13 +10,23 @@
       - export in **iPhone Safari** (needs Safari 26+ for WebCodecs) and
         Android Chrome
       - Share (opening the phone's share sheet with the MP4 and the caption)
-- [ ] **Click through "publish without an exported video"** in the browser. It
-      is the same code as before, but it wasn't run in the UI this session.
-- [ ] **Store media somewhere real.** Clips and the exported MP4 are `blob:`
-      URLs that disappear on refresh, and listings are still mock data in
-      React state. Upload the MP4 and thumbnails to storage (Supabase is
-      already in `.env.local`) and save listings to a database. Media must
-      never go through `/api`, because of Vercel's 4.5 MB body limit.
+- [x] **Click through "publish without an exported video"** in the browser.
+      Done: it publishes, and the listing survives a reload.
+- [x] **Keep posted listings across reloads (stopgap).** `src/utils/listingStore.ts`
+      saves listings you publish, and their videos, in this browser's IndexedDB.
+      Verified: a viral-edit listing and a slideshow listing both came back
+      after a reload.
+- [ ] **Store media somewhere real.** The on-device save works only in the
+      same browser on the same device, and the browser may clear it. Upload
+      the MP4 and thumbnails to storage (Supabase is already in `.env.local`)
+      and save listings to a database. Media must never go through `/api`,
+      because of Vercel's 4.5 MB body limit.
+- [ ] **Add a way to delete a posted listing.** There's no delete button, and
+      saved listings (with their video files, about 20-60 MB each) build up
+      in the browser's storage.
+- [ ] **Don't let an export race the Gemini pass.** If "Make my video" is
+      clicked before Gemini's wording arrives, the video is marked "made
+      before your last change". Wait for the AI pass, or show that it's running.
 - [ ] **Decide on the 102 staged skill-folder deletions** (`.adal/`,
       `.agents/`, …). They were already staged before this work and are
       still uncommitted. Commit or restore them on purpose.
