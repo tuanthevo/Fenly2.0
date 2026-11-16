@@ -91,16 +91,17 @@ function realClips(): ViralClipInput[] {
   });
 }
 
-test('5 guided 7 s shots make a ~27 s full tour: hook + facts, 3 rooms of ~5 s, perk, end card', () => {
+test('5 clean 7 s guided shots make a ~34 s full tour (30-45 s): hook + facts, 3 rooms of ~6.5 s, perk, end card', () => {
   const plan = buildViralEditPlan({ listing, clips: guidedClips() });
   assert.deepEqual(checkPlan(plan), []);
   assert.equal(plan.length, 'full');
   assert.deepEqual(plan.shots.map((s) => s.slotNumber), [1, 2, 3, 4, 5]);
   assert.deepEqual(plan.shots.map((s) => s.role), ['hook', 'tour', 'tour', 'tour', 'closer']);
-  assert.ok(sec(plan) >= 25 && sec(plan) <= 30, `duration ${sec(plan)}s`);
-  assert.ok(onScreen(plan, 0) > 5, 'the opener carries the hook and the facts');
-  for (const i of [1, 2, 3]) assert.ok(onScreen(plan, i) >= 4.5 && onScreen(plan, i) <= 5.01, `room ${i}: ${onScreen(plan, i)}s`);
-  assert.equal(plan.endCard.durationInFrames, Math.round(3.2 * plan.fps));
+  assert.ok(sec(plan) >= 30 && sec(plan) <= 45, `duration ${sec(plan)}s`);
+  assert.ok(onScreen(plan, 0) > 6, 'the opener carries the hook and the facts');
+  // Rooms aim for 7 s and shrink to the footage a 7 s clip has (it also plays under the next cut)
+  for (const i of [1, 2, 3]) assert.ok(onScreen(plan, i) >= 5.5 && onScreen(plan, i) <= 7.01, `room ${i}: ${onScreen(plan, i)}s`);
+  assert.equal(plan.endCard.durationInFrames, Math.round(3.5 * plan.fps));
   assert.equal(plan.shots[0].playbackRate, SPEED.hero);
   assert.equal(plan.shots[0].rampFrames, 0, 'no ramp on frame 0');
   for (const s of plan.shots.slice(1)) {
@@ -120,13 +121,13 @@ test('the teaser is a ~13 s loop with fast rooms and no extra callouts', () => {
   assert.equal(plan.hookExitFrame, plan.shots[1].startFrame, 'the headline leaves on the first cut');
 });
 
-test('pace scales the full tour from ~24 s (snappy) to ~31 s (relaxed)', () => {
+test('pace scales the full tour from ~31 s (snappy) to ~36 s (relaxed)', () => {
   const lengths = (Object.keys(PACE_PRESETS) as (keyof typeof PACE_PRESETS)[]).map((pace) =>
     sec(buildViralEditPlan({ listing, clips: guidedClips() }, { pace }))
   );
   const [snappy, balanced, relaxed] = lengths;
   assert.ok(snappy < balanced && balanced < relaxed, lengths.join(' < '));
-  assert.ok(snappy >= 22 && relaxed <= 33, lengths.join(', '));
+  assert.ok(snappy >= 28 && relaxed <= 40, lengths.join(', '));
 });
 
 test('the headline stays up for its reading time, then the listing facts answer it', () => {
@@ -298,7 +299,7 @@ test('3 shots still make a valid, shorter edit with no re-hook', () => {
   assert.equal(plan.rehook, null);
   assert.equal(plan.shots[2].kicker, 'THE BEST PART');
   assert.equal(plan.shots[2].tag, 'In-unit laundry');
-  assert.ok(sec(plan) > 13 && sec(plan) < 20, `${sec(plan)}s`);
+  assert.ok(sec(plan) > 18 && sec(plan) < 26, `${sec(plan)}s`);
 });
 
 test('the re-hook lands near the middle, between a room tag and its second callout', () => {

@@ -47,6 +47,7 @@ import { RoomDetailsModal } from './components/RoomDetailsModal';
 import { ApplicationModal } from './components/ApplicationModal';
 import { UserProfileModal } from './components/UserProfileModal';
 import { PostRoomModal } from './components/PostRoomModal';
+import { EditListingModal } from './components/EditListingModal';
 import { AiDirectorStudioModal } from './components/AiDirectorStudioModal';
 import { ShareModal } from './components/ShareModal';
 import { BottomNavBar, FennTab } from './components/BottomNavBar';
@@ -59,37 +60,56 @@ export default function App() {
   // --- STATE ---
   const [rooms, setRooms] = useState<RoomListing[]>(INITIAL_ROOMS);
 
-  // Listings the host publishes are kept on this device (IndexedDB) so they
-  // and their videos survive a reload. Nothing is saved until the saved ones
+  // Listings the host publishes, edits or deletes are kept on this device (IndexedDB) so
+  // they and their videos survive a reload. Nothing is saved until the saved ones
   // have loaded, so a quick save can't wipe them.
   const [savedListingsLoaded, setSavedListingsLoaded] = useState(false);
   useEffect(() => {
     let cancelled = false;
     loadSavedListings()
-      .then((saved) => {
-        if (cancelled || saved.length === 0) return;
-        setRooms((prev) => mergeSavedListings(saved, prev));
+      .then(({ rooms: saved, deletedIds }) => {
+        if (cancelled) return;
+        // Merge first, outside React's updater, so a bad record can't half-apply
+        const merged = mergeSavedListings(saved, INITIAL_ROOMS, deletedIds);
+        if (saved.length > 0 || deletedIds.length > 0) {
+          setRooms((prev) => {
+            // Keep anything published while loading
+            const ids = new Set(merged.map((r) => r.id));
+            return [...prev.filter((r) => !ids.has(r.id) && !INITIAL_ROOMS.some((b) => b.id === r.id)), ...merged];
+          });
+        }
+        // Only now may saving start: saving makes storage match the feed, so starting it
+        // after a failed load would erase everything that was saved
+        setSavedListingsLoaded(true);
       })
-      .catch((error) => console.warn('Could not load saved listings:', error))
-      .finally(() => {
-        if (!cancelled) setSavedListingsLoaded(true);
+      .catch((error) => {
+        console.warn('Could not load saved listings; saving is off for this visit so nothing is overwritten:', error);
       });
     return () => {
       cancelled = true;
     };
   }, []);
-  const hostRooms = useMemo(() => rooms.filter(isHostListing), [rooms]);
-  const hostRoomsKey = useMemo(() => JSON.stringify(hostRooms), [hostRooms]);
+  // What to save: the host's own listings, plus built-in listings the host edited or deleted
+  const builtInJson = useMemo(() => new Map(INITIAL_ROOMS.map((r) => [r.id, JSON.stringify(r)])), []);
+  const roomsToSave = useMemo(
+    () => rooms.filter((r) => isHostListing(r) || (builtInJson.has(r.id) && builtInJson.get(r.id) !== JSON.stringify(r))),
+    [rooms, builtInJson]
+  );
+  const deletedBuiltInIds = useMemo(() => {
+    const present = new Set(rooms.map((r) => r.id));
+    return INITIAL_ROOMS.filter((r) => !present.has(r.id)).map((r) => r.id);
+  }, [rooms]);
+  const saveKey = useMemo(() => JSON.stringify([roomsToSave, deletedBuiltInIds]), [roomsToSave, deletedBuiltInIds]);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   useEffect(() => {
     if (!savedListingsLoaded) return;
     // One save at a time, in order
     saveQueueRef.current = saveQueueRef.current
-      .then(() => syncSavedListings(hostRooms))
+      .then(() => syncSavedListings(roomsToSave, deletedBuiltInIds))
       .catch((error) => console.warn('Could not save listings:', error));
-    // hostRoomsKey changes exactly when a host listing changes
+    // saveKey changes exactly when something to save changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hostRoomsKey, savedListingsLoaded]);
+  }, [saveKey, savedListingsLoaded]);
   const [currentRoomIndex, setCurrentRoomIndex] = useState<number>(0);
   const [rapidSwipeCount, setRapidSwipeCount] = useState<number>(0);
   const [isMuted, setIsMuted] = useState<boolean>(true);
@@ -966,6 +986,21 @@ export default function App() {
     setActiveTab('listings');
   };
 
+  // Edit / delete a listing (Home > Landlord > Active Room Listing)
+  const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
+  const editingRoom = useMemo(() => rooms.find((r) => r.id === editingRoomId) ?? null, [rooms, editingRoomId]);
+  const handleSaveRoom = (updated: RoomListing) => {
+    setRooms((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+  };
+  const handleDeleteRoom = (roomId: string) => {
+    const index = rooms.findIndex((r) => r.id === roomId);
+    if (index === -1) return;
+    // Keep the feed on a valid card
+    setCurrentRoomIndex((current) => Math.max(0, Math.min(current > index ? current - 1 : current, rooms.length - 2)));
+    setRooms((prev) => prev.filter((r) => r.id !== roomId));
+    setEditingRoomId((id) => (id === roomId ? null : id));
+  };
+
   const unreadMessagesCount = conversations.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
 
   return (
@@ -1250,6 +1285,8 @@ export default function App() {
               }}
               onOpenAiDirector={() => setIsAiDirectorOpen(true)}
               onOpenPostRoom={() => setIsPostRoomOpen(true)}
+              onEditRoom={setEditingRoomId}
+              onDeleteRoom={handleDeleteRoom}
               onBack={() => setActiveTab('listings')}
               masterLeaseConfig={masterLeaseConfig}
               onUpdateMasterLeaseConfig={(updated) =>
@@ -1371,6 +1408,17 @@ export default function App() {
         userProfile={userProfile}
         onOpenAiDirector={() => setIsAiDirectorOpen(true)}
       />
+
+      {/* Edit / delete a listing (from Active Room Listing) */}
+      {editingRoom && (
+        <EditListingModal
+          key={editingRoom.id}
+          room={editingRoom}
+          onClose={() => setEditingRoomId(null)}
+          onSave={handleSaveRoom}
+          onDelete={handleDeleteRoom}
+        />
+      )}
 
       {/* 9. Landlord AI Director & Walkability Studio */}
       <AiDirectorStudioModal

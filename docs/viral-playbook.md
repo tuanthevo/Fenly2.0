@@ -37,7 +37,9 @@ that already works.
   ([revid TikTok safe-zone checker](https://www.revid.ai/tiktok-safe-zone),
   [cross-platform guide](https://wildandfreetools.com/blog/vertical-video-safe-zones-guide-2026/))
 
-## Section timing (full tour, balanced pace, 5 guided 7 s shots ≈ 27 s)
+## Section timing (full tour, balanced pace, 5 guided 7 s shots ≈ 34 s when every shot is clean)
+
+Targets after the November 2026 update: 30-45 s (rooms aim for 7 s, the perk for 5 s, the end card 3.5 s). Rooms still shrink to their clean footage, so real clips with doorways or edges give shorter tours. The table below describes the beats; the exact targets live in `plan.ts` `LENGTH_PRESETS`.
 
 | Section | Length | Speed | What's on screen | Why |
 | --- | --- | --- | --- | --- |

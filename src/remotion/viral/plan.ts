@@ -51,6 +51,7 @@ import {
   violatesFairHousing,
 } from './copy';
 import { VIDEO } from './theme';
+import { normalizeLook } from './look';
 import type {
   BuildViralPlanInput,
   BuildViralPlanOptions,
@@ -100,13 +101,14 @@ export type LengthPreset = {
 export const LENGTH_PRESETS: Record<ViralLength, LengthPreset> = {
   full: {
     label: 'Full tour',
-    approxLabel: '~30s',
+    approxLabel: '30-45s',
     hook: { baseSec: 1.2, perWordSec: 0.22, minSec: 2.5, maxSec: 3.2 },
     heroFactsSec: 3,
-    tourSec: 5,
+    // Targets for a 30-45 s tour; each room still shrinks to its clean footage rather than crawl or show a wall
+    tourSec: 7,
     minTourSec: 2.6,
-    closerSec: 3.4,
-    endCardSec: 3.2,
+    closerSec: 5,
+    endCardSec: 3.5,
     tourRate: { targetMotion: 0.075, fallback: 1.12, min: 0.95, max: 1.35 },
     closerRate: 0.85,
     ramp: { rate: 2, extraFrames: 4 },
@@ -686,6 +688,7 @@ export function buildViralEditPlan(input: BuildViralPlanInput, options: BuildVir
     },
     showWatermark: options.showWatermark ?? false,
     enableEffects,
+    look: normalizeLook(options.look),
     caption,
     warnings,
   };

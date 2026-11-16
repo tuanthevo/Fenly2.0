@@ -1,3 +1,4 @@
+import type { SavedVideoEdit } from './remotion/viral/editSettings';
 export interface Host {
   id: string;
   name: string;
@@ -59,6 +60,8 @@ export interface RoomListing {
   description: string;
   stagedImages?: StagedImage[];
   tourFormat?: 'live_walkthrough' | 'ai_photo_reel' | 'viral_edit';
+  /** The edit behind a 'viral_edit' video, so the host can change it later (clips are kept on the device) */
+  viralEdit?: SavedVideoEdit;
   coordinates?: {
     lat: number;
     lng: number;

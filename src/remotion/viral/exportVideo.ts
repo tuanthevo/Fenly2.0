@@ -59,6 +59,9 @@ export async function exportViralVideo(
     container: 'mp4',
     videoCodec: 'h264',
     videoBitrate: 'high',
+    // Phone HEVC clips can take a while to decode on slower devices (or while the preview is
+    // also decoding them); 28 s per frame failed in testing, so allow up to 2 minutes
+    delayRenderTimeoutInMilliseconds: 120_000,
     onProgress: ({ progress }) => options.onProgress?.(progress),
     signal: options.signal,
     licenseKey: LICENSE_KEY,

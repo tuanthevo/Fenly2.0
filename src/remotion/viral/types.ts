@@ -264,6 +264,8 @@ export type ViralEditPlan = {
   showWatermark: boolean;
   /** WebGL effects (color grade, motion blur, light leak). Turn off where WebGL2 is missing. */
   enableEffects: boolean;
+  /** Host's lighting choice, applied on top of each shot's automatic exposure fix */
+  look: ViralLook;
   /** Ready-to-paste caption (not rendered into the video) */
   caption: string;
   warnings: ClipWarning[];
@@ -295,5 +297,18 @@ export type BuildViralPlanOptions = {
   music?: { src: string; volume?: number; startSec?: number; bpm?: number | null } | null;
   showWatermark?: boolean;
   enableEffects?: boolean;
+  /** Host's lighting choice (see look.ts); missing = natural */
+  look?: ViralLook | null;
   fps?: number;
+};
+
+/**
+ * Lighting adjustments the host can make, each -1..1 with 0 = as filmed (after
+ * the automatic exposure fix). look.ts turns them into colorCorrection() values.
+ */
+export type ViralLook = {
+  brightness: number;
+  warmth: number;
+  contrast: number;
+  saturation: number;
 };

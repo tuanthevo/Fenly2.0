@@ -48,3 +48,12 @@ test('saved host listings go first and replace a built-in listing with the same 
   assert.equal(isHostListing(r('room-custom-9')), true);
   assert.equal(isHostListing(r('room-1')), false);
 });
+
+test('after a reload, edited built-in listings keep their place and deleted ones stay deleted', () => {
+  const r = (id: string, title = id) => ({ id, title }) as RoomListing;
+  const builtIn = [r('room-1'), r('room-2'), r('room-3')];
+  const saved = [r('room-custom-9'), r('room-2', 'Edited title')];
+  const merged = mergeSavedListings(saved, builtIn, ['room-3']);
+  assert.deepEqual(merged.map((x) => x.id), ['room-custom-9', 'room-1', 'room-2']);
+  assert.equal(merged[2].title, 'Edited title');
+});

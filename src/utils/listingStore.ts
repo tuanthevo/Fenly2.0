@@ -48,15 +48,31 @@ export const isBlobUrl = (s: string) => s.startsWith('blob:');
 export const isMediaToken = (s: string) => s.startsWith(MEDIA_TOKEN_PREFIX);
 export const isHostListing = (room: Pick<RoomListing, 'id'>) => room.id.startsWith(HOST_LISTING_ID_PREFIX);
 
-/** Puts saved host listings first (newest first), then the built-in ones without duplicates. */
-export function mergeSavedListings(saved: RoomListing[], builtIn: RoomListing[]): RoomListing[] {
-  const ids = new Set(saved.map((r) => r.id));
-  return [...saved, ...builtIn.filter((r) => !ids.has(r.id))];
+/**
+ * The feed after a reload: the host's own listings first (in saved order), then
+ * the built-in listings, using the saved version of any the host edited and
+ * leaving out any the host deleted.
+ */
+export function mergeSavedListings(
+  saved: RoomListing[],
+  builtIn: RoomListing[],
+  deletedIds: string[] = []
+): RoomListing[] {
+  const builtInIds = new Set(builtIn.map((r) => r.id));
+  const savedById = new Map(saved.map((r) => [r.id, r]));
+  const deleted = new Set(deletedIds);
+  const own = saved.filter((r) => !builtInIds.has(r.id));
+  const rest = builtIn.filter((r) => !deleted.has(r.id)).map((r) => savedById.get(r.id) ?? r);
+  return [...own, ...rest];
 }
+
+/** Id of the row that remembers which built-in listings the host deleted. */
+const DELETED_ROW_ID = '__deleted_built_in__';
 
 // ---------- IndexedDB ----------
 
 type SavedListing = { id: string; savedAt: number; order: number; room: RoomListing };
+type DeletedRow = { id: typeof DELETED_ROW_ID; ids: string[] };
 type SavedMedia = { id: string; blob: Blob };
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -114,10 +130,12 @@ function newMediaId(): string {
   return `${MEDIA_TOKEN_PREFIX}${random}`;
 }
 
-/** Loads saved host listings (newest first) with live blob: URLs for their media. */
-export async function loadSavedListings(): Promise<RoomListing[]> {
+/** Loads saved listings (host listings and edited built-ins) with live blob: URLs, plus deleted built-in ids. */
+export async function loadSavedListings(): Promise<{ rooms: RoomListing[]; deletedIds: string[] }> {
   const db = await openDb();
-  const rows = await getAll<SavedListing>(db, LISTINGS);
+  const all = await getAll<SavedListing | DeletedRow>(db, LISTINGS);
+  const deletedRow = all.find((r): r is DeletedRow => r.id === DELETED_ROW_ID);
+  const rows = all.filter((r): r is SavedListing => r.id !== DELETED_ROW_ID);
   rows.sort((a, b) => a.order - b.order);
   const rooms: RoomListing[] = [];
   for (const row of rows) {
@@ -132,14 +150,15 @@ export async function loadSavedListings(): Promise<RoomListing[]> {
     // Media that went missing becomes an empty string, so the player falls back to images
     rooms.push(mapStrings(row.room, (s) => (isMediaToken(s) ? blobUrlByToken.get(s) ?? '' : s)));
   }
-  return rooms;
+  return { rooms, deletedIds: deletedRow?.ids ?? [] };
 }
 
 /**
- * Makes the saved set match `hostRooms` (in feed order): stores new media,
- * writes every listing, and deletes listings and media that are gone.
+ * Makes the saved set match `hostRooms` (the host's listings and any edited
+ * built-in ones, in feed order): stores new media, writes every listing,
+ * remembers deleted built-in listings, and deletes listings and media that are gone.
  */
-export async function syncSavedListings(hostRooms: RoomListing[]): Promise<void> {
+export async function syncSavedListings(hostRooms: RoomListing[], deletedBuiltInIds: string[] = []): Promise<void> {
   const db = await openDb();
 
   // 1. Store any media not saved yet (read the blobs before opening the write transaction)
@@ -166,7 +185,7 @@ export async function syncSavedListings(hostRooms: RoomListing[]): Promise<void>
   const keepListing = new Set(rows.map((r) => r.id));
   const keepMedia = new Set(collectStrings(rows, isMediaToken));
 
-  const existingListings = await getAll<SavedListing>(db, LISTINGS);
+  const existingListings = (await getAll<SavedListing | DeletedRow>(db, LISTINGS)).filter((r) => r.id !== DELETED_ROW_ID);
   const existingMediaIds = (await getAll<SavedMedia>(db, MEDIA)).map((m) => m.id);
 
   const tx = db.transaction([LISTINGS, MEDIA], 'readwrite');
@@ -175,6 +194,8 @@ export async function syncSavedListings(hostRooms: RoomListing[]): Promise<void>
   for (const media of newMedia) if (keepMedia.has(media.id)) mediaStore.put(media);
   for (const row of rows) listingStore.put(row);
   for (const old of existingListings) if (!keepListing.has(old.id)) listingStore.delete(old.id);
+  if (deletedBuiltInIds.length) listingStore.put({ id: DELETED_ROW_ID, ids: [...new Set(deletedBuiltInIds)] });
+  else listingStore.delete(DELETED_ROW_ID);
   for (const id of existingMediaIds) if (!keepMedia.has(id)) mediaStore.delete(id);
   await done(tx);
 }

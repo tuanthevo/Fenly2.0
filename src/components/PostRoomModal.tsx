@@ -345,6 +345,20 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
       fallbackThumbnail: customLoadedPictures[0]?.url || viralScenes[0].imageUrl,
       tourFormat: viralVideo ? 'viral_edit' : 'live_walkthrough',
       customScenes: editScenes || viralScenes,
+      // Keep the clips and choices behind the video so the host can edit it later
+      viralEdit: viralVideo
+        ? {
+            ...viralVideo.edit,
+            clips: Object.values(recordedViralMedia).map((m) => ({
+              slotNumber: m.slotNumber,
+              videoUrl: m.videoUrl,
+              thumbnailUrl: m.thumbnailUrl,
+              durationSec: m.durationSec,
+              isLandscape: m.isLandscape,
+              source: m.source,
+            })),
+          }
+        : undefined,
       audioTrack: {
         title: finalPlan?.voiceover_script || 'Original Room Tour Beats',
         artist: userProfile.name,

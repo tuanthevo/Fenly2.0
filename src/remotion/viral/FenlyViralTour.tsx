@@ -33,6 +33,7 @@ import {
 } from './overlays';
 import { sfxSrc } from './sfx';
 import { FENN } from './theme';
+import { gradeFor } from './look';
 import { CutOverlay, cutPresentation, isOverlayCut } from './transitions';
 import type { ViralCutKind, ViralEditPlan, ViralShot } from './types';
 
@@ -45,18 +46,11 @@ const ZOOM_BLUR = 8;
 const blurFor = (kind: ViralCutKind | null) =>
   kind === 'whip-left' || kind === 'whip-right' ? WHIP_BLUR : kind === 'zoom-through' ? ZOOM_BLUR : 0;
 
-/** Warm, slightly punchy grade plus the exposure fix from the clip analysis. */
+/** Warm, slightly punchy grade, the exposure fix from the clip analysis, and the host's lighting choice (look.ts). */
 function gradeEffects(plan: ViralEditPlan, shot: ViralShot, blurRadius: number) {
   if (!plan.enableEffects) return undefined;
   return [
-    colorCorrection({
-      exposure: shot.exposure,
-      temperature: 0.04,
-      shadows: shot.exposure > 0.2 ? 0.1 : 0.03,
-      contrast: 1.06,
-      saturation: 1.06,
-      vibrance: 0.12,
-    }),
+    colorCorrection(gradeFor(shot.exposure, plan.look)),
     blur({ radius: Math.max(1, blurRadius), disabled: blurRadius < 0.75 }),
   ];
 }

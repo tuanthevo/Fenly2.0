@@ -32,6 +32,13 @@ import {
   generateAiListingTitleAndDescription,
 } from "../src/utils/trustSafety.js";
 import { violatesFairHousing } from "../src/remotion/viral/copy.js";
+import {
+  DEFAULT_EDIT_SETTINGS,
+  isEmptyPatch,
+  localEditPatch,
+  sanitizeEditPatch,
+  type ViralEditSettings,
+} from "../src/remotion/viral/editSettings.js";
 import type { ViralAiHints } from "../src/remotion/viral/types.js";
 
 const app = express();
@@ -1093,6 +1100,123 @@ Rules: no emoji; plain words; never describe who should or should not live there
   } catch (error) {
     console.error("Viral copy pass failed:", error instanceof Error ? error.message : error);
     res.json({ hints: {}, model_used: GEMINI_FLASH_MODEL, latencyMs: Date.now() - startTime });
+  }
+});
+
+// Video edit request (/api/viral/edit): the host types what to change ("brighter, and say
+// 'walk-in closet' on the closet") and gets back a small patch to the editor's settings.
+// Text only (no frames, no video) on the lite model with minimal thinking, so it is cheap
+// and fast. Without a key, or if the call fails, the local rules in editSettings.ts answer.
+app.post("/api/viral/edit", async (req, res) => {
+  const startTime = Date.now();
+  const body = req.body || {};
+  const request = typeof body.request === "string" ? body.request.trim().slice(0, 300) : "";
+  const settings: ViralEditSettings = { ...DEFAULT_EDIT_SETTINGS, ...(body.settings || {}) };
+  const shots: { slotNumber: number; room: string; tag: string; detail: string }[] = Array.isArray(body.shots)
+    ? body.shots
+        .filter((s: any) => Number.isInteger(s?.slotNumber) && s.slotNumber >= 1 && s.slotNumber <= 5)
+        .slice(0, 5)
+        .map((s: any) => ({
+          slotNumber: s.slotNumber,
+          room: String(s.room || "").slice(0, 40),
+          tag: String(s.tag || "").slice(0, 30),
+          detail: String(s.detail || "").slice(0, 30),
+        }))
+    : [];
+  const slotNumbers = shots.map((s) => s.slotNumber);
+  const listing = body.listing || {};
+  const local = () => localEditPatch(request, settings)?.patch ?? null;
+
+  if (!request) {
+    res.status(400).json({ error: "Tell us what to change." });
+    return;
+  }
+  if (!process.env.GEMINI_API_KEY) {
+    res.json({ patch: local(), source: "local", latencyMs: Date.now() - startTime });
+    return;
+  }
+
+  try {
+    const rentLabel = `$${(Number(listing.monthlyRent) || 0).toLocaleString("en-US")}/mo`;
+    const response = await ai.models.generateContent({
+      model: GEMINI_FLASH_LITE_MODEL,
+      contents: `You adjust a vertical rental-tour video by changing its settings. Return only what the host asked to change.
+
+Current settings:
+- look (each -1..1, 0 = as filmed): brightness ${settings.look.brightness}, warmth ${settings.look.warmth}, contrast ${settings.look.contrast}, saturation ${settings.look.saturation}
+- pace: ${settings.pace} (snappy | balanced | relaxed); length: ${settings.length} (full ~25 s | teaser ~13 s)
+- hook style: ${settings.style} (price-hook | guess-rent | pov); hook text: "${String(body.hookText || "").slice(0, 80)}"
+- sound effects: ${settings.sfxOn ? "on" : "off"}; room sound: ${settings.roomSound ? "on" : "off"}; music: ${settings.music ? `on, volume ${settings.music.volume}` : "none"}
+- rooms (slotNumber, room, callout, second callout): ${JSON.stringify(shots.map((s) => [s.slotNumber, s.room, s.tag, s.detail]))}
+Listing: ${rentLabel}, ${String(listing.neighborhood || "").slice(0, 60)}, ${String(listing.city || "").slice(0, 60)}, ${listing.beds} bed ${listing.baths} bath.
+
+Host's request: "${request}"
+
+Rules:
+- look values are absolute targets; a small change is about 0.3 from the current value, a big one about 0.6.
+- A new hookText must keep the exact rent "${rentLabel}" for the price-hook style, at most 7 words and 64 characters.
+- Callouts are 2-3 words, at most 22 characters, naming something you can see in that room.
+- No emoji. Never describe who should or should not live there (no age, gender, family status, religion, nationality, disability, students, professionals, couples).
+- summary: 1-4 short phrases saying what you changed, e.g. "Brighter", "New hook".
+- If the request is unclear or impossible (for example new footage), change nothing and say so in summary.`,
+      config: {
+        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            look: {
+              type: Type.OBJECT,
+              properties: {
+                brightness: { type: Type.NUMBER },
+                warmth: { type: Type.NUMBER },
+                contrast: { type: Type.NUMBER },
+                saturation: { type: Type.NUMBER },
+              },
+            },
+            pace: { type: Type.STRING, enum: ["snappy", "balanced", "relaxed"] },
+            length: { type: Type.STRING, enum: ["full", "teaser"] },
+            style: { type: Type.STRING, enum: ["price-hook", "guess-rent", "pov"] },
+            hookText: { type: Type.STRING },
+            tags: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: { slotNumber: { type: Type.INTEGER }, text: { type: Type.STRING } },
+                required: ["slotNumber", "text"],
+              },
+            },
+            details: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: { slotNumber: { type: Type.INTEGER }, text: { type: Type.STRING } },
+                required: ["slotNumber", "text"],
+              },
+            },
+            sfxOn: { type: Type.BOOLEAN },
+            roomSound: { type: Type.BOOLEAN },
+            musicVolume: { type: Type.NUMBER },
+            summary: { type: Type.ARRAY, items: { type: Type.STRING } },
+          },
+          required: ["summary"],
+        },
+      },
+    });
+    const patch = sanitizeEditPatch(JSON.parse(response.text || "{}"), slotNumbers);
+    // A price hook must keep the real rent on screen
+    if (patch.hookText && settings.style === "price-hook" && !patch.style && !patch.hookText.includes(rentLabel)) {
+      delete patch.hookText;
+    }
+    res.json({
+      patch: isEmptyPatch(patch) ? local() ?? patch : patch,
+      source: "ai",
+      model_used: GEMINI_FLASH_LITE_MODEL,
+      latencyMs: Date.now() - startTime,
+    });
+  } catch (error) {
+    console.error("Viral edit request failed:", error instanceof Error ? error.message : error);
+    res.json({ patch: local(), source: "local", latencyMs: Date.now() - startTime });
   }
 });
 

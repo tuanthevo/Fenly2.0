@@ -30,6 +30,8 @@ import {
   LogOut
 } from 'lucide-react';
 import { RoomListing, UserProfile, Conversation, SubmittedApplication } from '../types';
+import { ConfirmDeleteListing, ListingActionsRow, useCanHover } from './ListingActionsRow';
+import { isHostListing } from '../utils/listingStore';
 import {
   LANDLORD_INCLUDED_BENEFITS,
   calculateStripeConnectSplit,
@@ -56,6 +58,10 @@ interface HomeHubViewProps {
   onOpenDirectMessages: (convId?: string) => void;
   onOpenAiDirector: () => void;
   onOpenPostRoom: () => void;
+  /** Opens the edit screen for a listing (Active Room Listing) */
+  onEditRoom?: (roomId: string) => void;
+  /** Deletes a listing after the host confirms */
+  onDeleteRoom?: (roomId: string) => void;
   onBack: () => void;
 }
 
@@ -85,8 +91,12 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
   onStartApplicationForRoom,
   onOpenDirectMessages,
   onOpenPostRoom,
+  onEditRoom,
+  onDeleteRoom,
   onBack,
 }) => {
+  const canHover = useCanHover();
+  const [pendingDelete, setPendingDelete] = useState<RoomListing | null>(null);
   const [roleMode, setRoleMode] = useState<'account' | 'renter' | 'landlord'>('account');
   const [renterSubPage, setRenterSubPage] = useState<
     'none' | 'profile' | 'verification' | 'escrow' | 'lease' | 'applications' | 'pinned'
@@ -980,7 +990,9 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
   }
 
   if (roleMode === 'landlord' && landlordSubPage === 'activeListings') {
-    const activeLandlordRooms = allRooms.slice(0, 3);
+    // The host's own listings; the demo shows three sample listings until they post one
+    const ownRooms = allRooms.filter(isHostListing);
+    const activeLandlordRooms = ownRooms.length > 0 ? ownRooms : allRooms.slice(0, 3);
     return (
       <div className="w-full h-full bg-[#F9F7F3] text-[#2C2724] pt-4 pb-8 px-3.5 overflow-y-auto space-y-4 animate-fadeIn">
         <div className="flex items-center gap-3">
@@ -999,34 +1011,34 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
           </div>
         </div>
 
+        {(onEditRoom || onDeleteRoom) && (
+          <p className="text-[10px] text-[#6E655F]" data-testid="active-listings-hint">
+            {canHover ? 'Use Edit to change a listing or its video.' : 'Swipe a listing left to edit or delete it.'}
+          </p>
+        )}
+
         <div className="space-y-2.5">
           {activeLandlordRooms.map((room) => (
-            <div
+            <ListingActionsRow
               key={room.id}
-              onClick={() => onSelectRoomAndWatch(room.id)}
-              className="p-3 rounded-2xl bg-white border border-[#2C2724]/15 hover:border-[#2C2724] shadow-warm-sm flex items-center justify-between gap-3 cursor-pointer transition-colors"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <img
-                  src={room.fallbackThumbnail}
-                  alt={room.title}
-                  className="w-12 h-12 rounded-xl object-cover shrink-0 border border-[#2C2724]/15"
-                />
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-[#2C2724] truncate">{room.title}</div>
-                  <div className="text-xs text-[#485B4A] font-bold">${room.price}/mo • {room.location}</div>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="px-3 py-1.5 bg-[#F9F7F3] hover:bg-[#F2EFE9] text-[#2C2724] border border-[#2C2724] text-xs font-bold rounded-xl shrink-0 flex items-center gap-1"
-              >
-                <Play className="w-3 h-3 fill-[#2C2724]" />
-                <span>View</span>
-              </button>
-            </div>
+              room={room}
+              canHover={canHover}
+              onView={() => onSelectRoomAndWatch(room.id)}
+              onEdit={() => onEditRoom?.(room.id)}
+              onDelete={() => setPendingDelete(room)}
+            />
           ))}
         </div>
+        {pendingDelete && (
+          <ConfirmDeleteListing
+            room={pendingDelete}
+            onCancel={() => setPendingDelete(null)}
+            onConfirm={() => {
+              onDeleteRoom?.(pendingDelete.id);
+              setPendingDelete(null);
+            }}
+          />
+        )}
       </div>
     );
   }

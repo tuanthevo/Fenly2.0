@@ -1,8 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Player } from '@remotion/player';
+import { Player, type PlayerRef } from '@remotion/player';
 import {
   AlertTriangle,
   CheckCircle2,
+  Music,
+  Pencil,
+  Send,
+  SunMedium,
+  Undo2,
   Copy,
   Download,
   Film,
@@ -18,6 +23,16 @@ import { LENGTH_PRESETS, PACE_PRESETS, buildViralEditPlan } from '../remotion/vi
 import { STYLE_INFO, violatesFairHousing, MAX_HOOK_CHARS, MAX_TAG_CHARS } from '../remotion/viral/copy';
 import { analyzeClipInBrowser } from '../remotion/viral/analyzeClipInBrowser';
 import { fetchViralAiHints } from '../remotion/viral/aiCopy';
+import {
+  DEFAULT_EDIT_SETTINGS,
+  applyEditPatch,
+  isEmptyPatch,
+  localEditPatch,
+  type SavedVideoEdit,
+  type ViralEditPatch,
+  type ViralEditSettings,
+} from '../remotion/viral/editSettings';
+import { LOOK_CONTROLS, LOOK_PRESETS, autoLook, presetOf, type LookPresetId } from '../remotion/viral/look';
 import {
   checkBrowserCanExport,
   exportViralVideo,
@@ -42,6 +57,8 @@ export type ViralVideoResult = {
   url: string;
   plan: ViralEditPlan;
   caption: string;
+  /** The choices, analysis and AI copy behind this video, so it can be edited again later */
+  edit: Omit<SavedVideoEdit, 'clips'>;
 };
 
 interface ViralVideoEditorProps {
@@ -53,7 +70,35 @@ interface ViralVideoEditorProps {
   onRetakeShot?: (slotNumber: number) => void;
   /** Called with the exported MP4 when the host attaches it to the listing */
   onVideoReady?: (result: ViralVideoResult) => void;
+  /** 'edit' re-opens a published listing's video (different labels, no step number) */
+  mode?: 'create' | 'edit';
+  /** Choices to start from (a saved edit) */
+  initialSettings?: Partial<ViralEditSettings>;
+  /** Clip analysis saved with the listing, per slot: skips analyzing the clips again */
+  initialAnalyses?: Record<number, ClipAnalysis | null>;
 }
+
+type AiEditState =
+  | { phase: 'idle' }
+  | { phase: 'working' }
+  | { phase: 'done'; summary: string[]; source: 'local' | 'ai' }
+  | { phase: 'error'; message: string };
+
+/**
+ * Create Listing makes the choices for the host: price hook (editable text), full
+ * tour, balanced pace, no sound effects, room sound or music. Lighting is set
+ * automatically from the clips. The edit screen offers all of these as controls.
+ */
+const CREATE_LISTING_SETTINGS: Partial<ViralEditSettings> = {
+  style: 'price-hook',
+  length: 'full',
+  pace: 'balanced',
+  sfxOn: false,
+  roomSound: false,
+  music: null,
+};
+
+const QUICK_EDITS = ['Brighter', 'Warmer', 'Punchier', 'Faster', 'Shorter', 'No whoosh'];
 
 type ExportState =
   | { phase: 'idle' }
@@ -83,6 +128,9 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
   aiHints = null,
   onRetakeShot,
   onVideoReady,
+  mode = 'create',
+  initialSettings,
+  initialAnalyses,
 }) => {
   const clips = useMemo<ViralClipInput[]>(
     () =>
@@ -106,6 +154,11 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
   const [analyzing, setAnalyzing] = useState<{ done: number; total: number; fraction: number } | null>(null);
 
   useEffect(() => {
+    // A saved edit already has each clip's analysis: no need to decode the clips again
+    for (const c of clips) {
+      const saved = initialAnalyses?.[c.slotNumber];
+      if (saved !== undefined && !analysisCache.current.has(c.src)) analysisCache.current.set(c.src, saved);
+    }
     const pending = clips.filter((c) => !analysisCache.current.has(c.src));
     if (pending.length === 0) {
       setAnalyzing(null);
@@ -174,19 +227,55 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
   }, [clipKey, listingKey, analysisDone, aiHints]);
   const activeHints = aiHints ?? fetchedHints;
 
-  // Host choices
-  const [style, setStyle] = useState<ViralStyleId>('price-hook');
-  const [length, setLength] = useState<ViralLength>('full');
-  const [pace, setPace] = useState<ViralPace>('balanced');
-  const [hookSlot, setHookSlot] = useState<number | null>(null);
-  const [hookDraft, setHookDraft] = useState<string | null>(null);
-  const [tagEdits, setTagEdits] = useState<Record<number, string>>({});
-  const [detailEdits, setDetailEdits] = useState<Record<number, string>>({});
-  const [sfxOn, setSfxOn] = useState(true);
-  const [roomSound, setRoomSound] = useState(false);
+  // Host choices: one settings object, so it can be saved with the listing and patched by AI requests
+  const [settings, setSettings] = useState<ViralEditSettings>(() => ({
+    ...DEFAULT_EDIT_SETTINGS,
+    ...(mode === 'create' ? CREATE_LISTING_SETTINGS : {}),
+    ...initialSettings,
+  }));
+  const update = (patch: Partial<ViralEditSettings>) => setSettings((prev) => ({ ...prev, ...patch }));
+  const { style, length, pace, hookSlot, hookDraft, tagEdits, detailEdits, sfxOn, roomSound, look, music } = settings;
   const [effectsOn] = useState(supportsWebGL2);
+
+  // Music the host uploads (their own track): blob URLs this editor made are freed when replaced
+  const ownMusicUrls = useRef(new Set<string>());
+  useEffect(() => () => ownMusicUrls.current.forEach((u) => URL.revokeObjectURL(u)), []);
+  const handleMusicFile = (file: File | undefined) => {
+    if (!file) return;
+    const src = URL.createObjectURL(file);
+    ownMusicUrls.current.add(src);
+    setSettings((prev) => {
+      if (prev.music && ownMusicUrls.current.has(prev.music.src)) {
+        URL.revokeObjectURL(prev.music.src);
+        ownMusicUrls.current.delete(prev.music.src);
+      }
+      return { ...prev, music: { src, name: file.name, volume: prev.music?.volume ?? 0.55 } };
+    });
+  };
+
+  // Edit by typing: common requests are handled on the device; the rest goes to a small text-only AI call
+  const [aiRequest, setAiRequest] = useState('');
+  const [aiEdit, setAiEdit] = useState<AiEditState>({ phase: 'idle' });
+  const [undoSettings, setUndoSettings] = useState<ViralEditSettings | null>(null);
+  const applyPatch = (patch: ViralEditPatch, source: 'local' | 'ai') => {
+    setUndoSettings(settings);
+    setSettings((prev) => applyEditPatch(prev, patch));
+    setAiEdit({ phase: 'done', summary: patch.summary.length ? patch.summary : ['Updated'], source });
+  };
   const [showTips, setShowTips] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Create Listing: lighting is automatic, set from the footage (look.ts autoLook)
+  useEffect(() => {
+    if (mode !== 'create' || !analysisDone) return;
+    const measured = clips
+      .map((c) => analysisCache.current.get(c.src))
+      .filter((a): a is ClipAnalysis => Boolean(a))
+      .map((a) => ({ meanLuma: a.best.meanLuma, exposureBoost: a.exposureBoost }));
+    setSettings((prev) => ({ ...prev, look: autoLook(measured) }));
+    // clipKey / analysisVersion change whenever a shot or its analysis changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, analysisDone, clipKey, analysisVersion]);
 
   const plan = useMemo<ViralEditPlan | null>(() => {
     if (clips.length === 0) return null;
@@ -208,6 +297,8 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
           sfx: sfxOn,
           keepRoomSound: roomSound,
           enableEffects: effectsOn,
+          look,
+          music: music ? { src: music.src, volume: music.volume } : null,
         }
       );
     } catch {
@@ -215,7 +306,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
     }
     // analysisVersion tells us the cache changed
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clips, listing, style, length, pace, hookSlot, hookDraft, tagEdits, detailEdits, activeHints, sfxOn, roomSound, effectsOn, analysisVersion]);
+  }, [clips, listing, style, length, pace, hookSlot, hookDraft, tagEdits, detailEdits, activeHints, sfxOn, roomSound, effectsOn, look, music, analysisVersion]);
 
   const planKey = useMemo(() => (plan ? JSON.stringify(plan) : ''), [plan]);
 
@@ -233,8 +324,11 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
   );
   useEffect(() => () => abortRef.current?.abort(), []);
 
+  const playerRef = useRef<PlayerRef>(null);
   const handleExport = async () => {
     if (!plan) return;
+    // The preview and the export would decode the same clips at once: pause the preview
+    playerRef.current?.pause();
     setExportState({ phase: 'checking' });
     const check = await checkBrowserCanExport(plan);
     if (!check.ok) {
@@ -258,8 +352,10 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
       setExportState({
         phase: 'error',
         message:
-          error instanceof Error
-            ? `${error.message} If a clip came from an iPhone, try Safari or Chrome on the phone that filmed it.`
+          error instanceof Error && /delayRender|timed? ?out/i.test(error.message)
+            ? 'Making the video took too long reading one of your clips. Close other apps or tabs and try again; on a computer, iPhone clips export fastest in Safari or Chrome.'
+            : error instanceof Error
+            ? `${error.message.split('\n')[0].slice(0, 200)} If a clip came from an iPhone, try Safari or Chrome on the phone that filmed it.`
             : 'Export failed.',
       });
     }
@@ -273,6 +369,60 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
       setCopied(false);
+    }
+  };
+
+  /** What to save with the listing so this video can be edited again without recomputing anything. */
+  const editSnapshot = (): ViralVideoResult['edit'] => ({
+    listing,
+    settings,
+    analyses: Object.fromEntries(clips.map((c) => [c.slotNumber, analysisCache.current.get(c.src) ?? null])),
+    aiHints: activeHints,
+  });
+
+  const runEdit = async (request: string) => {
+    const text = request.trim();
+    if (!text || !plan) return;
+    const local = localEditPatch(text, settings);
+    if (local?.fullyUnderstood) {
+      applyPatch(local.patch, 'local');
+      setAiRequest('');
+      return;
+    }
+    setAiEdit({ phase: 'working' });
+    try {
+      const response = await fetch('/api/viral/edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          request: text,
+          settings: { ...settings, music: settings.music ? { ...settings.music, src: '' } : null },
+          hookText: plan.hook.text,
+          shots: plan.shots.map((shot) => ({
+            slotNumber: shot.slotNumber,
+            room: shot.room,
+            tag: shot.tag,
+            detail: shot.callouts.find((c) => c.row === 1)?.text ?? '',
+          })),
+          listing,
+        }),
+      });
+      const data = (await response.json()) as { patch?: ViralEditPatch | null; source?: 'local' | 'ai'; error?: string };
+      if (!response.ok) throw new Error(data.error || 'Request failed');
+      if (data.patch && !isEmptyPatch(data.patch)) {
+        applyPatch(data.patch, data.source === 'ai' ? 'ai' : 'local');
+        setAiRequest('');
+      } else if (local) {
+        applyPatch(local.patch, 'local');
+      } else {
+        setAiEdit({
+          phase: 'error',
+          message: data.patch?.summary?.[0] || 'We couldn’t tell what to change. Try “brighter”, “warmer”, or a new hook.',
+        });
+      }
+    } catch {
+      if (local) applyPatch(local.patch, 'local');
+      else setAiEdit({ phase: 'error', message: 'AI edits aren’t available right now. The controls below still work.' });
     }
   };
 
@@ -301,15 +451,21 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
     <div
       data-testid="viral-video-editor"
       className="p-3.5 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm space-y-3"
+      onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
+        // Enter in a text box here must not submit Create Listing's form (it would publish)
+        if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') e.preventDefault();
+      }}
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg bg-[#D06C4E]/15 text-[#D06C4E] flex items-center justify-center font-extrabold text-xs shrink-0">
-            3
+            {mode === 'edit' ? <Pencil className="w-3.5 h-3.5" /> : 3}
           </div>
           <div>
-            <h4 className="font-extrabold text-xs text-[#2C2724]">Auto-Edit: Viral Room Tour</h4>
+            <h4 className="font-extrabold text-xs text-[#2C2724]">
+              {mode === 'edit' ? 'Edit your video' : 'Auto-Edit: Viral Room Tour'}
+            </h4>
             <p className="text-[10px] text-[#6E655F]">
               We cut your shots into a {seconds}s vertical video for TikTok, Reels and Shorts.
             </p>
@@ -344,6 +500,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
       <div className="flex justify-center">
         <div className="relative w-full max-w-[260px] rounded-[28px] overflow-hidden border-2 border-[#2C2724] bg-[#2C2724] shadow-warm">
           <Player
+            ref={playerRef}
             component={FenlyViralTour}
             inputProps={{ plan }}
             durationInFrames={plan.totalFrames}
@@ -361,7 +518,91 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
         </div>
       </div>
 
-      {/* Quality warnings */}
+      {/* Edit screen only: typed requests to the AI */}
+      {mode === 'edit' && (
+        <>
+        {/* Edit by typing (AI) */}
+        <div className="p-2.5 rounded-xl bg-[#F9F7F3] border border-[#2C2724]/10 space-y-2" data-testid="viral-ai-edit">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#6E655F] flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-[#D06C4E]" />
+              Tell AI what to change
+            </span>
+            {undoSettings && (
+              <button
+                type="button"
+                data-testid="viral-ai-undo"
+                onClick={() => {
+                  setSettings(undoSettings);
+                  setUndoSettings(null);
+                  setAiEdit({ phase: 'idle' });
+                }}
+                className="text-[10px] font-extrabold text-[#6E655F] flex items-center gap-1 hover:text-[#2C2724]"
+              >
+                <Undo2 className="w-3 h-3" />
+                Undo
+              </button>
+            )}
+          </div>
+          {/* Not a <form>: the editor sits inside Create Listing's form, and a nested submit would publish */}
+          <div className="flex items-center gap-1.5">
+            <input
+              data-testid="viral-ai-edit-input"
+              value={aiRequest}
+              maxLength={300}
+              placeholder="e.g. brighter, and call the closet “Walk-in closet”"
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAiRequest(e.target.value)}
+              onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  runEdit(aiRequest);
+                }
+              }}
+              className="flex-1 min-w-0 px-2.5 py-2 rounded-xl border border-[#2C2724]/20 bg-white text-[11px] font-semibold text-[#2C2724] focus:outline-none focus:border-[#D06C4E]"
+            />
+            <button
+              type="button"
+              onClick={() => runEdit(aiRequest)}
+              data-testid="viral-ai-edit-send"
+              disabled={!aiRequest.trim() || aiEdit.phase === 'working'}
+              aria-label="Apply"
+              className="shrink-0 w-9 h-9 rounded-xl bg-[#D06C4E] hover:bg-[#b85b3f] text-white flex items-center justify-center active:scale-95 disabled:bg-[#2C2724]/15 disabled:text-[#6E655F]"
+            >
+              {aiEdit.phase === 'working' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {QUICK_EDITS.map((q) => (
+              <button
+                key={q}
+                type="button"
+                data-testid={`viral-quick-edit-${q.toLowerCase().replace(/\s+/g, '-')}`}
+                onClick={() => runEdit(q)}
+                className="px-2 py-1 rounded-full bg-white border border-[#2C2724]/15 text-[10px] font-bold text-[#2C2724] hover:bg-[#F2EFE9] active:scale-95"
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+          {aiEdit.phase === 'done' && (
+            <p data-testid="viral-ai-edit-result" className="text-[10px] font-semibold text-[#485B4A] flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3 shrink-0" />
+              {aiEdit.summary.join(' · ')}
+              <span className="text-[#6E655F] font-normal">{aiEdit.source === 'ai' ? '(AI)' : '(instant)'}</span>
+            </p>
+          )}
+          {aiEdit.phase === 'error' && (
+            <p data-testid="viral-ai-edit-error" className="text-[10px] font-semibold text-[#9A4A33]">
+              {aiEdit.message}
+            </p>
+          )}
+        </div>
+
+      
+        </>
+      )}
+
+{/* Quality warnings */}
       {retakeWarnings.length > 0 && (
         <div className="space-y-1.5" data-testid="viral-editor-warnings">
           {retakeWarnings.map((w, i) => {
@@ -403,7 +644,10 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
 
       {/* Hook style */}
       <div className="space-y-1.5">
-        <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#6E655F]">Opening hook</span>
+        <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#6E655F]">
+          {mode === 'edit' ? 'Opening hook' : 'Opening headline'}
+        </span>
+        {mode === 'edit' && (
         <div className="grid grid-cols-3 gap-1.5">
           {(Object.keys(STYLE_INFO) as ViralStyleId[]).map((id) => (
             <button
@@ -411,8 +655,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
               type="button"
               data-testid={`viral-style-${id}`}
               onClick={() => {
-                setStyle(id);
-                setHookDraft(null);
+                update({ style: id, hookDraft: null });
               }}
               className={`py-1.5 px-1 rounded-xl text-[10px] font-extrabold border transition-all active:scale-95 ${
                 style === id
@@ -424,19 +667,22 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
             </button>
           ))}
         </div>
-        <p className="text-[10px] text-[#6E655F] leading-snug">{STYLE_INFO[style].blurb}</p>
+        )}
+        <p className="text-[10px] text-[#6E655F] leading-snug">
+          {mode === 'edit' ? STYLE_INFO[style].blurb : 'Opens on the rent and the neighborhood. Tap the text to change it.'}
+        </p>
         <div className="flex items-center gap-1.5">
           <input
             data-testid="viral-hook-input"
             value={hookValue}
             maxLength={MAX_HOOK_CHARS}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setHookDraft(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => update({ hookDraft: e.target.value })}
             className="flex-1 min-w-0 px-2.5 py-2 rounded-xl border border-[#2C2724]/20 bg-[#F9F7F3] text-[11px] font-bold text-[#2C2724] focus:outline-none focus:border-[#D06C4E]"
           />
           {hookDraft !== null && (
             <button
               type="button"
-              onClick={() => setHookDraft(null)}
+              onClick={() => update({ hookDraft: null })}
               className="px-2 py-2 rounded-xl border border-[#2C2724]/20 text-[10px] font-bold text-[#6E655F] hover:bg-[#F2EFE9]"
             >
               Auto
@@ -456,56 +702,113 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
         )}
       </div>
 
-      {/* Length */}
-      <div className="space-y-1.5">
-        <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#6E655F]">Length</span>
-        <div className="grid grid-cols-2 gap-1.5">
-          {(Object.keys(LENGTH_PRESETS) as ViralLength[]).map((id) => (
-            <button
-              key={id}
-              type="button"
-              data-testid={`viral-length-${id}`}
-              onClick={() => setLength(id)}
-              className={`py-1.5 px-1 rounded-xl text-[10px] font-extrabold border transition-all active:scale-95 ${
-                length === id
-                  ? 'bg-[#2C2724] text-[#F9F7F3] border-[#2C2724]'
-                  : 'bg-[#F9F7F3] text-[#2C2724] border-[#2C2724]/20 hover:bg-[#F2EFE9]'
-              }`}
-            >
-              {LENGTH_PRESETS[id].label} · {LENGTH_PRESETS[id].approxLabel}
-            </button>
-          ))}
+      {/* Edit screen only: length, pace and lighting (Create Listing uses the full tour, balanced pace and automatic lighting) */}
+      {mode === 'edit' && (
+        <>
+        {/* Length */}
+        <div className="space-y-1.5">
+          <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#6E655F]">Length</span>
+          <div className="grid grid-cols-2 gap-1.5">
+            {(Object.keys(LENGTH_PRESETS) as ViralLength[]).map((id) => (
+              <button
+                key={id}
+                type="button"
+                data-testid={`viral-length-${id}`}
+                onClick={() => update({ length: id })}
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-extrabold border transition-all active:scale-95 ${
+                  length === id
+                    ? 'bg-[#2C2724] text-[#F9F7F3] border-[#2C2724]'
+                    : 'bg-[#F9F7F3] text-[#2C2724] border-[#2C2724]/20 hover:bg-[#F2EFE9]'
+                }`}
+              >
+                {LENGTH_PRESETS[id].label} · {LENGTH_PRESETS[id].approxLabel}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-[#6E655F] leading-snug">
+            {length === 'full'
+              ? 'Every room gets about 5 seconds, with facts and a perk reveal. Best for TikTok and Reels.'
+              : 'A quick loop of every room. Good for a second post or Stories.'}
+          </p>
         </div>
-        <p className="text-[10px] text-[#6E655F] leading-snug">
-          {length === 'full'
-            ? 'Every room gets about 5 seconds, with facts and a perk reveal. Best for TikTok and Reels.'
-            : 'A quick loop of every room. Good for a second post or Stories.'}
-        </p>
-      </div>
 
-      {/* Pace */}
-      <div className="space-y-1.5">
-        <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#6E655F]">Pace</span>
-        <div className="grid grid-cols-3 gap-1.5">
-          {(Object.keys(PACE_PRESETS) as ViralPace[]).map((id) => (
-            <button
-              key={id}
-              type="button"
-              data-testid={`viral-pace-${id}`}
-              onClick={() => setPace(id)}
-              className={`py-1.5 px-1 rounded-xl text-[10px] font-extrabold border transition-all active:scale-95 ${
-                pace === id
-                  ? 'bg-[#D06C4E] text-white border-[#D06C4E]'
-                  : 'bg-[#F9F7F3] text-[#2C2724] border-[#2C2724]/20 hover:bg-[#F2EFE9]'
-              }`}
-            >
-              {PACE_PRESETS[id].label}
-            </button>
-          ))}
+        {/* Pace */}
+        <div className="space-y-1.5">
+          <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#6E655F]">Pace</span>
+          <div className="grid grid-cols-3 gap-1.5">
+            {(Object.keys(PACE_PRESETS) as ViralPace[]).map((id) => (
+              <button
+                key={id}
+                type="button"
+                data-testid={`viral-pace-${id}`}
+                onClick={() => update({ pace: id })}
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-extrabold border transition-all active:scale-95 ${
+                  pace === id
+                    ? 'bg-[#D06C4E] text-white border-[#D06C4E]'
+                    : 'bg-[#F9F7F3] text-[#2C2724] border-[#2C2724]/20 hover:bg-[#F2EFE9]'
+                }`}
+              >
+                {PACE_PRESETS[id].label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Shots in edit order */}
+        {/* Lighting */}
+        <div className="space-y-1.5" data-testid="viral-look">
+          <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#6E655F] flex items-center gap-1">
+            <SunMedium className="w-3 h-3" />
+            Lighting
+          </span>
+          <div className="grid grid-cols-2 gap-1.5">
+            {(Object.keys(LOOK_PRESETS) as LookPresetId[]).map((id) => (
+              <button
+                key={id}
+                type="button"
+                data-testid={`viral-look-${id}`}
+                onClick={() => update({ look: LOOK_PRESETS[id].look })}
+                className={`py-1.5 px-1 rounded-xl text-[10px] font-extrabold border transition-all active:scale-95 ${
+                  presetOf(look) === id
+                    ? 'bg-[#2C2724] text-[#F9F7F3] border-[#2C2724]'
+                    : 'bg-[#F9F7F3] text-[#2C2724] border-[#2C2724]/20 hover:bg-[#F2EFE9]'
+                }`}
+              >
+                {LOOK_PRESETS[id].label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-[#6E655F] leading-snug">
+            {presetOf(look) ? LOOK_PRESETS[presetOf(look)!].blurb : 'Custom lighting.'}
+          </p>
+          {LOOK_CONTROLS.map((c) => (
+            <label key={c.key} className="flex items-center gap-2 text-[10px] font-bold text-[#2C2724]">
+              <span className="w-16 shrink-0">{c.label}</span>
+              <span className="w-11 shrink-0 text-right text-[#6E655F] font-semibold">{c.low}</span>
+              <input
+                type="range"
+                min={-1}
+                max={1}
+                step={0.05}
+                value={look[c.key]}
+                data-testid={`viral-look-slider-${c.key}`}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  update({ look: { ...look, [c.key]: Number(e.target.value) } })
+                }
+                className="flex-1 min-w-0 accent-[#D06C4E]"
+              />
+              <span className="w-12 shrink-0 text-[#6E655F] font-semibold">{c.high}</span>
+            </label>
+          ))}
+          {!effectsOn && (
+            <p className="text-[10px] text-[#9A4A33]">This browser can’t preview lighting changes (no WebGL2).</p>
+          )}
+        </div>
+
+      
+        </>
+      )}
+
+{/* Shots in edit order */}
       <div className="space-y-1.5">
         <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#6E655F]">
           Shots in order (tap a callout to edit it)
@@ -533,7 +836,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
                     value={tagEdits[shot.slotNumber] ?? shot.tag}
                     maxLength={MAX_TAG_CHARS}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      setTagEdits((prev) => ({ ...prev, [shot.slotNumber]: e.target.value }))
+                      setSettings((prev) => ({ ...prev, tagEdits: { ...prev.tagEdits, [shot.slotNumber]: e.target.value } }))
                     }
                     className="w-full mt-0.5 px-2 py-1 rounded-lg border border-[#2C2724]/15 bg-white text-[10px] font-bold text-[#2C2724] uppercase focus:outline-none focus:border-[#D06C4E]"
                   />
@@ -544,7 +847,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
                       placeholder="Second callout (optional)"
                       maxLength={MAX_TAG_CHARS}
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        setDetailEdits((prev) => ({ ...prev, [shot.slotNumber]: e.target.value }))
+                        setSettings((prev) => ({ ...prev, detailEdits: { ...prev.detailEdits, [shot.slotNumber]: e.target.value } }))
                       }
                       className="w-full mt-1 px-2 py-1 rounded-lg border border-dashed border-[#2C2724]/20 bg-white text-[10px] font-bold text-[#6E655F] uppercase placeholder:normal-case placeholder:font-semibold focus:outline-none focus:border-[#D06C4E]"
                     />
@@ -556,7 +859,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
               <button
                 type="button"
                 data-testid={`viral-make-opener-${shot.slotNumber}`}
-                onClick={() => setHookSlot(shot.slotNumber)}
+                onClick={() => update({ hookSlot: shot.slotNumber })}
                 title="Open the video with this shot"
                 className="shrink-0 p-1.5 rounded-lg border border-[#2C2724]/15 bg-white text-[#D06C4E] hover:bg-[#F2EFE9]"
               >
@@ -567,29 +870,94 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
         ))}
       </div>
 
-      {/* Sound */}
-      <div className="grid grid-cols-2 gap-1.5">
-        <button
-          type="button"
-          onClick={() => setSfxOn((v) => !v)}
-          className={`py-1.5 rounded-xl text-[10px] font-extrabold border ${
-            sfxOn ? 'bg-[#E8EFE9] text-[#485B4A] border-[#7A907C]/60' : 'bg-white text-[#6E655F] border-[#2C2724]/15'
-          }`}
-        >
-          {sfxOn ? 'Whoosh effects: on' : 'Whoosh effects: off'}
-        </button>
-        <button
-          type="button"
-          onClick={() => setRoomSound((v) => !v)}
-          className={`py-1.5 rounded-xl text-[10px] font-extrabold border ${
-            roomSound ? 'bg-[#E8EFE9] text-[#485B4A] border-[#7A907C]/60' : 'bg-white text-[#6E655F] border-[#2C2724]/15'
-          }`}
-        >
-          {roomSound ? 'Room sound: on' : 'Room sound: off'}
-        </button>
-      </div>
+      {/* Edit screen only: sound effects, room sound and music (Create Listing uses none) */}
+      {mode === 'edit' && (
+        <>
+        {/* Sound */}
+        <div className="grid grid-cols-2 gap-1.5">
+          <button
+            type="button"
+            onClick={() => update({ sfxOn: !sfxOn })}
+            className={`py-1.5 rounded-xl text-[10px] font-extrabold border ${
+              sfxOn ? 'bg-[#E8EFE9] text-[#485B4A] border-[#7A907C]/60' : 'bg-white text-[#6E655F] border-[#2C2724]/15'
+            }`}
+          >
+            {sfxOn ? 'Whoosh effects: on' : 'Whoosh effects: off'}
+          </button>
+          <button
+            type="button"
+            onClick={() => update({ roomSound: !roomSound })}
+            className={`py-1.5 rounded-xl text-[10px] font-extrabold border ${
+              roomSound ? 'bg-[#E8EFE9] text-[#485B4A] border-[#7A907C]/60' : 'bg-white text-[#6E655F] border-[#2C2724]/15'
+            }`}
+          >
+            {roomSound ? 'Room sound: on' : 'Room sound: off'}
+          </button>
+        </div>
 
-      {/* Caption */}
+        {/* Music */}
+        <div className="space-y-1.5" data-testid="viral-music">
+          <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#6E655F] flex items-center gap-1">
+            <Music className="w-3 h-3" />
+            Music
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              data-testid="viral-music-none"
+              onClick={() => update({ music: null })}
+              className={`px-2.5 py-1.5 rounded-xl text-[10px] font-extrabold border ${
+                !music ? 'bg-[#2C2724] text-[#F9F7F3] border-[#2C2724]' : 'bg-[#F9F7F3] text-[#2C2724] border-[#2C2724]/20'
+              }`}
+            >
+              None
+            </button>
+            <label
+              className={`flex-1 min-w-0 px-2.5 py-1.5 rounded-xl text-[10px] font-extrabold border cursor-pointer truncate ${
+                music ? 'bg-[#2C2724] text-[#F9F7F3] border-[#2C2724]' : 'bg-[#F9F7F3] text-[#2C2724] border-[#2C2724]/20 hover:bg-[#F2EFE9]'
+              }`}
+            >
+              {music ? `Track: ${music.name}` : 'Add my own track…'}
+              <input
+                type="file"
+                accept="audio/*"
+                data-testid="viral-music-input"
+                className="hidden"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  handleMusicFile(e.target.files?.[0]);
+                  e.target.value = '';
+                }}
+              />
+            </label>
+          </div>
+          {music && (
+            <label className="flex items-center gap-2 text-[10px] font-bold text-[#2C2724]">
+              <span className="w-16 shrink-0">Volume</span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={music.volume}
+                data-testid="viral-music-volume"
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  update({ music: { ...music, volume: Number(e.target.value) } })
+                }
+                className="flex-1 min-w-0 accent-[#D06C4E]"
+              />
+              <span className="w-8 shrink-0 text-right text-[#6E655F]">{Math.round(music.volume * 100)}%</span>
+            </label>
+          )}
+          <p className="text-[10px] text-[#6E655F] leading-snug">
+            Only use music you have the rights to. For a trending sound, post without music and add it inside TikTok or Reels.
+          </p>
+        </div>
+
+      
+        </>
+      )}
+
+{/* Caption */}
       <div className="p-2.5 rounded-xl bg-[#F9F7F3] border border-[#2C2724]/10 space-y-1.5">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#6E655F]">Caption</span>
@@ -681,12 +1049,12 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
                 data-testid="viral-use-video-btn"
                 onClick={() => {
                   handedOffUrls.current.add(exportState.url);
-                  onVideoReady({ blob: exportState.blob, url: exportState.url, plan, caption: plan.caption });
+                  onVideoReady({ blob: exportState.blob, url: exportState.url, plan, caption: plan.caption, edit: editSnapshot() });
                 }}
                 className="w-full py-2 rounded-xl bg-[#7A907C] hover:bg-[#6a7f6c] text-white text-[11px] font-extrabold flex items-center justify-center gap-1.5 active:scale-95"
               >
                 <Film className="w-3.5 h-3.5" />
-                Use this video on my listing
+                {mode === 'edit' ? 'Save this video to my listing' : 'Use this video on my listing'}
               </button>
             )}
           </div>
