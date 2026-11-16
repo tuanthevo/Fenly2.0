@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { 
+  ArrowLeft,
   SlidersHorizontal,
   ChevronUp,
   ChevronDown,
@@ -47,6 +48,8 @@ import { RoomDetailsModal } from './components/RoomDetailsModal';
 import { ApplicationModal } from './components/ApplicationModal';
 import { UserProfileModal } from './components/UserProfileModal';
 import { PostRoomModal } from './components/PostRoomModal';
+import { useHistoryNav } from './utils/historyNav';
+import { HOME_NAV_START, type HomeNav } from './components/HomeHubView';
 import { EditListingModal } from './components/EditListingModal';
 import { AiDirectorStudioModal } from './components/AiDirectorStudioModal';
 import { ShareModal } from './components/ShareModal';
@@ -55,6 +58,9 @@ import { AskFennView } from './components/AskFennView';
 import { MyDenView } from './components/MyDenView';
 import { HouseOsView } from './components/HouseOsView';
 import { FennMascot, FennStickerSheetModal } from './components/FennMascot';
+
+/** The screen being shown: a bottom tab, a full-screen overlay ('post' or 'edit:<id>'), and the Home page. */
+type AppNav = { tab: FennTab; overlay: string | null; home: HomeNav };
 
 export default function App() {
   // --- STATE ---
@@ -113,7 +119,24 @@ export default function App() {
   const [currentRoomIndex, setCurrentRoomIndex] = useState<number>(0);
   const [rapidSwipeCount, setRapidSwipeCount] = useState<number>(0);
   const [isMuted, setIsMuted] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<FennTab>('listings');
+  // Screens live in the browser history: the phone's back / forward gestures move between
+  // tabs, Home pages, Create Listing and Edit Listing instead of leaving the app.
+  const { nav, navigate, back: goBack, canGoBack } = useHistoryNav<AppNav>({
+    tab: 'listings',
+    overlay: null,
+    home: HOME_NAV_START,
+  });
+  const activeTab = nav.tab;
+  const setActiveTab = useCallback(
+    (tab: FennTab) =>
+      // Opening Home from another tab starts on its main page, as it always has
+      navigate((prev) => ({ ...prev, tab, home: tab === 'home' && prev.tab !== 'home' ? HOME_NAV_START : prev.home })),
+    [navigate]
+  );
+  const handleHomeNavChange = useCallback(
+    (patch: Partial<HomeNav>) => navigate((prev) => ({ ...prev, home: { ...prev.home, ...patch } })),
+    [navigate]
+  );
   const [isStickerSheetOpen, setIsStickerSheetOpen] = useState<boolean>(false);
   const [gmpQuotaExceeded, setGmpQuotaExceeded] = useState<boolean>(false);
   const [askFennSessions, setAskFennSessions] = useState<AskFennChatSession[]>(() =>
@@ -254,7 +277,12 @@ export default function App() {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isApplicationModalOpen, setIsApplicationModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
-  const [isPostRoomOpen, setIsPostRoomOpen] = useState(false);
+  const isPostRoomOpen = nav.overlay === 'post';
+  const setIsPostRoomOpen = useCallback(
+    (open: boolean) =>
+      navigate((prev) => ({ ...prev, overlay: open ? 'post' : prev.overlay === 'post' ? null : prev.overlay })),
+    [navigate]
+  );
   const [isAiDirectorOpen, setIsAiDirectorOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
 
@@ -983,11 +1011,18 @@ export default function App() {
   const handlePublishRoom = (newRoom: RoomListing) => {
     setRooms((prev) => [newRoom, ...prev]);
     setCurrentRoomIndex(0);
-    setActiveTab('listings');
+    // Replace the Create Listing step: back from the feed returns to Home, not to the finished form
+    navigate((prev) => ({ ...prev, tab: 'listings', overlay: null }), { replace: true });
   };
 
   // Edit / delete a listing (Home > Landlord > Active Room Listing)
-  const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
+  const editingRoomId = nav.overlay?.startsWith('edit:') ? nav.overlay.slice('edit:'.length) : null;
+  const setEditingRoomId = (value: string | null | ((current: string | null) => string | null)) =>
+    navigate((prev) => {
+      const current = prev.overlay?.startsWith('edit:') ? prev.overlay.slice('edit:'.length) : null;
+      const next = typeof value === 'function' ? value(current) : value;
+      return { ...prev, overlay: next ? `edit:${next}` : current ? null : prev.overlay };
+    });
   const editingRoom = useMemo(() => rooms.find((r) => r.id === editingRoomId) ?? null, [rooms, editingRoomId]);
   const handleSaveRoom = (updated: RoomListing) => {
     setRooms((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
@@ -1032,6 +1067,7 @@ export default function App() {
               filters={filters}
               onUpdateFilters={handleUpdateFilters}
               onOpenFilterModal={() => setIsFilterModalOpen(true)}
+              onBack={canGoBack ? goBack : undefined}
               totalMatches={filteredRooms.length}
               onResetFilters={handleResetFilters}
             />
@@ -1252,7 +1288,7 @@ export default function App() {
 
         {/* Renter & Landlord Hub */}
         {activeTab === 'home' && (
-          <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden">
+          <div className="relative flex-1 min-h-0 w-full flex flex-col overflow-hidden">
             <HomeHubView
               userProfile={userProfile}
               onUpdateUserProfile={(updated) => {
@@ -1287,12 +1323,29 @@ export default function App() {
               onOpenPostRoom={() => setIsPostRoomOpen(true)}
               onEditRoom={setEditingRoomId}
               onDeleteRoom={handleDeleteRoom}
+              homeNav={nav.home}
+              onHomeNavChange={handleHomeNavChange}
               onBack={() => setActiveTab('listings')}
               masterLeaseConfig={masterLeaseConfig}
               onUpdateMasterLeaseConfig={(updated) =>
                 setMasterLeaseConfig((prev) => ({ ...prev, ...updated }))
               }
             />
+            {/* Back within thumb reach on Home's sub-pages (the top one scrolls away on long pages) */}
+            {((nav.home.role === 'landlord' && nav.home.landlordPage !== 'none') ||
+              (nav.home.role === 'renter' && nav.home.renterPage !== 'none')) && (
+              <button
+                type="button"
+                data-testid="home-bottom-back"
+                onClick={() =>
+                  handleHomeNavChange(nav.home.role === 'landlord' ? { landlordPage: 'none' } : { renterPage: 'none' })
+                }
+                className="absolute bottom-3 left-3 z-30 px-3.5 py-2.5 rounded-full bg-[#2C2724] text-[#F9F7F3] text-xs font-extrabold shadow-warm flex items-center gap-1.5 active:scale-95"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </button>
+            )}
           </div>
         )}
 

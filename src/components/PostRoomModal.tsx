@@ -893,6 +893,16 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
                 Capture at least {MIN_SHOTS_TO_PROCEED} guided shots in Step 2 to publish.
               </p>
             )}
+            {/* Back within thumb reach at the end of the form */}
+            <button
+              type="button"
+              data-testid="create-listing-bottom-back"
+              onClick={onClose}
+              className="w-full mt-2 py-2.5 bg-white hover:bg-[#F2EFE9] text-[#2C2724] border border-[#2C2724]/30 font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 active:scale-95"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </button>
           </div>
         </form>
       </div>

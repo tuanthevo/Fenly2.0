@@ -40,6 +40,12 @@ import {
   buildPrepopulatedRoommateLeaseOptions,
 } from '../utils/trustSafety';
 
+export type HomeRole = 'account' | 'renter' | 'landlord';
+export type RenterSubPage = 'none' | 'profile' | 'verification' | 'escrow' | 'lease' | 'applications' | 'pinned';
+export type LandlordSubPage = 'none' | 'verification' | 'admin' | 'lease' | 'applications' | 'activeListings';
+export type HomeNav = { role: HomeRole; renterPage: RenterSubPage; landlordPage: LandlordSubPage };
+export const HOME_NAV_START: HomeNav = { role: 'account', renterPage: 'none', landlordPage: 'none' };
+
 interface HomeHubViewProps {
   userProfile: UserProfile;
   onUpdateUserProfile: (partial: Partial<UserProfile>) => void;
@@ -62,6 +68,9 @@ interface HomeHubViewProps {
   onEditRoom?: (roomId: string) => void;
   /** Deletes a listing after the host confirms */
   onDeleteRoom?: (roomId: string) => void;
+  /** Which Home page shows (App keeps it in the browser history) */
+  homeNav?: HomeNav;
+  onHomeNavChange?: (patch: Partial<HomeNav>) => void;
   onBack: () => void;
 }
 
@@ -93,6 +102,8 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
   onOpenPostRoom,
   onEditRoom,
   onDeleteRoom,
+  homeNav,
+  onHomeNavChange,
   onBack,
 }) => {
   const canHover = useCanHover();
@@ -100,13 +111,18 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
   // The host's own listings; the demo shows three sample listings until they post one
   const ownRooms = allRooms.filter(isHostListing);
   const activeLandlordRooms = ownRooms.length > 0 ? ownRooms : allRooms.slice(0, 3);
-  const [roleMode, setRoleMode] = useState<'account' | 'renter' | 'landlord'>('account');
-  const [renterSubPage, setRenterSubPage] = useState<
-    'none' | 'profile' | 'verification' | 'escrow' | 'lease' | 'applications' | 'pinned'
-  >('none');
-  const [landlordSubPage, setLandlordSubPage] = useState<
-    'none' | 'verification' | 'admin' | 'lease' | 'applications' | 'activeListings'
-  >('none');
+  // Which Home page is showing. App passes it in (homeNav) so the phone's back / forward
+  // gestures move between these pages; without it the component keeps its own.
+  const [localHomeNav, setLocalHomeNav] = useState<HomeNav>(HOME_NAV_START);
+  const currentHomeNav = homeNav ?? localHomeNav;
+  const changeHomeNav = (patch: Partial<HomeNav>) =>
+    onHomeNavChange ? onHomeNavChange(patch) : setLocalHomeNav((prev) => ({ ...prev, ...patch }));
+  const roleMode = currentHomeNav.role;
+  const renterSubPage = currentHomeNav.renterPage;
+  const landlordSubPage = currentHomeNav.landlordPage;
+  const setRoleMode = (role: HomeRole) => changeHomeNav({ role });
+  const setRenterSubPage = (renterPage: RenterSubPage) => changeHomeNav({ renterPage });
+  const setLandlordSubPage = (landlordPage: LandlordSubPage) => changeHomeNav({ landlordPage });
   const [renterVerification, setRenterVerification] = useState({
     id: true,
     income: true,

@@ -268,6 +268,15 @@ export const EditListingModal: React.FC<EditListingModalProps> = ({ room, onClos
               <Trash2 className="w-4 h-4" />
               Delete listing
             </button>
+            <button
+              type="button"
+              data-testid="edit-listing-bottom-back"
+              onClick={onClose}
+              className="w-full py-2.5 bg-white hover:bg-[#F2EFE9] text-[#2C2724] border border-[#2C2724]/30 font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 active:scale-95"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </button>
           </div>
         </div>
       </div>
