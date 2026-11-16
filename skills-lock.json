@@ -1,6 +1,14 @@
 {
   "version": 2,
   "skills": {
+    "caption-animation": {
+      "source": "iart-ai/tiktok-video-skills",
+      "commit": "88e7152fc2710fa16852d013959cfd988a8adc8b",
+      "sourceType": "github",
+      "skillPath": "skills/caption-animation/SKILL.md",
+      "computedHash": "85e2df35826e3dda204d0dd9f1238d649eebcc1037dd8c6ee924304c19eed6e8",
+      "installMode": "copy"
+    },
     "gemini-api-dev": {
       "source": "google-gemini/gemini-skills",
       "sourceType": "github",
@@ -84,6 +92,14 @@
       "sourceType": "github",
       "skillPath": "skills/remotion-upgrade/SKILL.md",
       "computedHash": "27e2c87253c65d0a8d5b8878a871c9d86814fa89bc4f962b2fbe3f8ad450928c"
+    },
+    "short-form-video": {
+      "source": "iart-ai/tiktok-video-skills",
+      "commit": "88e7152fc2710fa16852d013959cfd988a8adc8b",
+      "sourceType": "github",
+      "skillPath": "skills/short-form-video/SKILL.md",
+      "computedHash": "f55f26c6bb88e7391044300c8db24e732a7ba3e4f632b392201526fdf7a87e86",
+      "installMode": "copy"
     }
   }
 }
