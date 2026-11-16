@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, Suspense } from 'react';
 import {
   ArrowLeft,
   X,
@@ -17,16 +17,20 @@ import {
   AiListingCopyOutput,
   generateAiListingTitleAndDescription,
 } from '../utils/trustSafety';
-import {
-  GuidedViralTourStudio,
-  RecordedViralSlotMedia,
-} from './GuidedViralTourStudio';
+import type { RecordedViralSlotMedia } from './GuidedViralTourStudio';
 import { GuidedShotCapture } from './GuidedShotCapture';
 import {
   createGuidedShotSlots,
   canProceedWithShots,
   MIN_SHOTS_TO_PROCEED,
 } from '../utils/guidedShots';
+import type { ViralVideoResult } from './ViralVideoEditor';
+import type { ViralListingInfo } from '../remotion/viral/types';
+
+// Remotion only downloads when the host reaches Step 3
+const ViralVideoEditor = React.lazy(() =>
+  import('./ViralVideoEditor').then((m) => ({ default: m.ViralVideoEditor }))
+);
 
 interface PostRoomModalProps {
   isOpen: boolean;
@@ -83,6 +87,29 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
     useState<GeminiViralTourPlan | null>(null);
 
   const hasEnoughShots = canProceedWithShots(recordedViralMedia);
+
+  // Step 3: Remotion viral editor. Memoized so the edit plan only rebuilds when a fact changes.
+  const viralListing = useMemo<ViralListingInfo>(
+    () => ({
+      monthlyRent: Number(price) || 0,
+      beds,
+      baths,
+      neighborhood,
+      city,
+      roomType,
+      squareFeet: Number(squareFeet) || undefined,
+      amenities: selectedAmenities,
+    }),
+    [price, beds, baths, neighborhood, city, roomType, squareFeet, selectedAmenities]
+  );
+  const [viralVideo, setViralVideo] = useState<ViralVideoResult | null>(null);
+  const [retakeSlot, setRetakeSlot] = useState<number | null>(null);
+  const clearRetakeSlot = useCallback(() => setRetakeSlot(null), []);
+
+  // An attached video goes stale when a shot or a listing fact changes
+  useEffect(() => {
+    setViralVideo(null);
+  }, [recordedViralMedia, viralListing]);
 
   // Combine uploaded pictures + frames from the captured guided shots
   const allLoadedPictures = useMemo<AiLoadedPictureInfo[]>(() => {
@@ -273,7 +300,23 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
       };
     });
 
-    const firstVideoUrl = viralScenes.find((s) => s.videoUrl)?.videoUrl || '';
+    // With an exported viral edit, the feed plays that one MP4; the scenes keep
+    // each shot's thumbnail so the slideshow fallback still works.
+    const editScenes = viralVideo
+      ? viralVideo.plan.shots.map((shot, idx) => ({
+          label: `Clip ${idx + 1}/${viralVideo.plan.shots.length} • ${shot.room}`,
+          caption: shot.tag || viralVideo.plan.hook.text,
+          imageUrl:
+            recordedViralMedia[shot.slotNumber]?.thumbnailUrl ||
+            viralSlots.find((s) => s.slotNumber === shot.slotNumber)?.sampleThumbnailUrl ||
+            '',
+          isCtaClip: idx === viralVideo.plan.shots.length - 1,
+        }))
+      : null;
+
+    const firstVideoUrl = viralVideo
+      ? viralVideo.url
+      : viralScenes.find((s) => s.videoUrl)?.videoUrl || '';
 
     const finalTitle =
       effectiveTitle.trim() ||
@@ -299,8 +342,8 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
       amenities: selectedAmenities,
       videoUrl: firstVideoUrl,
       fallbackThumbnail: customLoadedPictures[0]?.url || viralScenes[0].imageUrl,
-      tourFormat: 'live_walkthrough',
-      customScenes: viralScenes,
+      tourFormat: viralVideo ? 'viral_edit' : 'live_walkthrough',
+      customScenes: editScenes || viralScenes,
       audioTrack: {
         title: finalPlan?.voiceover_script || 'Original Room Tour Beats',
         artist: userProfile.name,
@@ -773,26 +816,43 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
           <GuidedShotCapture
             recordedMedia={recordedViralMedia}
             onUpdateRecordedMedia={setRecordedViralMedia}
+            openCameraForSlot={retakeSlot}
+            onCameraRequestHandled={clearRetakeSlot}
           />
 
-          {/* STEP 3: GEMINI VIRAL TOUR FROM THE CAPTURED SHOTS */}
-          <GuidedViralTourStudio
-            hideCaptureControls
-            minClipsToGenerate={MIN_SHOTS_TO_PROCEED}
-            monthlyRent={price}
-            beds={beds}
-            baths={baths}
-            neighborhood={neighborhood}
-            city={city}
-            amenities={selectedAmenities}
-            slots={viralSlots}
-            onUpdateSlots={setViralSlots}
-            recordedMedia={recordedViralMedia}
-            onUpdateRecordedMedia={setRecordedViralMedia}
-            generatedPlan={generatedViralPlan}
-            onUpdateGeneratedPlan={setGeneratedViralPlan}
-            onAttachAndPublishListing={(plan) => publishListingWithPlan(plan)}
-          />
+          {/* STEP 3: REMOTION VIRAL EDITOR (loaded only once there is a shot to edit) */}
+          {Object.keys(recordedViralMedia).length > 0 ? (
+            <Suspense
+              fallback={
+                <div
+                  data-testid="viral-editor-loading"
+                  className="p-3.5 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm flex items-center gap-2 text-[11px] font-bold text-[#6E655F]"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#D06C4E]" />
+                  Loading editor…
+                </div>
+              }
+            >
+              <ViralVideoEditor
+                listing={viralListing}
+                recordedMedia={recordedViralMedia}
+                onRetakeShot={setRetakeSlot}
+                onVideoReady={setViralVideo}
+              />
+            </Suspense>
+          ) : (
+            <div
+              data-testid="viral-video-editor-empty"
+              className="p-3.5 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm flex items-center gap-2"
+            >
+              <div className="w-6 h-6 rounded-lg bg-[#D06C4E]/15 text-[#D06C4E] flex items-center justify-center font-extrabold text-xs shrink-0">
+                3
+              </div>
+              <p className="text-[11px] text-[#6E655F]">
+                Record or choose a shot above and we’ll cut your shots into a vertical video.
+              </p>
+            </div>
+          )}
 
           {/* Publish Action */}
           <div className="p-3.5 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm">
@@ -805,6 +865,14 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
               <Upload className="w-4 h-4" />
               <span>Publish Listing to Feed</span>
             </button>
+            {hasEnoughShots && viralVideo && (
+              <p
+                data-testid="publish-with-viral-video-note"
+                className="text-[10px] text-center font-bold text-[#485B4A] mt-1.5"
+              >
+                Publishing with your edited video.
+              </p>
+            )}
             {!hasEnoughShots && (
               <p className="text-[10px] text-center text-[#6E655F] mt-1.5">
                 Capture at least {MIN_SHOTS_TO_PROCEED} guided shots in Step 2 to publish.

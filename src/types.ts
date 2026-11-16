@@ -58,7 +58,7 @@ export interface RoomListing {
   commentsCount: number;
   description: string;
   stagedImages?: StagedImage[];
-  tourFormat?: 'live_walkthrough' | 'ai_photo_reel';
+  tourFormat?: 'live_walkthrough' | 'ai_photo_reel' | 'viral_edit';
   coordinates?: {
     lat: number;
     lng: number;

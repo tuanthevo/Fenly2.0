@@ -748,11 +748,17 @@ interface GuidedShotCaptureProps {
   onUpdateRecordedMedia: React.Dispatch<
     React.SetStateAction<Record<number, RecordedViralSlotMedia>>
   >;
+  /** When set, scrolls to that shot and opens its guided camera (Quick Retake from the editor) */
+  openCameraForSlot?: number | null;
+  /** Called once the camera request above has been handled */
+  onCameraRequestHandled?: () => void;
 }
 
 export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
   recordedMedia,
   onUpdateRecordedMedia,
+  openCameraForSlot = null,
+  onCameraRequestHandled,
 }) => {
   const [cameraShot, setCameraShot] = useState<GuidedShot | null>(null);
   const [previewShot, setPreviewShot] = useState<GuidedShot | null>(null);
@@ -760,6 +766,16 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
   const [cardErrors, setCardErrors] = useState<Record<number, string>>({});
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const cardRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
+  useEffect(() => {
+    if (openCameraForSlot === null) return;
+    const shot = GUIDED_SHOTS.find((s) => s.slotNumber === openCameraForSlot);
+    if (shot) {
+      cardRefs.current[shot.slotNumber]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setCameraShot(shot);
+    }
+    onCameraRequestHandled?.();
+  }, [openCameraForSlot, onCameraRequestHandled]);
 
   const completed = countCompletedShots(recordedMedia);
   const nextShot = nextShotToCapture(recordedMedia);

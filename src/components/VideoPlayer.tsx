@@ -231,6 +231,20 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     },
   ];
 
+  const isViralEdit = room.tourFormat === 'viral_edit' && Boolean(room.videoUrl);
+  const viralVideoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Only the card on screen plays its exported edit
+  useEffect(() => {
+    const video = viralVideoRef.current;
+    if (!video) return;
+    if (isActive && isPlaying) {
+      video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
+  }, [isActive, isPlaying, isViralEdit]);
+
   useEffect(() => {
     setSceneIndex(0);
     setSceneProgress(0);
@@ -414,8 +428,21 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       onTouchCancel={handleTouchCancel}
       className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden select-none touch-pan-y cursor-pointer"
     >
+      {/* Exported viral edit (one MP4) replaces the image slideshow */}
+      {isViralEdit && (
+        <video
+          ref={viralVideoRef}
+          src={room.videoUrl}
+          autoPlay
+          loop
+          playsInline
+          muted={isMuted}
+          className="absolute inset-0 w-full h-full object-cover z-10"
+        />
+      )}
+
       {/* Multi-Scene Kinematic Video Frames */}
-      {scenes.map((scene, idx) => {
+      {!isViralEdit && scenes.map((scene, idx) => {
         const isCurrent = idx === sceneIndex;
         const motion = scene.motionClass || 'scale-110 translate-x-2 -translate-y-1';
         return (

@@ -1,0 +1,30 @@
+# Fenly: notes for Claude Code
+
+Fenly (the UI brand reads "Fenn") is a vertical-video room-rental app exported from Google AI Studio and now developed locally on Windows.
+
+## Stack and layout
+- Frontend: React 19 + Vite 8 + Tailwind 4 in `src/`. Main screens in `src/App.tsx`, components in `src/components/`, shared logic in `src/utils/trustSafety.ts`. Listings are mock data held in React state (`src/data/mockRooms.ts`); there is no database yet.
+- API: one Express app in `server/app.ts` holds every `/api/*` route. `server/gemini.ts` has the shared Gemini client and the model IDs.
+- Local runner: `server.ts` (`npm run dev`) serves the API and the Vite dev server on http://localhost:3000. Hot reload is off: refresh the browser after frontend edits, and restart the server after editing `server/` or `.env.local`.
+- Vercel: `api/index.ts` exposes the same Express app as one function; `vercel.json` pins the Vite preset and rewrites `/api/*` to it. Vercel caps request bodies at 4.5 MB, so media is never posted through `/api`: upload it to storage and send references.
+
+## Commands (Windows; in PowerShell use npm.cmd / npx.cmd)
+- `npm run dev`: app + API on port 3000
+- `npm run lint`: TypeScript check (`tsc --noEmit`)
+- `npm run build`: production build; it fails if the Gemini key would leak into the browser bundle
+- `npx tsx --test src/utils/trustSafety.test.ts`: unit tests
+
+## Rules
+- Don't change existing pages, brand colors, layout, or features unless the task asks for it. Reuse the existing palette and component styles.
+- Secrets live only in `.env.local` (gitignored) and are read on the server: `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`. Never print them, never commit them, never give them a `VITE_` prefix. `VITE_GOOGLE_MAPS_API_KEY` is a public, referrer-restricted browser key.
+- Gemini: follow the `gemini-api-dev` skill in `.claude/skills/` and fetch the doc pages it lists before writing Gemini code. Keep model IDs in `server/gemini.ts`. For `gemini-3.8-flash`, the thinking level must be low, medium or high (never `minimal`, never `thinking_budget`), and don't send temperature, top_p, top_k or candidate_count. Use structured JSON output with a schema for anything the UI parses.
+- Put every new backend route in `server/app.ts` (or a module it registers) so it works locally and on Vercel.
+- Git: commit checkpoints with clear messages and stage with `git add -A -- . ':!.aistudio'`. The AI Studio screenshots in `.aistudio/` show as modified because a C2PA tag was added when they were copied; never commit those changes. Never commit `.env*` files except `.env.example`.
+
+## Viral video editor (Remotion)
+- What it does: turns the 5 guided shots into a ~10 s 1080x1920 short (price + neighborhood hook, fast cuts, room callouts, payoff, price question, seamless loop). Rules and sources: `docs/viral-playbook.md`. Build brief: `docs/briefs/viral-remotion-editor.md`.
+- Code: `src/remotion/viral/`. `plan.ts` builds a JSON edit plan (pure, unit tested); `FenlyViralTour.tsx` renders it. `src/components/ViralVideoEditor.tsx` shows it in `@remotion/player` and exports MP4 in the browser with `@remotion/web-renderer` (no render server, works on Vercel). Studio entry: `src/remotion/index.ts`.
+- Load the `remotion-*` skills in `.claude/skills/` before editing Remotion code. Keep every `remotion` / `@remotion/*` package on the same exact version.
+- Composition code uses inline styles (no Tailwind), brand tokens from `src/remotion/viral/theme.ts`, and keeps all text inside `SAFE` so platform UI never covers it. No emoji in burned-in text. No CSS `filter` in the composition (unsupported by client-side rendering in Safari); use `@remotion/effects`.
+- Tests: `npx tsx --test src/remotion/viral/*.test.ts`. Change timing rules in `plan.ts` only together with its tests.
+- Never commit the host's clips (`public/samples/`) or renders (`out/`).

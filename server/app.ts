@@ -31,6 +31,8 @@ import {
   buildStructuredViralTourPlan,
   generateAiListingTitleAndDescription,
 } from "../src/utils/trustSafety.js";
+import { violatesFairHousing } from "../src/remotion/viral/copy.js";
+import type { ViralAiHints } from "../src/remotion/viral/types.js";
 
 const app = express();
 
@@ -944,6 +946,127 @@ Return strict JSON with:
       latencyMs: Date.now() - startTime,
       modelUsed: GEMINI_FLASH_MODEL,
     });
+  }
+});
+
+// Viral room-tour copy pass (/api/viral/copy): Gemini 3.8 Flash reads one
+// 360x640 frame per shot and returns ViralAiHints. Every field is optional; the
+// editor validates each one in plan.ts and falls back to its local rules.
+app.post("/api/viral/copy", async (req, res) => {
+  const startTime = Date.now();
+  const body = req.body || {};
+  const listing = body.listing || {};
+  const shots: { slotNumber: number; room: string; jpegBase64?: string }[] = Array.isArray(body.shots)
+    ? body.shots
+        .filter((s: any) => Number.isInteger(s?.slotNumber) && s.slotNumber >= 1 && s.slotNumber <= 5)
+        .slice(0, 5)
+    : [];
+
+  if (!process.env.GEMINI_API_KEY || shots.length === 0) {
+    res.json({ hints: {}, model_used: null, latencyMs: Date.now() - startTime });
+    return;
+  }
+
+  const rent = Number(listing.monthlyRent) || 0;
+  const rentLabel = `$${rent.toLocaleString("en-US")}/mo`;
+  const neighborhood = String(listing.neighborhood || "").slice(0, 60);
+  const city = String(listing.city || "").slice(0, 60);
+  const amenities = (Array.isArray(listing.amenities) ? listing.amenities : []).slice(0, 8).join(", ");
+  const slotNumbers = shots.map((s) => s.slotNumber);
+
+  try {
+    const parts: any[] = [];
+    for (const shot of shots) {
+      parts.push({ text: `Shot ${shot.slotNumber} (${String(shot.room || "").slice(0, 40)}):` });
+      if (typeof shot.jpegBase64 === "string" && shot.jpegBase64.length > 0 && shot.jpegBase64.length < 600_000) {
+        parts.push({ inlineData: { mimeType: "image/jpeg", data: shot.jpegBase64 } });
+      }
+    }
+    parts.push({
+      text: `You write on-screen text for a ~10 second vertical rental tour video (TikTok / Reels / Shorts).
+Listing facts:
+- Rent: ${rentLabel}
+- ${listing.beds} bed, ${listing.baths} bath, ${String(listing.roomType || "")}${listing.squareFeet ? `, ${listing.squareFeet} sq ft` : ""}
+- Neighborhood: ${neighborhood}, ${city}
+- Amenities: ${amenities}
+
+Each image above is the best frame of one guided shot. Return JSON:
+1. hookText: a headline of at most 64 characters that contains the exact rent "${rentLabel}" and the neighborhood "${neighborhood}". Example: "What ${rentLabel} gets you in ${neighborhood}".
+2. hookSlotNumber: the shot (one of ${slotNumbers.join(", ")}) that looks most striking as the opening frame.
+3. tags: for each shot, a 2-3 word callout naming something specific you can see ("Double vanity", "Walk-in closet"). Max 22 characters.
+4. perkLabel: a 2-3 word name for the standout perk in the last shot, if you can see it.
+5. warnings: only problems you can see in a frame: a person or the camera operator in a mirror, heavy clutter, a countertop or wall close-up with no room visible, a sideways frame, or very dark footage. Give a short, kind tip to fix it. Return an empty list if the frames look fine.
+Rules: no emoji; plain words; never describe who should or should not live there (no age, gender, family status, religion, nationality, disability, or "perfect for students / professionals / couples").`,
+    });
+
+    const response = await ai.models.generateContent({
+      model: GEMINI_FLASH_MODEL,
+      contents: { parts },
+      config: {
+        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            hookText: { type: Type.STRING },
+            hookSlotNumber: { type: Type.INTEGER },
+            tags: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  slotNumber: { type: Type.INTEGER },
+                  tag: { type: Type.STRING },
+                },
+                required: ["slotNumber", "tag"],
+              },
+            },
+            perkLabel: { type: Type.STRING },
+            warnings: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  slotNumber: { type: Type.INTEGER },
+                  tip: { type: Type.STRING },
+                },
+                required: ["slotNumber", "tip"],
+              },
+            },
+          },
+          required: ["hookText", "hookSlotNumber", "tags", "warnings"],
+        },
+      },
+    });
+
+    const raw = JSON.parse(response.text || "{}");
+    const clean = (text: unknown, max: number): string | undefined => {
+      const value = typeof text === "string" ? text.replace(/\s+/g, " ").trim() : "";
+      return value && value.length <= max && !violatesFairHousing(value) ? value : undefined;
+    };
+    const hints: ViralAiHints = {};
+    const hookText = clean(raw.hookText, 64);
+    if (hookText && hookText.includes(rentLabel)) hints.hookText = hookText;
+    if (slotNumbers.includes(raw.hookSlotNumber)) hints.hookSlotNumber = raw.hookSlotNumber;
+    const tags: Record<number, string> = {};
+    for (const t of Array.isArray(raw.tags) ? raw.tags : []) {
+      const tag = clean(t?.tag, 22);
+      if (tag && slotNumbers.includes(t.slotNumber)) tags[t.slotNumber] = tag;
+    }
+    if (Object.keys(tags).length > 0) hints.tags = tags;
+    const perk = clean(raw.perkLabel, 22);
+    if (perk) hints.perkLabel = perk;
+    const warnings: { slotNumber: number; tip: string }[] = [];
+    for (const w of Array.isArray(raw.warnings) ? raw.warnings : []) {
+      const tip = clean(w?.tip, 160);
+      if (tip && slotNumbers.includes(w.slotNumber)) warnings.push({ slotNumber: w.slotNumber, tip });
+    }
+    if (warnings.length > 0) hints.warnings = warnings.slice(0, 5);
+
+    res.json({ hints, model_used: GEMINI_FLASH_MODEL, latencyMs: Date.now() - startTime });
+  } catch (error) {
+    console.error("Viral copy pass failed:", error instanceof Error ? error.message : error);
+    res.json({ hints: {}, model_used: GEMINI_FLASH_MODEL, latencyMs: Date.now() - startTime });
   }
 });
 
