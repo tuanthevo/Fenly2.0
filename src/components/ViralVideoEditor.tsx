@@ -99,6 +99,14 @@ const CREATE_LISTING_SETTINGS: Partial<ViralEditSettings> = {
   music: null,
 };
 
+/**
+ * Music is switched off until we decide how to handle it: no music controls in
+ * Create Listing or the edit screen, and no music in previews or exports (even
+ * for listings saved with a track). The AI music code (/api/viral/music,
+ * musicMood.ts, aiMusic.ts) stays in place; set this to true to bring it back.
+ */
+const MUSIC_ENABLED = false;
+
 const QUICK_EDITS = ['Brighter', 'Warmer', 'Punchier', 'Faster', 'Shorter', 'No whoosh'];
 
 type ExportState =
@@ -329,7 +337,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
           keepRoomSound: roomSound,
           enableEffects: effectsOn,
           look,
-          music: music ? { src: music.src, volume: music.volume } : null,
+          music: MUSIC_ENABLED && music ? { src: music.src, volume: music.volume } : null,
         }
       );
     } catch {
@@ -988,7 +996,8 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
           </button>
         </div>
 
-        {/* Music */}
+        {/* Music (hidden for now, see MUSIC_ENABLED) */}
+        {MUSIC_ENABLED && (
         <div className="space-y-1.5" data-testid="viral-music">
           <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#6E655F] flex items-center gap-1">
             <Music className="w-3 h-3" />
@@ -1046,13 +1055,14 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
             Only use music you have the rights to. For a trending sound, post without music and add it inside TikTok or Reels.
           </p>
         </div>
+        )}
 
       
         </>
       )}
 
-      {/* Create Listing: AI music only */}
-      {mode === 'create' && (
+      {/* Create Listing: AI music only (hidden for now, see MUSIC_ENABLED) */}
+      {MUSIC_ENABLED && mode === 'create' && (
         <div className="space-y-1.5" data-testid="viral-music-create">
           <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#6E655F] flex items-center gap-1">
             <Music className="w-3 h-3" />

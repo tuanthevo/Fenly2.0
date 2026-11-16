@@ -97,6 +97,9 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
 }) => {
   const canHover = useCanHover();
   const [pendingDelete, setPendingDelete] = useState<RoomListing | null>(null);
+  // The host's own listings; the demo shows three sample listings until they post one
+  const ownRooms = allRooms.filter(isHostListing);
+  const activeLandlordRooms = ownRooms.length > 0 ? ownRooms : allRooms.slice(0, 3);
   const [roleMode, setRoleMode] = useState<'account' | 'renter' | 'landlord'>('account');
   const [renterSubPage, setRenterSubPage] = useState<
     'none' | 'profile' | 'verification' | 'escrow' | 'lease' | 'applications' | 'pinned'
@@ -990,9 +993,6 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
   }
 
   if (roleMode === 'landlord' && landlordSubPage === 'activeListings') {
-    // The host's own listings; the demo shows three sample listings until they post one
-    const ownRooms = allRooms.filter(isHostListing);
-    const activeLandlordRooms = ownRooms.length > 0 ? ownRooms : allRooms.slice(0, 3);
     return (
       <div className="w-full h-full bg-[#F9F7F3] text-[#2C2724] pt-4 pb-8 px-3.5 overflow-y-auto space-y-4 animate-fadeIn">
         <div className="flex items-center gap-3">
@@ -2603,7 +2603,7 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
                 <div>
                   <span className="text-xs font-bold text-[#2C2724] block">Active Room Listing</span>
                   <span className="text-[11px] text-[#6E655F]">
-                    {allRooms.slice(0, 3).length} active room listings
+                    {activeLandlordRooms.length} active room {activeLandlordRooms.length === 1 ? 'listing' : 'listings'}
                   </span>
                 </div>
               </div>
