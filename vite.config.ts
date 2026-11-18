@@ -1,5 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
+import fs from 'fs';
 import path from 'path';
 import {defineConfig, loadEnv, type Plugin} from 'vite';
 
@@ -48,10 +49,17 @@ function keepSecretsServerSide(env: Record<string, string>): Plugin {
 export default defineConfig(({mode}) => {
   // All env vars (including non-VITE_ ones) for the guard above; this does not expose them.
   const env = loadEnv(mode, process.cwd(), '');
+  const appVersion: string = JSON.parse(
+    fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf8'),
+  ).version;
   return {
     // Only VITE_* variables are exposed to the browser (e.g. VITE_GOOGLE_MAPS_API_KEY,
     // a referrer-restricted browser key). Never use this prefix for secrets.
     envPrefix: 'VITE_',
+    // App version shown in the UI, from package.json "version".
+    define: {
+      __APP_VERSION__: JSON.stringify(appVersion),
+    },
     plugins: [react(), tailwindcss(), keepSecretsServerSide(env)],
     resolve: {
       alias: {

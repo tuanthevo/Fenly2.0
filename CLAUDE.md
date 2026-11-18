@@ -1,5 +1,11 @@
 # Fenly: notes for Claude Code
 
+## Fenly 2.0
+- Source of truth: `docs/strategy/ceo-operating-plan.md`. Read it before planning or building any 2.0 work.
+- Branches: `fenly-2.0` is the 2.0 trunk. Build each step on its own branch off `fenly-2.0` and merge it back into `fenly-2.0` when tests pass. Never commit to `main`. Tag `v1.0` is the frozen 1.0 prototype; don't move or change it.
+- Product rules: hide features behind feature flags instead of deleting them. Keep the brand colors and existing components. The core loop is Fill a room → share link → Find/Apply → filled; every 2.0 change should serve it.
+- Version: `package.json` `"version"` (2.0.0) is the only place to set it. `vite.config.ts` passes it to the browser as `__APP_VERSION__`.
+
 Fenly (the UI brand reads "Fenn") is a vertical-video room-rental app exported from Google AI Studio and now developed locally on Windows.
 
 ## Stack and layout

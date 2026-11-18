@@ -406,6 +406,9 @@ export const FennStickerSheetModal: React.FC<FennStickerSheetModalProps> = ({
               <h2 className="text-sm font-extrabold tracking-tight text-[#FAF6F0]">
                 Fenn Mascot & Brand Kit
               </h2>
+              <p className="text-[10px] text-[#FAF6F0]/70 font-semibold">
+                Fenn 2.0 · v{__APP_VERSION__}
+              </p>
               <p className="text-[10px] text-[#E5A93C] font-semibold">
                 App Icon • 4-Pose Sticker Sheet • Ask Fenn Spec
               </p>
