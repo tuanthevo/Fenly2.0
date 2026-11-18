@@ -57,3 +57,16 @@ test('at least 3 shots are needed to proceed, and the next empty shot is tracked
   assert.equal(canProceedWithShots(media), true);
   assert.equal(nextShotToCapture({ 1: {}, 2: {}, 3: {}, 4: {}, 5: {} }), null);
 });
+
+test('Quick Tour: 3 shots of 5 s (room, shared space, bathroom), extras add closet and perk', async () => {
+  const { shotsForMode, recordingMsFor, instructionFor, GUIDED_SHOTS: ALL } = await import('./guidedShots');
+  assert.deepEqual(shotsForMode('quick').map((s) => s.slotNumber), [1, 2, 3]);
+  assert.deepEqual(shotsForMode('quick', true).map((s) => s.slotNumber), [1, 2, 3, 4, 5]);
+  assert.equal(shotsForMode('guided').length, 5);
+  assert.equal(recordingMsFor('quick'), 5000);
+  assert.equal(recordingMsFor('guided'), 7000);
+  assert.match(instructionFor(ALL[0], 5), /\(5 sec\)/);
+  assert.doesNotMatch(instructionFor(ALL[0], 5), /7 sec/);
+  // every shot states its length, so quick mode never shows "7 sec"
+  for (const shot of ALL) assert.match(shot.instruction, /\(\d+ sec\)/, shot.name);
+});

@@ -304,6 +304,20 @@ export function violatesFairHousing(text: string): boolean {
   return FAIR_HOUSING_PATTERNS.some((re) => re.test(text));
 }
 
+/** The phrases that trip the fair-housing guard, as written, so the host can see what to change. */
+export function fairHousingIssues(text: string | null | undefined): string[] {
+  if (!text) return [];
+  const found: string[] = [];
+  for (const re of FAIR_HOUSING_PATTERNS) {
+    const global = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g');
+    for (const match of text.matchAll(global)) {
+      const phrase = match[0].trim();
+      if (!found.some((f) => f.toLowerCase() === phrase.toLowerCase())) found.push(phrase);
+    }
+  }
+  return found;
+}
+
 export type EndCardCopy = { lead: string; big: string; tail: string; sub: string; brand: string };
 
 export function endCardCopy(style: ViralStyleId, listing: ViralListingInfo): EndCardCopy {
