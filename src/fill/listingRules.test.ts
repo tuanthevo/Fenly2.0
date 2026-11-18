@@ -7,6 +7,9 @@ import {
   nextDay,
   publishProblems,
   sanitizeListingPatch,
+  resumeStep,
+  rawClipPath,
+  slotFromRawPath,
 } from './listingRules';
 
 const NOW = new Date('2026-11-17T20:00:00Z');
@@ -110,4 +113,26 @@ test('publishProblems lists everything missing, including an unresolved lease ch
     ['lease_check', 'missing_title', 'missing_description', 'copy_not_approved', 'missing_rent', 'missing_video', 'missing_thumbnail']
   );
   assert.deepEqual(publishProblems({ ...READY, status: 'filled' }, ['video_full', 'thumbnail']), ['already_filled']);
+});
+
+test('resumeStep picks up a draft where it stopped', () => {
+  const base = { status: 'draft', lease_permission: null, title: null, description: null, copy_approved_at: null };
+  assert.equal(resumeStep(null, [], 0), 'start');
+  assert.equal(resumeStep(base, [], 0), 'lease');
+  assert.equal(resumeStep({ ...base, lease_permission: 'not_sure' }, [], 5), 'lease');
+  assert.equal(resumeStep({ ...base, lease_permission: 'leaseholder' }, [], 2), 'tour');
+  assert.equal(resumeStep({ ...base, lease_permission: 'leaseholder' }, [], 3), 'details');
+  const approved = { ...base, lease_permission: 'can_replace', title: 'T', description: 'D', copy_approved_at: 'x' };
+  assert.equal(resumeStep(approved, ['raw_clip'], 3), 'video');
+  assert.equal(resumeStep(approved, ['video_full'], 3), 'video');
+  assert.equal(resumeStep(approved, ['video_full', 'thumbnail'], 3), 'publish');
+  assert.equal(resumeStep({ ...approved, status: 'published' }, [], 0), 'share');
+});
+
+test('raw clip paths round-trip their slot number', () => {
+  const path = rawClipPath('aaaa', 3, 'webm');
+  assert.equal(path, 'aaaa/raw/slot-3.webm');
+  assert.equal(slotFromRawPath(path), 3);
+  assert.equal(slotFromRawPath('aaaa/full.mp4'), null);
+  assert.equal(slotFromRawPath('aaaa/raw/slot-9.mp4'), null);
 });

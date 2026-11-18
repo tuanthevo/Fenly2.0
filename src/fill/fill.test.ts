@@ -263,3 +263,14 @@ test('fairHousingIssues names the phrases to change', () => {
   assert.deepEqual(fairHousingIssues(null), []);
   assert.deepEqual(fairHousingIssues('women only, women only'), ['women only']);
 });
+
+/* ---------------- neighborhoods ---------------- */
+
+test('nearestNeighborhood prefills from location, only inside the city', async () => {
+  const { nearestNeighborhood } = await import('./neighborhoods');
+  assert.equal(nearestNeighborhood(37.7596, -122.4148), 'Mission');
+  assert.equal(nearestNeighborhood(37.7509, -122.4330), 'Noe Valley');
+  assert.equal(nearestNeighborhood(37.7385, -122.4160), 'Bernal Heights');
+  assert.equal(nearestNeighborhood(37.8044, -122.2712), null); // Oakland
+  assert.equal(nearestNeighborhood(Number.NaN, 1), null);
+});

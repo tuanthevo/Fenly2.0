@@ -197,3 +197,47 @@ export function publishProblems(
   if (!mediaKinds.includes('thumbnail')) problems.push('missing_thumbnail');
   return problems;
 }
+
+export type FillStep = 'start' | 'lease' | 'tour' | 'details' | 'video' | 'publish' | 'share';
+
+/** Where a saved draft picks up again. "Not sure" about the lease brings the host back to the lease check. */
+export function resumeStep(
+  listing: {
+    status: string;
+    lease_permission: string | null;
+    title: string | null;
+    description: string | null;
+    copy_approved_at: string | null;
+  } | null,
+  mediaKinds: string[],
+  rawClipCount: number
+): FillStep {
+  if (!listing) return 'start';
+  if (listing.status === 'published' || listing.status === 'filled') return 'share';
+  if (!listing.lease_permission || listing.lease_permission === 'not_sure') return 'lease';
+  if (rawClipCount < 3) return 'tour';
+  if (!listing.copy_approved_at || !listing.title?.trim() || !listing.description?.trim()) return 'details';
+  if (!mediaKinds.includes('video_full') || !mediaKinds.includes('thumbnail')) return 'video';
+  return 'publish';
+}
+
+/** Which step fixes a publish problem. */
+export const PROBLEM_STEP: Record<PublishProblem, FillStep> = {
+  lease_check: 'lease',
+  copy_not_approved: 'details',
+  missing_title: 'details',
+  missing_description: 'details',
+  missing_rent: 'start',
+  missing_video: 'video',
+  missing_thumbnail: 'video',
+  already_filled: 'share',
+};
+
+/** Storage path for a raw clip, and the slot number back from a path. */
+export function rawClipPath(listingId: string, slotNumber: number, ext: string): string {
+  return `${listingId}/raw/slot-${slotNumber}.${ext}`;
+}
+export function slotFromRawPath(path: string): number | null {
+  const match = /\/raw\/slot-([1-5])\.[a-z0-9]+$/.exec(path);
+  return match ? Number(match[1]) : null;
+}
