@@ -291,7 +291,7 @@ begin
   values (
     new.id,
     left(full_name, 80),
-    left(split_part(coalesce(full_name, ''), ' ', 1), 40),
+    nullif(left(split_part(coalesce(full_name, ''), ' ', 1), 40), ''),
     new.raw_user_meta_data ->> 'avatar_url'
   )
   on conflict (id) do nothing;
