@@ -47,6 +47,20 @@ export function publicSupabaseConfig(env: NodeJS.ProcessEnv = process.env): Publ
   return { url: url.replace(/\/+$/, ""), publishableKey };
 }
 
+/**
+ * A client that acts as the signed-in user (publishable key + their access token),
+ * so row-level security applies exactly as in the browser. Use it for anything a
+ * user does to their own data; keep the admin client for server-only tables.
+ */
+export function getUserClient(accessToken: string, env: NodeJS.ProcessEnv = process.env): SupabaseClient | null {
+  const config = publicSupabaseConfig(env);
+  if (!config) return null;
+  return createClient(config.url, config.publishableKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
+  });
+}
+
 let adminClient: SupabaseClient | null = null;
 let adminKeyFingerprint = "";
 

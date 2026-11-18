@@ -44,6 +44,7 @@ import { buildMusicPrompt, musicLabel, sanitizeMusicMood } from "../src/remotion
 import type { ViralAiHints } from "../src/remotion/viral/types.js";
 import { requireFlag } from "./flags.js";
 import { registerFoundationRoutes } from "./foundationRoutes.js";
+import { registerFillRoutes } from "./fillRoutes.js";
 
 const app = express();
 
@@ -1285,6 +1286,8 @@ If you don't know the song, infer a fitting feel from the words. Never include t
 
 // Fenly 2.0: /api/config, /api/me, /api/events
 registerFoundationRoutes(app);
+// Fenly 2.0 Fill: /api/listings/*, /api/media/thumb/:id, /r/:code
+registerFillRoutes(app);
 
 // Unknown /api routes get a JSON 404 instead of falling through to the React app.
 app.use("/api", (_req, res) => {

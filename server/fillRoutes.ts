@@ -1,0 +1,477 @@
+/**
+ * Fenly 2.0 Fill routes: drafts, publishing, tracked links, the public listing
+ * page (/r/<code>), fill status and applications.
+ *
+ * Owner actions run through a user-scoped Supabase client so row-level
+ * security applies; the admin client is used only for public reads of published
+ * listings, link visits, events and signed media URLs.
+ */
+import type { Express, Request, Response } from "express";
+import { randomBytes } from "node:crypto";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { currentAccessToken, currentUser, requireUser } from "./auth.js";
+import { getAdminClient, getUserClient } from "./supabase.js";
+import { track } from "./track.js";
+import { renderListingPage, renderNotFoundPage } from "./publicPage.js";
+import { generateLinkCode, isLinkCode, isListingId, shareUrl } from "../src/fill/linkCodes.js";
+import {
+  PUBLISH_PROBLEM_TEXT,
+  isIsoDate,
+  listingFairHousingIssues,
+  nextDay,
+  publishProblems,
+  sanitizeListingPatch,
+  validRentCents,
+} from "../src/fill/listingRules.js";
+import { allPostTexts, buildSharePosts } from "../src/fill/sharePosts.js";
+import { buildListingMeta, isLinkPreviewBot, shouldCountVisit } from "../src/fill/publicListing.js";
+import { daysUntil, fillNudges, summarizeByChannel, todayIn } from "../src/fill/fillStatus.js";
+import { SHARE_CHANNELS, isShareChannel, type FillListingInfo, type ShareChannel } from "../src/fill/types.js";
+
+const LISTING_COLUMNS =
+  "id, owner_id, status, title, description, neighborhood, city, rent_cents, deposit_cents, available_from, move_out_date, lease_term, lease_permission, beds, baths, amenities, house_rules, caption, viral_edit, copy_approved_at, published_at, filled_at, created_at, updated_at";
+const PUBLIC_COLUMNS =
+  "id, status, title, description, neighborhood, city, rent_cents, available_from, move_out_date, lease_term, beds, baths, amenities, caption";
+
+type ListingRow = Record<string, any> & { id: string; status: string };
+type PublicLink = { id: string; listing_id: string; channel: ShareChannel; code: string };
+
+export function toFillListingInfo(row: Record<string, any>): FillListingInfo {
+  return {
+    id: row.id,
+    title: row.title ?? null,
+    description: row.description ?? null,
+    neighborhood: row.neighborhood ?? null,
+    city: row.city ?? "San Francisco",
+    rentCents: row.rent_cents ?? null,
+    availableFrom: row.available_from ?? null,
+    moveOutDate: row.move_out_date ?? null,
+    beds: row.beds ?? null,
+    baths: row.baths == null ? null : Number(row.baths),
+    amenities: Array.isArray(row.amenities) ? row.amenities : [],
+    leaseTerm: row.lease_term ?? null,
+    caption: row.caption ?? null,
+  };
+}
+
+/** Where public links point: APP_URL when set, else the address this request came in on. */
+export function publicOrigin(req: Pick<Request, "headers" | "protocol">, env: NodeJS.ProcessEnv = process.env): string {
+  const configured = env.APP_URL?.trim();
+  if (configured && /^https?:\/\/[A-Za-z0-9.-]+(:\d+)?\/?$/.test(configured)) return configured.replace(/\/+$/, "");
+  const first = (value: unknown) => String(Array.isArray(value) ? value[0] : value ?? "").split(",")[0].trim();
+  const proto = first(req.headers["x-forwarded-proto"]) || req.protocol || "http";
+  const host = first(req.headers["x-forwarded-host"]) || first(req.headers.host) || "localhost";
+  const safeHost = /^[A-Za-z0-9.-]+(:\d+)?$/.test(host) ? host : "localhost";
+  return `${proto === "https" ? "https" : "http"}://${safeHost}`;
+}
+
+function userDb(res: Response): SupabaseClient | null {
+  const token = currentAccessToken(res);
+  const db = token ? getUserClient(token) : null;
+  if (!db) res.status(503).json({ error: "supabase_not_configured" });
+  return db;
+}
+
+function dbError(res: Response, error: { code?: string; message: string }, context: string) {
+  if (error.code === "23514") return res.status(409).json({ error: "check_failed", message: "That change isn't allowed for this listing." });
+  if (error.code === "42501") return res.status(403).json({ error: "not_allowed" });
+  console.error(`${context}:`, error.message);
+  return res.status(500).json({ error: "database_error" });
+}
+
+/** The caller's own listing, or null after sending 404. */
+async function ownListing(db: SupabaseClient, res: Response, id: string, userId: string): Promise<ListingRow | null> {
+  if (!isListingId(id)) {
+    res.status(404).json({ error: "not_found" });
+    return null;
+  }
+  const { data, error } = await db.from("listings").select(LISTING_COLUMNS).eq("id", id).maybeSingle();
+  if (error) {
+    dbError(res, error, "load listing");
+    return null;
+  }
+  if (!data || data.owner_id !== userId) {
+    res.status(404).json({ error: "not_found" });
+    return null;
+  }
+  return data as ListingRow;
+}
+
+/** Makes sure the listing has one tracked link per channel; returns all of them. */
+async function ensureLinks(db: SupabaseClient, listingId: string) {
+  const { data: existing, error } = await db.from("listing_links").select("id, channel, code").eq("listing_id", listingId);
+  if (error) throw new Error(error.message);
+  const links = [...(existing ?? [])] as { id: string; channel: ShareChannel; code: string }[];
+  for (const channel of SHARE_CHANNELS) {
+    if (links.some((l) => l.channel === channel)) continue;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const code = generateLinkCode((n) => new Uint8Array(randomBytes(n)));
+      const inserted = await db
+        .from("listing_links")
+        .insert({ listing_id: listingId, channel, code })
+        .select("id, channel, code")
+        .single();
+      if (!inserted.error) {
+        links.push(inserted.data as { id: string; channel: ShareChannel; code: string });
+        break;
+      }
+      if (inserted.error.code !== "23505") throw new Error(inserted.error.message);
+      // code collision (or a parallel publish made this channel's link): look again
+      const again = await db.from("listing_links").select("id, channel, code").eq("listing_id", listingId).eq("channel", channel).maybeSingle();
+      if (again.data) {
+        links.push(again.data as { id: string; channel: ShareChannel; code: string });
+        break;
+      }
+    }
+  }
+  return SHARE_CHANNELS.map((c) => links.find((l) => l.channel === c)).filter(Boolean) as {
+    id: string;
+    channel: ShareChannel;
+    code: string;
+  }[];
+}
+
+const ANON_COOKIE = "fenly_aid";
+const ANON_ID = /^[A-Za-z0-9_-]{8,64}$/;
+
+function readCookie(req: Request, name: string): string | null {
+  const header = req.headers.cookie;
+  if (!header) return null;
+  for (const part of header.split(";")) {
+    const [key, ...rest] = part.trim().split("=");
+    if (key === name) return decodeURIComponent(rest.join("="));
+  }
+  return null;
+}
+
+function referrerHost(req: Request): string | null {
+  const ref = req.get("referer");
+  if (!ref) return null;
+  try {
+    return new URL(ref).hostname.slice(0, 100) || null;
+  } catch {
+    return null;
+  }
+}
+
+export function registerFillRoutes(app: Express): void {
+  // Start a draft: the two-question start (move-out date, rent for the room).
+  app.post("/api/listings", requireUser(), async (req, res) => {
+    const user = currentUser(res)!;
+    const { moveOutDate, rentCents } = req.body ?? {};
+    if (!isIsoDate(moveOutDate)) return res.status(400).json({ error: "invalid", errors: ["Pick your move-out date."] });
+    if (!validRentCents(rentCents)) return res.status(400).json({ error: "invalid", errors: ["Rent must be between $100 and $20,000."] });
+    const db = userDb(res);
+    if (!db) return;
+    const { data, error } = await db
+      .from("listings")
+      .insert({ owner_id: user.id, move_out_date: moveOutDate, available_from: nextDay(moveOutDate), rent_cents: rentCents })
+      .select(LISTING_COLUMNS)
+      .single();
+    if (error) return dbError(res, error, "create listing");
+    await track("fill_started", {}, { userId: user.id, listingId: data.id });
+    res.status(201).json({ listing: data });
+  });
+
+  // The host's listings (Fill home).
+  app.get("/api/listings/mine", requireUser(), async (_req, res) => {
+    const user = currentUser(res)!;
+    const db = userDb(res);
+    if (!db) return;
+    const { data, error } = await db
+      .from("listings")
+      .select("id, status, title, neighborhood, rent_cents, move_out_date, lease_permission, published_at, created_at, updated_at")
+      .eq("owner_id", user.id)
+      .neq("status", "archived")
+      .order("updated_at", { ascending: false })
+      .limit(50);
+    if (error) return dbError(res, error, "list listings");
+    res.json({ listings: data });
+  });
+
+  // One listing with its media (signed URLs, for resuming a draft) and links.
+  app.get("/api/listings/:id", requireUser(), async (req, res) => {
+    const user = currentUser(res)!;
+    const db = userDb(res);
+    if (!db) return;
+    const listing = await ownListing(db, res, req.params.id, user.id);
+    if (!listing) return;
+    const [media, links] = await Promise.all([
+      db.from("listing_media").select("id, kind, bucket, path, duration_ms, width, height, bytes").eq("listing_id", listing.id),
+      db.from("listing_links").select("id, channel, code").eq("listing_id", listing.id),
+    ]);
+    if (media.error) return dbError(res, media.error, "load media");
+    const withUrls = await Promise.all(
+      (media.data ?? []).map(async (m) => {
+        const signed = await db.storage.from(m.bucket).createSignedUrl(m.path, 3600);
+        return { ...m, signedUrl: signed.data?.signedUrl ?? null };
+      })
+    );
+    const origin = publicOrigin(req);
+    res.json({
+      listing,
+      media: withUrls,
+      links: (links.data ?? []).map((l) => ({ ...l, url: shareUrl(origin, l.code) })),
+    });
+  });
+
+  // Save lease check, details, copy and the video edit. Fair-housing hits are refused.
+  app.patch("/api/listings/:id", requireUser(), async (req, res) => {
+    const user = currentUser(res)!;
+    const result = sanitizeListingPatch(req.body);
+    if (!result.ok) return res.status(400).json({ error: "invalid", errors: result.errors });
+    const { patch } = result;
+    const issues = listingFairHousingIssues({
+      title: patch.title,
+      description: patch.description,
+      house_rules: patch.house_rules,
+      caption: patch.caption,
+      video: patch.viral_edit,
+    });
+    if (issues.length) return res.status(422).json({ error: "fair_housing", issues });
+    const db = userDb(res);
+    if (!db) return;
+    const listing = await ownListing(db, res, req.params.id, user.id);
+    if (!listing) return;
+    if (Object.keys(patch).length === 0) return res.json({ listing });
+    const { data, error } = await db.from("listings").update(patch).eq("id", listing.id).select(LISTING_COLUMNS).single();
+    if (error) return dbError(res, error, "update listing");
+    res.json({ listing: data });
+  });
+
+  // Publish: lease check, approved copy, video + cover, fair housing; then links and posts.
+  app.post("/api/listings/:id/publish", requireUser(), async (req, res) => {
+    const user = currentUser(res)!;
+    const db = userDb(res);
+    if (!db) return;
+    const listing = await ownListing(db, res, req.params.id, user.id);
+    if (!listing) return;
+    const media = await db.from("listing_media").select("kind").eq("listing_id", listing.id);
+    if (media.error) return dbError(res, media.error, "load media");
+    const problems = publishProblems(listing as any, (media.data ?? []).map((m) => m.kind));
+    if (problems.length) {
+      return res.status(409).json({ error: "not_ready", problems, messages: problems.map((p) => PUBLISH_PROBLEM_TEXT[p]) });
+    }
+    const info = toFillListingInfo(listing);
+    const origin = publicOrigin(req);
+    const draftPosts = buildSharePosts(info, { direct: shareUrl(origin, "XXXXXXXX") }, todayIn(new Date()));
+    const issues = listingFairHousingIssues({
+      title: listing.title,
+      description: listing.description,
+      house_rules: listing.house_rules,
+      caption: listing.caption,
+      video: listing.viral_edit,
+      share_posts: allPostTexts(draftPosts),
+    });
+    if (issues.length) return res.status(422).json({ error: "fair_housing", issues });
+
+    let links;
+    try {
+      links = await ensureLinks(db, listing.id);
+    } catch (error) {
+      console.error("create links:", error instanceof Error ? error.message : error);
+      return res.status(500).json({ error: "links_failed" });
+    }
+    let published = listing;
+    if (listing.status !== "published") {
+      const { data, error } = await db
+        .from("listings")
+        .update({ status: "published", published_at: listing.published_at ?? new Date().toISOString() })
+        .eq("id", listing.id)
+        .select(LISTING_COLUMNS)
+        .single();
+      if (error) return dbError(res, error, "publish listing");
+      published = data as ListingRow;
+      await track("listing_published", { channels: links.length }, { userId: user.id, listingId: listing.id });
+    }
+    const urls = Object.fromEntries(links.map((l) => [l.channel, shareUrl(origin, l.code)])) as Record<ShareChannel, string>;
+    res.json({
+      listing: published,
+      links: links.map((l) => ({ ...l, url: urls[l.channel] })),
+      posts: buildSharePosts(toFillListingInfo(published), urls, todayIn(new Date())),
+    });
+  });
+
+  // Fill status: views and applications per channel, days left, nudges.
+  app.get("/api/listings/:id/status", requireUser(), async (req, res) => {
+    const user = currentUser(res)!;
+    const db = userDb(res);
+    if (!db) return;
+    const listing = await ownListing(db, res, req.params.id, user.id);
+    if (!listing) return;
+    const linksResult = await db.from("listing_links").select("id, channel, code").eq("listing_id", listing.id);
+    if (linksResult.error) return dbError(res, linksResult.error, "load links");
+    const links = (linksResult.data ?? []).filter((l) => isShareChannel(l.channel)) as { id: string; channel: ShareChannel; code: string }[];
+    const [visits, applications] = await Promise.all([
+      links.length
+        ? db.from("link_visits").select("link_id, anon_id").in("link_id", links.map((l) => l.id)).limit(20000)
+        : Promise.resolve({ data: [], error: null }),
+      db.from("applications").select("source_link_id, status").eq("listing_id", listing.id).neq("status", "withdrawn"),
+    ]);
+    if (visits.error) return dbError(res, visits.error, "load visits");
+    if (applications.error) return dbError(res, applications.error, "load applications");
+    const summary = summarizeByChannel(links, visits.data ?? [], applications.data ?? []);
+    const now = new Date();
+    const daysLeft = daysUntil(listing.move_out_date, todayIn(now));
+    const origin = publicOrigin(req);
+    res.json({
+      listing: {
+        id: listing.id,
+        status: listing.status,
+        title: listing.title,
+        move_out_date: listing.move_out_date,
+        published_at: listing.published_at,
+        rent_cents: listing.rent_cents,
+        neighborhood: listing.neighborhood,
+      },
+      summary,
+      daysLeft,
+      nudges: fillNudges(summary, { daysLeft, publishedAt: listing.published_at, now: now.getTime() }),
+      links: links.map((l) => ({ ...l, url: shareUrl(origin, l.code) })),
+    });
+  });
+
+  // Apply to a published listing; `via` (a link code) records the channel.
+  app.post("/api/listings/:id/apply", requireUser(), async (req, res) => {
+    const user = currentUser(res)!;
+    const id = req.params.id;
+    if (!isListingId(id)) return res.status(404).json({ error: "not_found" });
+    const { note, moveInDate, via } = req.body ?? {};
+    if (note != null && (typeof note !== "string" || note.length > 1000)) {
+      return res.status(400).json({ error: "invalid", errors: ["Keep the note under 1,000 characters."] });
+    }
+    if (moveInDate != null && !isIsoDate(moveInDate)) return res.status(400).json({ error: "invalid", errors: ["Pick a move-in date."] });
+    const db = userDb(res);
+    if (!db) return;
+
+    let sourceLinkId: string | null = null;
+    let channel: ShareChannel = "direct";
+    const admin = getAdminClient();
+    if (admin && isLinkCode(via)) {
+      const link = await admin.from("listing_links").select("id, channel").eq("code", via).eq("listing_id", id).maybeSingle();
+      if (link.data) {
+        sourceLinkId = link.data.id;
+        channel = link.data.channel as ShareChannel;
+      }
+    }
+    const { data, error } = await db
+      .from("applications")
+      .insert({
+        listing_id: id,
+        applicant_id: user.id,
+        note: typeof note === "string" && note.trim() ? note.trim() : null,
+        move_in_date: moveInDate ?? null,
+        source_link_id: sourceLinkId,
+      })
+      .select("id, status, created_at")
+      .single();
+    if (error) {
+      if (error.code === "23505") return res.status(409).json({ error: "already_applied" });
+      if (error.code === "42501") return res.status(403).json({ error: "not_open", message: "This room isn't taking applications (or it's your own listing)." });
+      return dbError(res, error, "apply");
+    }
+    await track("application_submitted", { channel }, { userId: user.id, listingId: id });
+    res.status(201).json({ application: data });
+  });
+
+  // Video cover for link previews: crawlers can't read a private bucket, so redirect to a signed URL.
+  app.get("/api/media/thumb/:listingId", async (req, res) => {
+    const admin = getAdminClient();
+    const id = req.params.listingId.replace(/\.(jpe?g|png|webp)$/i, "");
+    if (!admin || !isListingId(id)) return res.status(404).end();
+    const listing = await admin.from("listings").select("id").eq("id", id).in("status", ["published", "filled"]).maybeSingle();
+    if (!listing.data) return res.status(404).end();
+    const thumb = await admin.from("listing_media").select("bucket, path").eq("listing_id", id).eq("kind", "thumbnail").limit(1).maybeSingle();
+    if (!thumb.data) return res.status(404).end();
+    const signed = await admin.storage.from(thumb.data.bucket).createSignedUrl(thumb.data.path, 7 * 24 * 3600);
+    if (!signed.data?.signedUrl) return res.status(404).end();
+    res.set("Cache-Control", "public, max-age=3600");
+    res.redirect(302, signed.data.signedUrl);
+  });
+
+  // Public listing page: /r/<code> (a channel link) or /r/<listing id> (direct).
+  app.get("/r/:code", async (req, res) => {
+    const origin = publicOrigin(req);
+    res.set("Cache-Control", "no-store");
+    const notFound = () => res.status(404).type("html").send(renderNotFoundPage("/"));
+    const admin = getAdminClient();
+    const code = req.params.code;
+    if (!admin || !(isLinkCode(code) || isListingId(code))) return notFound();
+
+    let link: PublicLink | null = null;
+    let listingId: string;
+    if (isLinkCode(code)) {
+      const found = await admin.from("listing_links").select("id, listing_id, channel, code").eq("code", code).maybeSingle();
+      if (!found.data) return notFound();
+      link = found.data as PublicLink;
+      listingId = found.data.listing_id;
+    } else {
+      listingId = code;
+      const direct = await admin.from("listing_links").select("id, listing_id, channel, code").eq("listing_id", code).eq("channel", "direct").maybeSingle();
+      link = (direct.data as PublicLink | null) ?? null;
+    }
+
+    const listingResult = await admin.from("listings").select(PUBLIC_COLUMNS).eq("id", listingId).in("status", ["published", "filled"]).maybeSingle();
+    if (!listingResult.data) return notFound();
+    const listing = listingResult.data as Record<string, any>;
+    const media = await admin
+      .from("listing_media")
+      .select("kind, bucket, path")
+      .eq("listing_id", listingId)
+      .in("kind", ["video_full", "video_teaser", "thumbnail"]);
+    const pick = (kind: string) => media.data?.find((m) => m.kind === kind);
+    const video = pick("video_full") ?? pick("video_teaser");
+    const videoUrl = video ? (await admin.storage.from(video.bucket).createSignedUrl(video.path, 3600)).data?.signedUrl ?? null : null;
+    const posterUrl = pick("thumbnail") ? `${origin}/api/media/thumb/${listingId}.jpg` : null;
+
+    // Count the view (people only, once per browser per 30 minutes) and track it.
+    const userAgent = req.get("user-agent");
+    if (!isLinkPreviewBot(userAgent)) {
+      let anonId = readCookie(req, ANON_COOKIE);
+      if (!anonId || !ANON_ID.test(anonId)) {
+        anonId = `v_${randomBytes(12).toString("hex")}`;
+        const secure = origin.startsWith("https:") ? "; Secure" : "";
+        res.append("Set-Cookie", `${ANON_COOKIE}=${anonId}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`);
+      }
+      try {
+        if (link) {
+          const last = await admin
+            .from("link_visits")
+            .select("created_at")
+            .eq("link_id", link.id)
+            .eq("anon_id", anonId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          const lastAt = last.data ? Date.parse(last.data.created_at) : null;
+          if (shouldCountVisit(lastAt, Date.now())) {
+            await admin.from("link_visits").insert({ link_id: link.id, anon_id: anonId, referrer_host: referrerHost(req) });
+            await track("link_opened", { channel: link.channel }, { anonId, listingId });
+          }
+        } else {
+          await track("link_opened", { channel: "direct" }, { anonId, listingId });
+        }
+      } catch (error) {
+        console.error("record visit:", error instanceof Error ? error.message : error);
+      }
+    }
+
+    const info = toFillListingInfo(listing);
+    const today = todayIn(new Date());
+    const url = `${origin}/r/${code}`;
+    const via = isLinkCode(code) ? code : link?.code;
+    const applyHref = `/?apply=${listingId}${via ? `&via=${via}` : ""}`;
+    res.type("html").send(
+      renderListingPage({
+        listing: info,
+        status: listing.status === "filled" ? "filled" : "published",
+        metaTags: buildListingMeta(info, { url, imageUrl: posterUrl, today }),
+        videoUrl,
+        posterUrl,
+        applyHref,
+        findHref: "/",
+        today,
+      })
+    );
+  });
+}
