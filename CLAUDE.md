@@ -5,11 +5,16 @@
 - Branches: `fenly-2.0` is the 2.0 trunk. Build each step on its own branch off `fenly-2.0` and merge it back into `fenly-2.0` when tests pass. Never commit to `main`. Tag `v1.0` is the frozen 1.0 prototype; don't move or change it.
 - Product rules: hide features behind feature flags instead of deleting them. Keep the brand colors and existing components. The core loop is Fill a room → share link → Find/Apply → filled; every 2.0 change should serve it.
 - Version: `package.json` `"version"` (2.0.0) is the only place to set it. `vite.config.ts` passes it to the browser as `__APP_VERSION__`.
+- Supabase: the schema lives in `supabase/migrations/` and is run by hand in the dashboard SQL editor (setup steps: `docs/setup/supabase.md`). Put each change in a new numbered file; never edit one that has been run. Every table has RLS. The service-role client (`server/supabase.ts` `getAdminClient`) is used only in `server/`. The browser gets the URL and publishable key from `GET /api/config`, so there are no `VITE_` Supabase vars.
+- Feature flags: the list and rules are in `src/config/featureFlags.ts`; turn flags on with `FENLY_FLAGS=scout,ask_fenn` in `.env.local`. In the UI use `useFlag()`; on APIs use `requireFlag()` (404 when off). Hidden tabs fall back to Fill or Find, and 1.0 tabs open from the Find menu.
+- Auth: `src/auth/AuthProvider.tsx` handles magic link, Google and phone code. Server routes that need a user use `requireUser()` (`server/auth.ts`). Ask to sign in only at Apply, Publish and Message (`needsSignIn` in `src/utils/authGuards.ts`); browsing stays signed out.
+- Analytics: `track(name, props, ctx)` in `server/track.ts`. Add new event names to `EVENT_NAMES`, and also to `CLIENT_EVENT_NAMES` plus `src/lib/analytics.ts` if the browser sends them. Never put personal data in props.
+- Nav: `FenlyNavBar` (Find = `listings`, Fill = `fill`, Inbox = `messages`, Passport = `passport`). The 1.0 `BottomNavBar` and `HeaderNav` stay in the codebase, unused.
 
 Fenly (the UI brand reads "Fenn") is a vertical-video room-rental app exported from Google AI Studio and now developed locally on Windows.
 
 ## Stack and layout
-- Frontend: React 19 + Vite 8 + Tailwind 4 in `src/`. Main screens in `src/App.tsx`, components in `src/components/`, shared logic in `src/utils/trustSafety.ts`. Listings are mock data held in React state (`src/data/mockRooms.ts`); there is no database yet.
+- Frontend: React 19 + Vite 8 + Tailwind 4 in `src/`. Main screens in `src/App.tsx`, components in `src/components/`, shared logic in `src/utils/trustSafety.ts`. Listings are still mock data held in React state (`src/data/mockRooms.ts`); the Supabase tables exist (2.0 foundation) but listings move into them with the Fill flow.
 - API: one Express app in `server/app.ts` holds every `/api/*` route. `server/gemini.ts` has the shared Gemini client and the model IDs.
 - Local runner: `server.ts` (`npm run dev`) serves the API and the Vite dev server on http://localhost:3000. Hot reload is off: refresh the browser after frontend edits, and restart the server after editing `server/` or `.env.local`.
 - Vercel: `api/index.ts` exposes the same Express app as one function; `vercel.json` pins the Vite preset and rewrites `/api/*` to it. Vercel caps request bodies at 4.5 MB, so media is never posted through `/api`: upload it to storage and send references.
@@ -18,11 +23,12 @@ Fenly (the UI brand reads "Fenn") is a vertical-video room-rental app exported f
 - `npm run dev`: app + API on port 3000
 - `npm run lint`: TypeScript check (`tsc --noEmit`)
 - `npm run build`: production build; it fails if the Gemini key would leak into the browser bundle
-- `npx tsx --test src/utils/trustSafety.test.ts`: unit tests
+- `npm test`: every unit test (`src/**/*.test.ts`, `server/*.test.ts`)
+- `npx tsx --test src/utils/trustSafety.test.ts`: one test file
 
 ## Rules
 - Don't change existing pages, brand colors, layout, or features unless the task asks for it. Reuse the existing palette and component styles.
-- Secrets live only in `.env.local` (gitignored) and are read on the server: `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`. Never print them, never commit them, never give them a `VITE_` prefix. `VITE_GOOGLE_MAPS_API_KEY` is a public, referrer-restricted browser key.
+- Secrets live only in `.env.local` (gitignored) and are read on the server: `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_PUBLISHABLE_KEY` (public, but served through `/api/config`), `FENLY_FLAGS`. Never print them, never commit them, never give them a `VITE_` prefix. `VITE_GOOGLE_MAPS_API_KEY` is a public, referrer-restricted browser key.
 - Gemini: follow the `gemini-api-dev` skill in `.claude/skills/` and fetch the doc pages it lists before writing Gemini code. Keep model IDs in `server/gemini.ts`. For `gemini-3.8-flash`, the thinking level must be low, medium or high (never `minimal`, never `thinking_budget`), and don't send temperature, top_p, top_k or candidate_count. Use structured JSON output with a schema for anything the UI parses.
 - Put every new backend route in `server/app.ts` (or a module it registers) so it works locally and on Vercel.
 - Git: commit checkpoints with clear messages and stage with `git add -A -- . ':!.aistudio'`. The AI Studio screenshots in `.aistudio/` show as modified because a C2PA tag was added when they were copied; never commit those changes. Never commit `.env*` files except `.env.example`.
