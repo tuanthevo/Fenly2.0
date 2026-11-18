@@ -57,6 +57,30 @@ export function normalizePhone(input: string): string | null {
   return null;
 }
 
+/** Turns Supabase Auth errors into short, plain messages for the sign-in sheet. */
+export function friendlyAuthError(message: string | null | undefined, method: 'email' | 'google' | 'phone'): string {
+  const text = (message ?? '').toLowerCase();
+  if (/phone provider|sms provider|unsupported phone|phone.*(disabled|not enabled)|phone_provider_disabled/.test(text)) {
+    return "Phone sign-in isn't set up yet. Use email or Google for now.";
+  }
+  if (/provider is not enabled|unsupported provider|validation_failed.*provider/.test(text)) {
+    return method === 'google'
+      ? "Google sign-in isn't set up yet. Use email for now."
+      : "This sign-in option isn't set up yet.";
+  }
+  if (/rate limit|too many|security purposes|over_email_send_rate_limit|over_sms_send_rate_limit/.test(text)) {
+    return 'Too many tries. Wait a minute and try again.';
+  }
+  if (/token has expired|invalid.*(otp|token)|otp.*(expired|invalid)/.test(text)) {
+    return "That code didn't work or has expired. Send a new one.";
+  }
+  if (/invalid.*(email|phone)|unable to validate email/.test(text)) {
+    return method === 'phone' ? 'Check the phone number.' : 'Check the email address.';
+  }
+  if (/fetch|network|failed to fetch/.test(text)) return "Can't reach the server. Check your connection.";
+  return 'Something went wrong. Try again.';
+}
+
 export function isPlausibleEmail(input: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(input.trim()) && input.trim().length <= 254;
 }

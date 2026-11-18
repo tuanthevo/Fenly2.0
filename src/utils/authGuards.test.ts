@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  friendlyAuthError,
   isPlausibleEmail,
   needsSignIn,
   normalizePhone,
@@ -65,4 +66,13 @@ test('isPlausibleEmail is a light check before sending a magic link', () => {
   assert.equal(isPlausibleEmail(' host@example.com '), true);
   assert.equal(isPlausibleEmail('host@example'), false);
   assert.equal(isPlausibleEmail('host example.com'), false);
+});
+
+test('friendlyAuthError explains setup gaps and common failures in plain words', () => {
+  assert.match(friendlyAuthError('Unsupported phone provider', 'phone'), /Phone sign-in isn't set up/);
+  assert.match(friendlyAuthError('Unsupported provider: provider is not enabled', 'google'), /Google sign-in isn't set up/);
+  assert.match(friendlyAuthError('email rate limit exceeded', 'email'), /Too many tries/);
+  assert.match(friendlyAuthError('Token has expired or is invalid', 'phone'), /code didn't work/);
+  assert.match(friendlyAuthError('TypeError: Failed to fetch', 'email'), /Can't reach the server/);
+  assert.equal(friendlyAuthError(undefined, 'email'), 'Something went wrong. Try again.');
 });
