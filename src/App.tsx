@@ -67,6 +67,12 @@ import { fallbackTab, isTabAllowed } from './config/featureFlags';
 import { useAuth } from './auth/AuthProvider';
 import { needsSignIn } from './utils/authGuards';
 import { trackEvent } from './lib/analytics';
+import { FillHome } from './components/fill/FillHome';
+import { FillFlow } from './components/fill/FillFlow';
+import { FillStatusView } from './components/fill/FillStatusView';
+import { ApplySheet } from './components/fill/ApplySheet';
+import { parseStoredVia, rememberVia, viaForListing } from './fill/attribution';
+import { isListingId } from './fill/linkCodes';
 
 /** The screen being shown: a bottom tab, a full-screen overlay ('post' or 'edit:<id>'), and the Home page. */
 type AppNav = { tab: FennTab; overlay: string | null; home: HomeNav };
@@ -137,7 +143,7 @@ export default function App() {
   });
   const activeTab = nav.tab;
   // Fenly 2.0: hidden features (flags) and sign-in at Apply / Publish
-  const { flags, loaded: flagsLoaded } = useFlags();
+  const { flags, loaded: flagsLoaded, supabaseConfigured } = useFlags();
   const auth = useAuth();
   const setActiveTab = useCallback(
     (requested: FennTab) => {
@@ -330,6 +336,69 @@ export default function App() {
   // recorded tour isn't lost to the email-link / Google redirect.
   const openApplication = () => requireAccount('apply', () => setIsApplicationModalOpen(true));
   const openPostRoom = () => requireAccount('publish', () => setIsPostRoomOpen(true));
+
+  // Fenly 2.0 Fill: the flow ('fill:new' / 'fill:<id>') and a listing's status ('status:<id>')
+  // are history entries, so the phone's back gesture closes them.
+  const fillOverlay = nav.overlay?.startsWith('fill:') ? nav.overlay.slice('fill:'.length) : null;
+  const fillListingId = fillOverlay && fillOverlay !== 'new' && isListingId(fillOverlay) ? fillOverlay : null;
+  const statusListingId =
+    nav.overlay?.startsWith('status:') && isListingId(nav.overlay.slice('status:'.length))
+      ? nav.overlay.slice('status:'.length)
+      : null;
+  const openFill = (listingId: string | null) =>
+    requireAccount('publish', () => navigate((prev) => ({ ...prev, overlay: `fill:${listingId ?? 'new'}` })));
+  const closeOverlay = () => navigate((prev) => ({ ...prev, overlay: null }));
+  const openFillStatus = (listingId: string, replace = false) =>
+    navigate((prev) => ({ ...prev, tab: 'fill', overlay: `status:${listingId}` }), { replace });
+
+  // Apply from a shared link: /?apply=<listing id>&via=<link code>. The request (and the
+  // channel it came through) is kept on the device, so it survives the sign-in round trip.
+  const [applyTarget, setApplyTarget] = useState<{ listingId: string; via: string | null } | null>(null);
+  useEffect(() => {
+    const read = (key: string) => {
+      try {
+        return localStorage.getItem(key);
+      } catch {
+        return null;
+      }
+    };
+    const write = (key: string, value: string | null) => {
+      try {
+        if (value === null) localStorage.removeItem(key);
+        else localStorage.setItem(key, value);
+      } catch {
+        // private mode: attribution just won't persist
+      }
+    };
+    const now = Date.now();
+    const params = new URLSearchParams(window.location.search);
+    const apply = params.get('apply');
+    let target: string | null = null;
+    if (apply && isListingId(apply)) {
+      const via = params.get('via');
+      const next = rememberVia(parseStoredVia(read('fenlyVia')), { code: via, listingId: apply, direct: !via }, now);
+      write('fenlyVia', next ? JSON.stringify(next) : null);
+      write('fenlyPendingApply', JSON.stringify({ listingId: apply, at: now }));
+      window.history.replaceState(window.history.state, '', window.location.pathname + window.location.hash);
+      target = apply;
+    } else {
+      try {
+        const pending = JSON.parse(read('fenlyPendingApply') ?? 'null');
+        if (pending && isListingId(pending.listingId) && now - pending.at < 2 * 3600_000) target = pending.listingId;
+      } catch {
+        // ignore
+      }
+    }
+    if (target) setApplyTarget({ listingId: target, via: viaForListing(parseStoredVia(read('fenlyVia')), target, now) });
+  }, []);
+  const closeApply = () => {
+    setApplyTarget(null);
+    try {
+      localStorage.removeItem('fenlyPendingApply');
+    } catch {
+      // ignore
+    }
+  };
   const [isAiDirectorOpen, setIsAiDirectorOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
 
@@ -1344,8 +1413,25 @@ export default function App() {
           </div>
         )}
 
-        {/* Renter & Landlord Hub; the Fenly 2.0 Fill tab shows its landlord pages */}
-        {(activeTab === 'home' || activeTab === 'fill') && (
+        {/* Fenly 2.0 Fill tab (with Supabase): fill a room, drafts, live listings' status */}
+        {activeTab === 'fill' && flagsLoaded && supabaseConfigured && (
+          <div className="relative flex-1 min-h-0 w-full flex flex-col overflow-hidden">
+            {statusListingId ? (
+              <FillStatusView key={statusListingId} listingId={statusListingId} onBack={closeOverlay} />
+            ) : (
+              <FillHome
+                signedIn={Boolean(auth.user)}
+                onStartFill={() => openFill(null)}
+                onResume={(id) => openFill(id)}
+                onOpenStatus={(id) => openFillStatus(id)}
+                onBack={() => setActiveTab('listings')}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Renter & Landlord Hub; without Supabase (local demo) the Fill tab shows its 1.0 landlord pages */}
+        {(activeTab === 'home' || (activeTab === 'fill' && flagsLoaded && !supabaseConfigured)) && (
           <div className="relative flex-1 min-h-0 w-full flex flex-col overflow-hidden">
             <HomeHubView
               userProfile={userProfile}
@@ -1515,6 +1601,26 @@ export default function App() {
         userProfile={userProfile}
         onOpenAiDirector={() => setIsAiDirectorOpen(true)}
       />
+
+      {/* Fenly 2.0: Fill my room */}
+      {fillOverlay && supabaseConfigured && (fillOverlay === 'new' || fillListingId) && (
+        <FillFlow
+          listingId={fillListingId}
+          onClose={closeOverlay}
+          onOpenStatus={(id) => openFillStatus(id, true)}
+          onDraftCreated={(id) => navigate((prev) => ({ ...prev, overlay: `fill:${id}` }), { replace: true })}
+        />
+      )}
+
+      {/* Fenly 2.0: apply from a shared listing link */}
+      {applyTarget && (
+        <ApplySheet
+          listingId={applyTarget.listingId}
+          via={applyTarget.via}
+          onClose={closeApply}
+          onRequestSignIn={() => setSignInReason('apply')}
+        />
+      )}
 
       {/* Edit / delete a listing (from Active Room Listing) */}
       {editingRoom && (
