@@ -22,7 +22,11 @@ import {
   checkCameraRollClip,
   countCompletedShots,
   isLandscape,
-  nextShotToCapture,
+  instructionFor,
+  recordingMsFor,
+  shotsForMode,
+  EXTRA_SHOT_SLOTS,
+  type CaptureMode,
 } from '../utils/guidedShots';
 import type { RecordedViralSlotMedia } from './GuidedViralTourStudio';
 
@@ -168,6 +172,8 @@ interface GuidedCameraModalProps {
   onClose: () => void;
   onSave: (media: RecordedViralSlotMedia) => void;
   onUseCameraRoll: () => void;
+  /** Clip length: 7 s for the guided 5-shot tour, 5 s for the Quick Tour */
+  recordingMs?: number;
 }
 
 const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
@@ -175,6 +181,7 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
   onClose,
   onSave,
   onUseCameraRoll,
+  recordingMs = GUIDED_RECORDING_MS,
 }) => {
   const [phase, setPhase] = useState<CameraPhase>('starting');
   const [countdown, setCountdown] = useState(3);
@@ -332,14 +339,14 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
     timersRef.current.push(
       window.setTimeout(() => {
         if (liveVideoRef.current) thumbRef.current = grabCenterCroppedFrame(liveVideoRef.current);
-      }, GUIDED_RECORDING_MS / 2)
+      }, recordingMs / 2)
     );
 
     const startedAt = performance.now();
     const tick = () => {
       const elapsed = performance.now() - startedAt;
-      setProgress(Math.min(1, elapsed / GUIDED_RECORDING_MS));
-      if (elapsed < GUIDED_RECORDING_MS) {
+      setProgress(Math.min(1, elapsed / recordingMs));
+      if (elapsed < recordingMs) {
         rafRef.current = requestAnimationFrame(tick);
       } else {
         rafRef.current = null;
@@ -351,7 +358,7 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
     timersRef.current.push(
       window.setTimeout(() => {
         if (recorder.state !== 'inactive') recorder.stop();
-      }, GUIDED_RECORDING_MS)
+      }, recordingMs)
     );
   };
 
@@ -389,7 +396,7 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
       fileName: `shot-${shot.slotNumber}-guided.${
         chunksRef.current[0]?.type.includes('mp4') ? 'mp4' : 'webm'
       }`,
-      durationSec: GUIDED_RECORDING_MS / 1000,
+      durationSec: recordingMs / 1000,
       inlineDataBase64: thumb.base64,
       mimeType: 'image/jpeg',
       isLandscape: streamLandscape,
@@ -398,7 +405,7 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
 
   const showRotateBanner =
     (viewportLandscape || streamLandscape) && phase !== 'review' && phase !== 'error';
-  const secondsLeft = Math.max(0, (GUIDED_RECORDING_MS * (1 - progress)) / 1000);
+  const secondsLeft = Math.max(0, (recordingMs * (1 - progress)) / 1000);
 
   return createPortal(
     <div
@@ -415,7 +422,7 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
             Shot {shot.slotNumber} of 5
           </span>
           <h3 className="font-extrabold text-sm leading-snug">{shot.name}</h3>
-          <p className="text-[11px] text-[#F9F7F3]/75 leading-snug">{shot.instruction}</p>
+          <p className="text-[11px] text-[#F9F7F3]/75 leading-snug">{instructionFor(shot, recordingMs / 1000)}</p>
         </div>
         <button
           type="button"
@@ -624,7 +631,7 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
               data-testid="guided-camera-shutter-btn"
               onClick={handleRecordTap}
               disabled={phase !== 'ready'}
-              aria-label={`Start 3-2-1 countdown and record ${GUIDED_RECORDING_MS / 1000} seconds`}
+              aria-label={`Start 3-2-1 countdown and record ${recordingMs / 1000} seconds`}
               className="w-[72px] h-[72px] rounded-full border-4 border-white flex items-center justify-center disabled:opacity-50 transition-transform active:scale-90"
             >
               <span
@@ -635,7 +642,7 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
             </button>
             <span className="text-[11px] font-bold text-[#F9F7F3]/75">
               {phase === 'ready'
-                ? `Tap to start • 3-2-1, then ${GUIDED_RECORDING_MS / 1000}s auto-stop`
+                ? `Tap to start • 3-2-1, then ${recordingMs / 1000}s auto-stop`
                 : phase === 'recording'
                 ? 'Stops automatically'
                 : ' '}
@@ -752,6 +759,12 @@ interface GuidedShotCaptureProps {
   openCameraForSlot?: number | null;
   /** Called once the camera request above has been handled */
   onCameraRequestHandled?: () => void;
+  /** 'quick' (Fenly 2.0 Fill): 3 shots of 5 s, plus 2 optional extras; 'guided' (default): 5 shots of 7 s */
+  mode?: CaptureMode;
+  /** Quick Tour: offer "Add 2 more shots for the full tour" */
+  allowExtras?: boolean;
+  /** Step badge in the header (1.0 Create Listing shows "2") */
+  stepLabel?: string | null;
 }
 
 export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
@@ -759,7 +772,17 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
   onUpdateRecordedMedia,
   openCameraForSlot = null,
   onCameraRequestHandled,
+  mode = 'guided',
+  allowExtras = false,
+  stepLabel = '2',
 }) => {
+  const recordingMs = recordingMsFor(mode);
+  const seconds = recordingMs / 1000;
+  const [extrasOpen, setExtrasOpen] = useState(false);
+  const extrasRecorded = EXTRA_SHOT_SLOTS.some((slot) => recordedMedia[slot]);
+  const showExtras = mode === 'quick' && allowExtras && (extrasOpen || extrasRecorded);
+  const shots = shotsForMode(mode, showExtras);
+  const firstMissing = (media: Record<number, unknown>) => shots.find((s) => !media[s.slotNumber])?.slotNumber ?? null;
   const [cameraShot, setCameraShot] = useState<GuidedShot | null>(null);
   const [previewShot, setPreviewShot] = useState<GuidedShot | null>(null);
   const [checkingShot, setCheckingShot] = useState<number | null>(null);
@@ -770,15 +793,17 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
   useEffect(() => {
     if (openCameraForSlot === null) return;
     const shot = GUIDED_SHOTS.find((s) => s.slotNumber === openCameraForSlot);
+    if (shot && mode === 'quick' && EXTRA_SHOT_SLOTS.includes(shot.slotNumber)) setExtrasOpen(true);
     if (shot) {
       cardRefs.current[shot.slotNumber]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       setCameraShot(shot);
     }
     onCameraRequestHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openCameraForSlot, onCameraRequestHandled]);
 
   const completed = countCompletedShots(recordedMedia);
-  const nextShot = nextShotToCapture(recordedMedia);
+  const nextShot = firstMissing(recordedMedia);
   const remainingToProceed = Math.max(0, MIN_SHOTS_TO_PROCEED - completed);
 
   const saveMedia = (media: RecordedViralSlotMedia) => {
@@ -789,7 +814,7 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
     const next = { ...recordedMedia, [media.slotNumber]: media };
     onUpdateRecordedMedia(next);
     // Bring the next empty card into view
-    const upcoming = nextShotToCapture(next);
+    const upcoming = firstMissing(next);
     if (upcoming !== null) {
       window.setTimeout(
         () => cardRefs.current[upcoming]?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
@@ -851,13 +876,19 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-[#D06C4E]/15 text-[#D06C4E] flex items-center justify-center font-extrabold text-xs shrink-0">
-            2
-          </div>
+          {stepLabel && (
+            <div className="w-6 h-6 rounded-lg bg-[#D06C4E]/15 text-[#D06C4E] flex items-center justify-center font-extrabold text-xs shrink-0">
+              {stepLabel}
+            </div>
+          )}
           <div>
-            <h4 className="font-extrabold text-xs text-[#2C2724]">Guided 5-Shot Video</h4>
+            <h4 className="font-extrabold text-xs text-[#2C2724]">
+              {mode === 'quick' ? 'Quick Tour' : 'Guided 5-Shot Video'}
+            </h4>
             <p className="text-[10px] text-[#6E655F]">
-              Never filmed a room before? Follow each card. {GUIDED_RECORDING_MS / 1000} seconds per shot.
+              {mode === 'quick'
+                ? `The room, a shared space, the bathroom. ${seconds} seconds each.`
+                : `Never filmed a room before? Follow each card. ${seconds} seconds per shot.`}
             </p>
           </div>
         </div>
@@ -869,13 +900,13 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
               : 'bg-[#F2EFE9] text-[#6E655F]'
           }`}
         >
-          {completed}/5 shots
+          {completed}/{shots.length} shots
         </span>
       </div>
 
       {/* Segment progress */}
       <div className="flex gap-1" aria-hidden="true">
-        {GUIDED_SHOTS.map((s) => (
+        {shots.map((s) => (
           <span
             key={s.slotNumber}
             className={`h-1.5 flex-1 rounded-full ${
@@ -891,7 +922,7 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
 
       {/* Cards */}
       <div className="space-y-2.5">
-        {GUIDED_SHOTS.map((shot) => {
+        {shots.map((shot) => {
           const media = recordedMedia[shot.slotNumber];
           const isDone = Boolean(media);
           const isNext = shot.slotNumber === nextShot;
@@ -961,7 +992,7 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
                   <h5 className="text-xs font-extrabold text-[#2C2724] leading-snug">
                     {shot.name}
                   </h5>
-                  <p className="text-[11px] text-[#6E655F] leading-snug">{shot.instruction}</p>
+                  <p className="text-[11px] text-[#6E655F] leading-snug">{instructionFor(shot, seconds)}</p>
                 </div>
               </div>
 
@@ -1002,7 +1033,7 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
                     <Camera className="w-3.5 h-3.5 shrink-0" />
                   )}
                   <span>
-                    {isDone ? 'Retake' : 'Record'} Guided {GUIDED_RECORDING_MS / 1000}s Clip
+                    {isDone ? 'Retake' : 'Record'} {mode === 'quick' ? '' : 'Guided '}{seconds}s Clip
                   </span>
                 </button>
                 <button
@@ -1037,6 +1068,18 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
         })}
       </div>
 
+      {mode === 'quick' && allowExtras && !showExtras && (
+        <button
+          type="button"
+          data-testid="quick-tour-add-extras"
+          onClick={() => setExtrasOpen(true)}
+          className="w-full py-2 rounded-xl bg-white hover:bg-[#F2EFE9] border border-dashed border-[#2C2724]/30 text-[#2C2724] text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95"
+        >
+          <Video className="w-3.5 h-3.5 text-[#D06C4E]" />
+          Add 2 more shots for the full tour (closet, best perk)
+        </button>
+      )}
+
       {/* Gate status */}
       <div
         data-testid="guided-shot-gate-status"
@@ -1050,8 +1093,8 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
           <>
             <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>
-              {completed === 5
-                ? 'All 5 shots ready. Nice work!'
+              {completed >= shots.length
+                ? `All ${shots.length} shots ready. Nice work!`
                 : `${completed} shots ready. You can continue, or add the rest for a fuller tour.`}
             </span>
           </>
@@ -1070,6 +1113,7 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
         <GuidedCameraModal
           key={cameraShot.slotNumber}
           shot={cameraShot}
+          recordingMs={recordingMs}
           onClose={() => setCameraShot(null)}
           onSave={(media) => {
             saveMedia(media);

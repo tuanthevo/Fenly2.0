@@ -943,9 +943,13 @@ Return strict JSON with:
     });
 
     const parsed = JSON.parse((response.text || "{}").trim());
+    // Fair housing: AI text that says who should live there is replaced by the template copy
+    const aiTitle = typeof parsed.title === "string" ? parsed.title.trim() : "";
+    const aiDescription = typeof parsed.description === "string" ? parsed.description.trim() : "";
+    const aiCopyOk = aiTitle && aiDescription && !violatesFairHousing(aiTitle) && !violatesFairHousing(aiDescription);
     res.json({
-      title: parsed.title?.trim() || fallbackCopy.title,
-      description: parsed.description?.trim() || fallbackCopy.description,
+      title: aiCopyOk ? aiTitle : fallbackCopy.title,
+      description: aiCopyOk ? aiDescription : fallbackCopy.description,
       locationContext: fallbackCopy.locationContext,
       analyzedPicturesSummary: fallbackCopy.analyzedPicturesSummary,
       loadedPicturesCount: fallbackCopy.loadedPicturesCount,
