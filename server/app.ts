@@ -42,6 +42,8 @@ import {
 } from "../src/remotion/viral/editSettings.js";
 import { buildMusicPrompt, musicLabel, sanitizeMusicMood } from "../src/remotion/viral/musicMood.js";
 import type { ViralAiHints } from "../src/remotion/viral/types.js";
+import { requireFlag } from "./flags.js";
+import { registerFoundationRoutes } from "./foundationRoutes.js";
 
 const app = express();
 
@@ -53,7 +55,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 // 1. High-Quality Image Generation Endpoint
-app.post("/api/gemini/generate-image", async (req, res) => {
+app.post("/api/gemini/generate-image", requireFlag("ai_staging"), async (req, res) => {
   try {
     const { prompt, aspectRatio = "9:16", imageSize = "1K", style = "modern interior" } = req.body;
 
@@ -116,7 +118,7 @@ app.post("/api/gemini/generate-image", async (req, res) => {
 });
 
 // 2. Ask Fenn AI Concierge Endpoint (Powered by ASK_FENN_SYSTEM_INSTRUCTION)
-app.post("/api/gemini/ask-fenn", async (req, res) => {
+app.post("/api/gemini/ask-fenn", requireFlag("ask_fenn"), async (req, res) => {
   const { query = "", rooms = [], roomContext = null } = req.body || {};
   const parsed = parseAskFennSearch(query, rooms);
 
@@ -163,7 +165,7 @@ app.post("/api/gemini/ask-fenn", async (req, res) => {
 });
 
 // 2B. House OS — AI Utility Bill Splitter Endpoint (Powered by Gemini Structured JSON Output)
-app.post("/api/gemini/parse-utility-bill", async (req, res) => {
+app.post("/api/gemini/parse-utility-bill", requireFlag("house_os_extras"), async (req, res) => {
   const {
     billText = "",
     base64Data = "",
@@ -1280,6 +1282,9 @@ If you don't know the song, infer a fitting feel from the words. Never include t
     res.status(502).json({ error: "We couldn't make music right now. Try another song or try again." });
   }
 });
+
+// Fenly 2.0: /api/config, /api/me, /api/events
+registerFoundationRoutes(app);
 
 // Unknown /api routes get a JSON 404 instead of falling through to the React app.
 app.use("/api", (_req, res) => {

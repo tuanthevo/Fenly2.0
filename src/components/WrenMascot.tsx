@@ -1,4 +1,5 @@
 import React from 'react';
+import { useFlag } from '../config/FlagsProvider';
 
 export interface WrenMascotProps {
   size?: 'xs' | 'sm' | 'md' | 'lg';
@@ -11,7 +12,7 @@ export interface WrenMascotProps {
  * A plump, minimalist terracotta-and-cream little bird wearing a tiny brass hotel bellhop cap
  * on her head and carrying a vintage brass key in her beak.
  */
-export const WrenMascot: React.FC<WrenMascotProps> = ({
+const WrenMascotArt: React.FC<WrenMascotProps> = ({
   size = 'md',
   mood = 'idle',
   className = '',
@@ -212,3 +213,7 @@ export const WrenMascot: React.FC<WrenMascotProps> = ({
     </div>
   );
 };
+
+/** Wren mascot art. Hidden unless the `mascots` flag is on (Fenly 2.0: hide, don't delete). */
+export const WrenMascot: React.FC<WrenMascotProps> = (props) =>
+  useFlag('mascots') ? <WrenMascotArt {...props} /> : null;

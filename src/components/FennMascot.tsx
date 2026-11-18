@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Copy, Check, Sparkles, Radio, EyeOff, DoorOpen, KeyRound } from 'lucide-react';
 import { ASK_FENN_SYSTEM_INSTRUCTION } from '../utils/trustSafety';
+import { useFlag } from '../config/FlagsProvider';
 
 export type FennVariant =
   | 'app_icon'
@@ -33,7 +34,7 @@ const SIZE_MAP: Record<NonNullable<FennMascotProps['size']>, number> = {
  * - Terracotta: #D96B43
  * - Deep Charcoal: #18181B
  */
-export const FennMascot: React.FC<FennMascotProps> = ({
+const FennMascotArt: React.FC<FennMascotProps> = ({
   size = 'md',
   variant = 'avatar',
   earsPerked = false,
@@ -559,3 +560,7 @@ export const FennStickerSheetModal: React.FC<FennStickerSheetModalProps> = ({
     </div>
   );
 };
+
+/** Fenn mascot art. Hidden unless the `mascots` flag is on (Fenly 2.0: hide, don't delete). */
+export const FennMascot: React.FC<FennMascotProps> = (props) =>
+  useFlag('mascots') ? <FennMascotArt {...props} /> : null;
