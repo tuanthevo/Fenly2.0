@@ -14,6 +14,9 @@ runs as the signed-out demo (Passport says "Sign-in isn't set up").
 3. Check: **Table Editor** shows the 12 tables; **Storage** shows the private buckets
    `listing-videos` and `listing-thumbnails`.
 
+4. Then run `supabase/migrations/0002_fill.sql` the same way (Fill tab: channel
+   attribution, one link per channel, caption, raw clip types).
+
 Later schema changes go in a new numbered file (`0002_...sql`); never edit one
 that has already been run.
 
@@ -62,6 +65,12 @@ FENLY_FLAGS=
    tests use the Vercel preview URL, or a tunnel such as `cloudflared tunnel --url http://localhost:3000`
    (add the tunnel URL to Redirect URLs too).
 
-## 7. Analytics
+## 7. Storage size limit
+Finished tours are about 14 MB for 17 s (about 25 MB for 30 s). Free Supabase
+projects allow up to 50 MB per file, which fits; if an upload fails with
+"larger than this project allows", raise **Storage → Settings → Upload file size
+limit** (the bucket itself allows 100 MB).
+
+## 8. Analytics
 Every `track()` call lands in the `events` table. Weekly counts:
 `select * from weekly_event_counts order by week desc, events desc;` (SQL Editor).
