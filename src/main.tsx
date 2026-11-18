@@ -1,5 +1,7 @@
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
+import { FlagsProvider } from './config/FlagsProvider';
+import { AuthProvider } from './auth/AuthProvider';
 import './index.css';
 
 (window as any).gm_authFailure = () => {
@@ -14,5 +16,11 @@ console.error = (...args: unknown[]) => {
   }
 };
 
-createRoot(document.getElementById('root')!).render(<App />);
+createRoot(document.getElementById('root')!).render(
+  <FlagsProvider>
+    <AuthProvider>
+      <App />
+    </AuthProvider>
+  </FlagsProvider>
+);
 

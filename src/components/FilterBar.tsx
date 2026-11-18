@@ -10,11 +10,14 @@ interface FilterBarProps {
   onResetFilters: () => void;
   /** Shown when the feed was opened from another screen: goes back there */
   onBack?: () => void;
+  /** Extra buttons after Filter (Fenly 2.0: the feature menu, when any flag is on) */
+  extraActions?: React.ReactNode;
 }
 
 export const FilterBar: React.FC<FilterBarProps> = ({
   onOpenFilterModal,
   onBack,
+  extraActions,
 }) => {
   return (
     <div className="absolute top-2.5 left-3 sm:left-3.5 z-30 flex items-center gap-1.5 pointer-events-auto">
@@ -41,6 +44,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       >
         <SlidersHorizontal className="w-4 h-4" />
       </button>
+      {extraActions}
     </div>
   );
 };

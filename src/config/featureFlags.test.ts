@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_FLAGS,
+  fallbackTab,
   FEATURE_FLAGS,
   isEnabled,
   isTabAllowed,
@@ -50,4 +51,13 @@ test('menu lists only the old tabs whose flag is on, and tabs are gated the same
   assert.equal(isTabAllowed('home', DEFAULT_FLAGS), false);
   // core 2.0 tabs are always allowed
   for (const tab of ['listings', 'fill', 'messages', 'passport']) assert.equal(isTabAllowed(tab, DEFAULT_FLAGS), true);
+});
+
+test('a hidden tab falls back: Home -> Fill, other old tabs -> Find; allowed tabs stay', () => {
+  assert.equal(fallbackTab('home', DEFAULT_FLAGS), 'fill');
+  assert.equal(fallbackTab('explore', DEFAULT_FLAGS), 'listings');
+  assert.equal(fallbackTab('ask_fenn', DEFAULT_FLAGS), 'listings');
+  assert.equal(fallbackTab('house_os', DEFAULT_FLAGS), 'listings');
+  assert.equal(fallbackTab('passport', DEFAULT_FLAGS), 'passport');
+  assert.equal(fallbackTab('home', resolveFlags(DEFAULT_FLAGS, { home_extras: true })), 'home');
 });

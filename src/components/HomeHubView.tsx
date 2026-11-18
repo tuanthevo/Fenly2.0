@@ -72,6 +72,10 @@ interface HomeHubViewProps {
   homeNav?: HomeNav;
   onHomeNavChange?: (patch: Partial<HomeNav>) => void;
   onBack: () => void;
+  /** Fenly 2.0 Fill tab: always show this role and hide the Account / Renter / Landlord switcher */
+  lockedRole?: HomeRole;
+  /** Fenly 2.0 `home_extras` flag: landlord verification, admin & screening, lease generator */
+  extrasEnabled?: boolean;
 }
 
 const LEASE_DURATIONS = [
@@ -105,6 +109,8 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
   homeNav,
   onHomeNavChange,
   onBack,
+  lockedRole,
+  extrasEnabled = true,
 }) => {
   const canHover = useCanHover();
   const [pendingDelete, setPendingDelete] = useState<RoomListing | null>(null);
@@ -117,7 +123,7 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
   const currentHomeNav = homeNav ?? localHomeNav;
   const changeHomeNav = (patch: Partial<HomeNav>) =>
     onHomeNavChange ? onHomeNavChange(patch) : setLocalHomeNav((prev) => ({ ...prev, ...patch }));
-  const roleMode = currentHomeNav.role;
+  const roleMode = lockedRole ?? currentHomeNav.role;
   const renterSubPage = currentHomeNav.renterPage;
   const landlordSubPage = currentHomeNav.landlordPage;
   const setRoleMode = (role: HomeRole) => changeHomeNav({ role });
@@ -2243,7 +2249,12 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
           <ArrowLeft className="w-4 h-4" />
         </button>
 
+        {lockedRole === 'landlord' && (
+          <h2 className="flex-1 text-base font-extrabold text-[#2C2724]">Fill a room</h2>
+        )}
+
         {/* Role & Account Switcher */}
+        {!lockedRole && (
         <div className="flex-1 p-1 rounded-xl bg-[#F2EFE9] border border-[#2C2724]/20 grid grid-cols-3 gap-1">
           <button
             onClick={() => setRoleMode('account')}
@@ -2281,6 +2292,7 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
             <span>Landlord</span>
           </button>
         </div>
+        )}
       </div>
 
       {roleMode === 'account' && (
@@ -2539,6 +2551,7 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
         /* --- MINIMALIST LANDLORD HOME VIEW --- */
         <div className="space-y-4 animate-fadeIn">
           <div className="rounded-2xl bg-white border border-[#2C2724]/15 divide-y divide-[#2C2724]/10 shadow-warm-sm overflow-hidden">
+            {extrasEnabled && (<>
             {/* 1. Landlord Verification Button */}
             <button
               type="button"
@@ -2588,6 +2601,7 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
               </div>
               <ChevronRight className="w-4 h-4 text-[#6E655F] shrink-0" />
             </button>
+            </>)}
 
             {/* 4. Applications Button (Landlord) */}
             <button

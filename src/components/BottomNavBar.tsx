@@ -2,7 +2,7 @@ import React from 'react';
 import { Home, Play, Compass, MessageCircle, Zap } from 'lucide-react';
 import { FennMascot } from './FennMascot';
 
-export type FennTab = 'listings' | 'explore' | 'ask_fenn' | 'my_den' | 'messages' | 'house_os' | 'home';
+export type FennTab = 'listings' | 'explore' | 'ask_fenn' | 'my_den' | 'messages' | 'house_os' | 'home' | 'fill' | 'passport';
 
 interface BottomNavBarProps {
   activeTab: FennTab;

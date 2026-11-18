@@ -58,6 +58,15 @@ import { AskFennView } from './components/AskFennView';
 import { MyDenView } from './components/MyDenView';
 import { HouseOsView } from './components/HouseOsView';
 import { FennMascot, FennStickerSheetModal } from './components/FennMascot';
+import { FenlyNavBar } from './components/FenlyNavBar';
+import { NavMenu } from './components/NavMenu';
+import { SignInSheet, type SignInReason } from './components/SignInSheet';
+import { PassportView } from './components/PassportView';
+import { useFlags } from './config/FlagsProvider';
+import { fallbackTab, isTabAllowed } from './config/featureFlags';
+import { useAuth } from './auth/AuthProvider';
+import { needsSignIn } from './utils/authGuards';
+import { trackEvent } from './lib/analytics';
 
 /** The screen being shown: a bottom tab, a full-screen overlay ('post' or 'edit:<id>'), and the Home page. */
 type AppNav = { tab: FennTab; overlay: string | null; home: HomeNav };
@@ -127,12 +136,46 @@ export default function App() {
     home: HOME_NAV_START,
   });
   const activeTab = nav.tab;
+  // Fenly 2.0: hidden features (flags) and sign-in at Apply / Publish
+  const { flags, loaded: flagsLoaded } = useFlags();
+  const auth = useAuth();
   const setActiveTab = useCallback(
-    (tab: FennTab) =>
-      // Opening Home from another tab starts on its main page, as it always has
-      navigate((prev) => ({ ...prev, tab, home: tab === 'home' && prev.tab !== 'home' ? HOME_NAV_START : prev.home })),
-    [navigate]
+    (requested: FennTab) => {
+      // A tab whose feature is hidden lands on its 2.0 home instead (Home -> Fill, others -> Find)
+      const tab = fallbackTab(requested, flags);
+      // Opening Home (or Fill, which shows Home's landlord pages) from another tab starts on its main page
+      navigate((prev) => ({
+        ...prev,
+        tab,
+        home: (tab === 'home' || tab === 'fill') && prev.tab !== tab ? HOME_NAV_START : prev.home,
+      }));
+    },
+    [navigate, flags]
   );
+  // A tab restored from history whose flag is off goes to its fallback once the flags have loaded
+  useEffect(() => {
+    if (flagsLoaded && !isTabAllowed(activeTab, flags)) {
+      navigate((prev) => ({ ...prev, tab: fallbackTab(prev.tab, flags) }), { replace: true });
+    }
+  }, [flagsLoaded, flags, activeTab, navigate]);
+  const [signInReason, setSignInReason] = useState<SignInReason | null>(null);
+  const closeSignIn = useCallback(() => setSignInReason(null), []);
+  const requireAccount = (action: 'apply' | 'publish', proceed: () => void) => {
+    if (needsSignIn(action, { configured: auth.configured, signedIn: Boolean(auth.user) })) {
+      trackEvent(action === 'apply' ? 'apply_gate_shown' : 'publish_gate_shown');
+      setSignInReason(action);
+      return;
+    }
+    proceed();
+  };
+  useEffect(() => {
+    trackEvent('app_open', { tab: activeTab });
+    // once per page load
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (activeTab === 'listings') trackEvent('feed_view');
+  }, [activeTab]);
   const handleHomeNavChange = useCallback(
     (patch: Partial<HomeNav>) => navigate((prev) => ({ ...prev, home: { ...prev.home, ...patch } })),
     [navigate]
@@ -283,6 +326,10 @@ export default function App() {
       navigate((prev) => ({ ...prev, overlay: open ? 'post' : prev.overlay === 'post' ? null : prev.overlay })),
     [navigate]
   );
+  // Sign-in comes before the application form, and before Create Listing so a
+  // recorded tour isn't lost to the email-link / Google redirect.
+  const openApplication = () => requireAccount('apply', () => setIsApplicationModalOpen(true));
+  const openPostRoom = () => requireAccount('publish', () => setIsPostRoomOpen(true));
   const [isAiDirectorOpen, setIsAiDirectorOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
 
@@ -978,6 +1025,7 @@ export default function App() {
   };
 
   const handleViewRoomDetails = (roomId: string) => {
+    trackEvent('listing_open', { room: roomId });
     const foundIdx = filteredRooms.findIndex((r) => r.id === roomId);
     if (foundIdx !== -1) {
       setCurrentRoomIndex(foundIdx);
@@ -1036,6 +1084,8 @@ export default function App() {
     setEditingRoomId((id) => (id === roomId ? null : id));
   };
 
+  const homeRole = activeTab === 'fill' ? 'landlord' : nav.home.role;
+
   const unreadMessagesCount = conversations.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
 
   return (
@@ -1068,6 +1118,7 @@ export default function App() {
               onUpdateFilters={handleUpdateFilters}
               onOpenFilterModal={() => setIsFilterModalOpen(true)}
               onBack={canGoBack ? goBack : undefined}
+              extraActions={<NavMenu activeTab={activeTab} onSelectTab={handleSelectNavTab} />}
               totalMatches={filteredRooms.length}
               onResetFilters={handleResetFilters}
             />
@@ -1129,7 +1180,7 @@ export default function App() {
                         }}
                         onRequestToBook={() => {
                           setCurrentRoomIndex(idx);
-                          setIsApplicationModalOpen(true);
+                          openApplication();
                         }}
                         isPinned={pinnedRoomIds.has(room.id)}
                         onTogglePin={() => handleTogglePin(room.id)}
@@ -1278,7 +1329,7 @@ export default function App() {
               onRequestToBookRoom={(room) => {
                 const idx = rooms.findIndex((r) => r.id === room.id);
                 if (idx !== -1) setCurrentRoomIndex(idx);
-                setIsApplicationModalOpen(true);
+                openApplication();
               }}
               onOpenRenterLandlordHub={() => setActiveTab('home')}
               onOpenMessages={() => setActiveTab('messages')}
@@ -1286,8 +1337,15 @@ export default function App() {
           </div>
         )}
 
-        {/* Renter & Landlord Hub */}
-        {activeTab === 'home' && (
+        {/* Passport (Fenly 2.0) */}
+        {activeTab === 'passport' && (
+          <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden">
+            <PassportView onRequestSignIn={() => setSignInReason('passport')} />
+          </div>
+        )}
+
+        {/* Renter & Landlord Hub; the Fenly 2.0 Fill tab shows its landlord pages */}
+        {(activeTab === 'home' || activeTab === 'fill') && (
           <div className="relative flex-1 min-h-0 w-full flex flex-col overflow-hidden">
             <HomeHubView
               userProfile={userProfile}
@@ -1313,32 +1371,34 @@ export default function App() {
               onStartApplicationForRoom={(room) => {
                 const idx = rooms.findIndex((r) => r.id === room.id);
                 if (idx !== -1) setCurrentRoomIndex(idx);
-                setIsApplicationModalOpen(true);
+                openApplication();
               }}
               onOpenDirectMessages={(convId) => {
                 if (convId) setActiveConversationId(convId);
                 setActiveTab('messages');
               }}
               onOpenAiDirector={() => setIsAiDirectorOpen(true)}
-              onOpenPostRoom={() => setIsPostRoomOpen(true)}
+              onOpenPostRoom={openPostRoom}
               onEditRoom={setEditingRoomId}
               onDeleteRoom={handleDeleteRoom}
               homeNav={nav.home}
               onHomeNavChange={handleHomeNavChange}
               onBack={() => setActiveTab('listings')}
+              lockedRole={activeTab === 'fill' ? 'landlord' : undefined}
+              extrasEnabled={flags.home_extras}
               masterLeaseConfig={masterLeaseConfig}
               onUpdateMasterLeaseConfig={(updated) =>
                 setMasterLeaseConfig((prev) => ({ ...prev, ...updated }))
               }
             />
             {/* Back within thumb reach on Home's sub-pages (the top one scrolls away on long pages) */}
-            {((nav.home.role === 'landlord' && nav.home.landlordPage !== 'none') ||
-              (nav.home.role === 'renter' && nav.home.renterPage !== 'none')) && (
+            {((homeRole === 'landlord' && nav.home.landlordPage !== 'none') ||
+              (homeRole === 'renter' && nav.home.renterPage !== 'none')) && (
               <button
                 type="button"
                 data-testid="home-bottom-back"
                 onClick={() =>
-                  handleHomeNavChange(nav.home.role === 'landlord' ? { landlordPage: 'none' } : { renterPage: 'none' })
+                  handleHomeNavChange(homeRole === 'landlord' ? { landlordPage: 'none' } : { renterPage: 'none' })
                 }
                 className="absolute bottom-3 left-3 z-30 px-3.5 py-2.5 rounded-full bg-[#2C2724] text-[#F9F7F3] text-xs font-extrabold shadow-warm flex items-center gap-1.5 active:scale-95"
               >
@@ -1349,21 +1409,15 @@ export default function App() {
           </div>
         )}
 
-        {/* Persistent Bottom Navigation Bar: Home, Feed, Scout, Ask Fenn, House OS, Messages */}
-        <BottomNavBar
-          activeTab={activeTab}
-          onSelectTab={handleSelectNavTab}
-          denSavedCount={pinnedRoomIds.size}
-          unreadCount={unreadMessagesCount}
-          earsPerked={filteredRooms.length > 0}
-        />
+        {/* Fenly 2.0 bottom navigation: Find, Fill, Inbox, Passport (1.0 tabs live in the menu behind flags) */}
+        <FenlyNavBar activeTab={activeTab} onSelectTab={handleSelectNavTab} unreadCount={unreadMessagesCount} />
       </main>
 
       {/* --- MODALS & DRAWERS --- */}
 
       {/* 0. Fenn App Icon, 4-Pose Sticker Sheet & System Instructions Modal */}
       <FennStickerSheetModal
-        isOpen={isStickerSheetOpen}
+        isOpen={flags.mascots && isStickerSheetOpen}
         onClose={() => setIsStickerSheetOpen(false)}
       />
 
@@ -1407,7 +1461,7 @@ export default function App() {
 
       {/* 4. AI Room Staging Studio */}
       <AiStagingStudioModal
-        isOpen={isAiStagingOpen}
+        isOpen={flags.ai_staging && isAiStagingOpen}
         onClose={() => setIsAiStagingOpen(false)}
         room={currentRoom}
         onSaveStagedImageToRoom={handleSaveStagedImageToRoom}
@@ -1420,7 +1474,7 @@ export default function App() {
         room={currentRoom}
         userProfile={userProfile}
         onOpenDirectMessage={() => handleOpenDirectMessage(currentRoom)}
-        onStartApplication={() => setIsApplicationModalOpen(true)}
+        onStartApplication={() => openApplication()}
         onViewHostProfile={handleViewHostProfile}
       />
 
@@ -1449,7 +1503,7 @@ export default function App() {
         onOpenDirectMessageWithHost={handleOpenDirectMessageWithHost}
         onViewRoomDetails={handleViewRoomDetails}
         onOpenAiDirector={() => setIsAiDirectorOpen(true)}
-        onOpenPostRoom={() => setIsPostRoomOpen(true)}
+        onOpenPostRoom={openPostRoom}
         initialTab={profileInitialTab}
       />
 
@@ -1486,6 +1540,9 @@ export default function App() {
         }}
         room={currentRoom}
       />
+
+      {/* Fenly 2.0 sign-in (Apply, Create Listing, Passport) */}
+      <SignInSheet isOpen={signInReason !== null} reason={signInReason ?? 'passport'} onClose={closeSignIn} />
 
       {/* 10. Share Modal */}
       <ShareModal

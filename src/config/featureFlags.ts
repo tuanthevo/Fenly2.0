@@ -91,3 +91,12 @@ export function isTabAllowed(tab: string, flags: Partial<FeatureFlags> | null | 
   const gated = MENU_FEATURES.find((item) => item.tab === tab);
   return gated ? isEnabled(flags, gated.flag) : true;
 }
+
+/**
+ * Where a request for a hidden tab lands instead: the old Home hub's landlord
+ * pages live on in Fill; everything else goes back to the Find feed.
+ */
+export function fallbackTab<T extends string>(tab: T, flags: Partial<FeatureFlags> | null | undefined): T | 'fill' | 'listings' {
+  if (isTabAllowed(tab, flags)) return tab;
+  return tab === 'home' ? 'fill' : 'listings';
+}
