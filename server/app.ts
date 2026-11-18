@@ -43,6 +43,7 @@ import {
 import { buildMusicPrompt, musicLabel, sanitizeMusicMood } from "../src/remotion/viral/musicMood.js";
 import type { ViralAiHints } from "../src/remotion/viral/types.js";
 import { requireFlag } from "./flags.js";
+import { registerFoundationRoutes } from "./foundationRoutes.js";
 
 const app = express();
 
@@ -1281,6 +1282,9 @@ If you don't know the song, infer a fitting feel from the words. Never include t
     res.status(502).json({ error: "We couldn't make music right now. Try another song or try again." });
   }
 });
+
+// Fenly 2.0: /api/config, /api/me, /api/events
+registerFoundationRoutes(app);
 
 // Unknown /api routes get a JSON 404 instead of falling through to the React app.
 app.use("/api", (_req, res) => {
