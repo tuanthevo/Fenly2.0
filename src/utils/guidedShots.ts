@@ -148,3 +148,27 @@ export function nextShotToCapture(media: Record<number, unknown>): number | null
   const next = GUIDED_SHOTS.find((s) => !media[s.slotNumber]);
   return next ? next.slotNumber : null;
 }
+
+/* ---------------- Fenly 2.0 Quick Tour ---------------- */
+
+/** Quick Tour: 3 shots of 5 s (room, shared space, bathroom); 2 optional extras for the full tour. */
+export const QUICK_RECORDING_MS = 5000;
+export const QUICK_SHOT_SLOTS: readonly GuidedShot['slotNumber'][] = [1, 2, 3];
+export const EXTRA_SHOT_SLOTS: readonly GuidedShot['slotNumber'][] = [4, 5];
+
+export type CaptureMode = 'guided' | 'quick';
+
+export function shotsForMode(mode: CaptureMode, includeExtras = false): GuidedShot[] {
+  if (mode === 'guided') return GUIDED_SHOTS;
+  const slots = includeExtras ? [...QUICK_SHOT_SLOTS, ...EXTRA_SHOT_SLOTS] : QUICK_SHOT_SLOTS;
+  return GUIDED_SHOTS.filter((shot) => slots.includes(shot.slotNumber));
+}
+
+export function recordingMsFor(mode: CaptureMode): number {
+  return mode === 'quick' ? QUICK_RECORDING_MS : GUIDED_RECORDING_MS;
+}
+
+/** The shot's instruction with its clip length ("(7 sec)") set to `seconds`. */
+export function instructionFor(shot: GuidedShot, seconds: number): string {
+  return shot.instruction.replace(/\(\d+(?:\.\d+)?\s*sec\)/i, `(${seconds} sec)`);
+}

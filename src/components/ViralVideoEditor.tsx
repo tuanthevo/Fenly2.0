@@ -60,6 +60,8 @@ export type ViralVideoResult = {
   caption: string;
   /** The choices, analysis and AI copy behind this video, so it can be edited again later */
   edit: Omit<SavedVideoEdit, 'clips'>;
+  /** The ~13 s teaser cut from the same edit (only with `exportTeaserToo`) */
+  teaser?: { blob: Blob; plan: ViralEditPlan };
 };
 
 interface ViralVideoEditorProps {
@@ -77,6 +79,8 @@ interface ViralVideoEditorProps {
   initialSettings?: Partial<ViralEditSettings>;
   /** Clip analysis saved with the listing, per slot: skips analyzing the clips again */
   initialAnalyses?: Record<number, ClipAnalysis | null>;
+  /** Fenly 2.0 Fill: also export the teaser (same edit, length 'teaser') right after the full tour */
+  exportTeaserToo?: boolean;
 }
 
 type AiEditState =
@@ -113,7 +117,7 @@ type ExportState =
   | { phase: 'idle' }
   | { phase: 'checking' }
   | { phase: 'rendering'; progress: number }
-  | { phase: 'done'; blob: Blob; url: string; planKey: string }
+  | { phase: 'done'; blob: Blob; url: string; planKey: string; teaser?: { blob: Blob; plan: ViralEditPlan } }
   | { phase: 'error'; message: string };
 
 function supportsWebGL2(): boolean {
@@ -140,6 +144,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
   mode = 'create',
   initialSettings,
   initialAnalyses,
+  exportTeaserToo = false,
 }) => {
   const clips = useMemo<ViralClipInput[]>(
     () =>
@@ -316,7 +321,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, analysisDone, clipKey, analysisVersion]);
 
-  const plan = useMemo<ViralEditPlan | null>(() => {
+  const buildPlanFor = (planLength: typeof length): ViralEditPlan | null => {
     if (clips.length === 0) return null;
     try {
       return buildViralEditPlan(
@@ -326,7 +331,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
         },
         {
           style,
-          length,
+          length: planLength,
           pace,
           hookSlotNumber: hookSlot,
           hookTextOverride: hookDraft,
@@ -343,9 +348,14 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
     } catch {
       return null;
     }
-    // analysisVersion tells us the cache changed
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clips, listing, style, length, pace, hookSlot, hookDraft, tagEdits, detailEdits, activeHints, sfxOn, roomSound, effectsOn, look, music, analysisVersion]);
+  };
+  const planDeps = [clips, listing, style, length, pace, hookSlot, hookDraft, tagEdits, detailEdits, activeHints, sfxOn, roomSound, effectsOn, look, music, analysisVersion];
+  // analysisVersion tells us the cache changed
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const plan = useMemo<ViralEditPlan | null>(() => buildPlanFor(length), planDeps);
+  // The teaser: the same edit cut to ~13 s (only when asked for, and when the main video isn't already the teaser)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const teaserPlan = useMemo<ViralEditPlan | null>(() => (exportTeaserToo && length !== 'teaser' ? buildPlanFor('teaser') : null), [exportTeaserToo, ...planDeps]);
 
   const planKey = useMemo(() => (plan ? JSON.stringify(plan) : ''), [plan]);
 
@@ -378,11 +388,21 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
     abortRef.current = controller;
     setExportState({ phase: 'rendering', progress: 0 });
     try {
+      // With a teaser, one progress bar covers both renders, weighted by length
+      const fullShare = teaserPlan ? plan.totalFrames / (plan.totalFrames + teaserPlan.totalFrames) : 1;
       const blob = await exportViralVideo(plan, {
         signal: controller.signal,
-        onProgress: (progress) => setExportState({ phase: 'rendering', progress }),
+        onProgress: (progress) => setExportState({ phase: 'rendering', progress: progress * fullShare }),
       });
-      setExportState({ phase: 'done', blob, url: URL.createObjectURL(blob), planKey });
+      let teaser: { blob: Blob; plan: ViralEditPlan } | undefined;
+      if (teaserPlan) {
+        const teaserBlob = await exportViralVideo(teaserPlan, {
+          signal: controller.signal,
+          onProgress: (progress) => setExportState({ phase: 'rendering', progress: fullShare + progress * (1 - fullShare) }),
+        });
+        teaser = { blob: teaserBlob, plan: teaserPlan };
+      }
+      setExportState({ phase: 'done', blob, url: URL.createObjectURL(blob), planKey, teaser });
     } catch (error) {
       if (controller.signal.aborted) {
         setExportState({ phase: 'idle' });
@@ -1111,7 +1131,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
               <Loader2 className="w-3.5 h-3.5 animate-spin text-[#D06C4E]" />
               {exportState.phase === 'checking'
                 ? 'Getting ready…'
-                : `Making your video… ${Math.round(exportState.progress * 100)}%`}
+                : `${teaserPlan ? 'Making your tour and teaser' : 'Making your video'}… ${Math.round(exportState.progress * 100)}%`}
             </p>
             <div className="h-1.5 rounded-full bg-[#2C2724]/10 overflow-hidden">
               <div
@@ -1166,7 +1186,14 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
                   handedOffUrls.current.add(exportState.url);
                   // The music now belongs to the listing too: don't free it when this editor closes
                   if (settings.music) ownMusicUrls.current.delete(settings.music.src);
-                  onVideoReady({ blob: exportState.blob, url: exportState.url, plan, caption: plan.caption, edit: editSnapshot() });
+                  onVideoReady({
+                    blob: exportState.blob,
+                    url: exportState.url,
+                    plan,
+                    caption: plan.caption,
+                    edit: editSnapshot(),
+                    teaser: exportState.teaser,
+                  });
                 }}
                 className="w-full py-2 rounded-xl bg-[#7A907C] hover:bg-[#6a7f6c] text-white text-[11px] font-extrabold flex items-center justify-center gap-1.5 active:scale-95"
               >

@@ -34,6 +34,7 @@ export function requireUser(verify: VerifyToken = verifyAccessToken): RequestHan
         return;
       }
       res.locals.user = user;
+      res.locals.accessToken = token;
       next();
     } catch (error) {
       console.error("Auth check failed:", error instanceof Error ? error.message : error);
@@ -44,6 +45,11 @@ export function requireUser(verify: VerifyToken = verifyAccessToken): RequestHan
 
 export function currentUser(res: Response): AuthedUser | null {
   return (res.locals.user as AuthedUser | undefined) ?? null;
+}
+
+/** The verified access token from requireUser, for a user-scoped (RLS) Supabase client. */
+export function currentAccessToken(res: Response): string | null {
+  return (res.locals.accessToken as string | undefined) ?? null;
 }
 
 /** Like requireUser but never blocks: sets res.locals.user when a valid token is present. */

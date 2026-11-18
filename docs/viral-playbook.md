@@ -56,6 +56,18 @@ teaser keeps the hook (≈2.3 s) and runs ~2.2 s rooms at 1.1-1.6x (≈13 s).
 Guided shots record 7 s so each room has ~5 s of clean footage after the
 tap-to-record shake.
 
+### Fenly 2.0 Quick Tour (Fill tab)
+
+The Fill flow films 3 shots of 5 s (room, shared space, bathroom; `guidedShots.ts`
+`shotsForMode('quick')`), with 2 optional extras (closet, perk) for a fuller
+tour. Rooms shrink to their clean footage, so 3 shots give a ~15-18 s "full"
+tour; the full ~25-30 s tour needs the extras. The editor also exports the
+~13 s teaser from the same edit (`ViralVideoEditor` `exportTeaserToo`) and both
+go to Supabase Storage. Audit (Nov 2026, 3 sample shots via the app export):
+17.3 s, 14 MB at 1080x1920, about 16/20 on `references/audit.md`; the softest
+rows were the hook leaving at ~2.7 s (reading floor ~3.0 s for 7 words + a
+price) and one 4.5 s stretch with a single callout in the last room.
+
 ## Rules → code
 
 | Rule | Implementation |

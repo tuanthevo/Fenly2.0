@@ -44,6 +44,7 @@ import { buildMusicPrompt, musicLabel, sanitizeMusicMood } from "../src/remotion
 import type { ViralAiHints } from "../src/remotion/viral/types.js";
 import { requireFlag } from "./flags.js";
 import { registerFoundationRoutes } from "./foundationRoutes.js";
+import { registerFillRoutes } from "./fillRoutes.js";
 
 const app = express();
 
@@ -942,9 +943,13 @@ Return strict JSON with:
     });
 
     const parsed = JSON.parse((response.text || "{}").trim());
+    // Fair housing: AI text that says who should live there is replaced by the template copy
+    const aiTitle = typeof parsed.title === "string" ? parsed.title.trim() : "";
+    const aiDescription = typeof parsed.description === "string" ? parsed.description.trim() : "";
+    const aiCopyOk = aiTitle && aiDescription && !violatesFairHousing(aiTitle) && !violatesFairHousing(aiDescription);
     res.json({
-      title: parsed.title?.trim() || fallbackCopy.title,
-      description: parsed.description?.trim() || fallbackCopy.description,
+      title: aiCopyOk ? aiTitle : fallbackCopy.title,
+      description: aiCopyOk ? aiDescription : fallbackCopy.description,
       locationContext: fallbackCopy.locationContext,
       analyzedPicturesSummary: fallbackCopy.analyzedPicturesSummary,
       loadedPicturesCount: fallbackCopy.loadedPicturesCount,
@@ -1285,6 +1290,8 @@ If you don't know the song, infer a fitting feel from the words. Never include t
 
 // Fenly 2.0: /api/config, /api/me, /api/events
 registerFoundationRoutes(app);
+// Fenly 2.0 Fill: /api/listings/*, /api/media/thumb/:id, /r/:code
+registerFillRoutes(app);
 
 // Unknown /api routes get a JSON 404 instead of falling through to the React app.
 app.use("/api", (_req, res) => {

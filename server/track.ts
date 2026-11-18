@@ -41,7 +41,6 @@ export const CLIENT_EVENT_NAMES: readonly EventName[] = [
   "apply_gate_shown",
   "publish_gate_shown",
   "menu_feature_opened",
-  "fill_started",
   "tour_recorded",
   "link_shared",
 ];
