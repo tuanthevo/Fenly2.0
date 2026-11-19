@@ -5,9 +5,14 @@
  *
  * Lifestyle questions are logistics and habits only, never protected traits.
  */
-import React, { useEffect, useState } from 'react';
-import { BadgeCheck, Phone, IdCard, Receipt, Loader2, LogOut, ShieldCheck, Check } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { BadgeCheck, Phone, IdCard, Receipt, Loader2, LogOut, ShieldCheck, Check, Camera, Circle, Mail, ShieldAlert } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
+import { useFlag } from '../config/FlagsProvider';
+import { LIFESTYLE_QUESTIONS, cleanLifestyle } from '../find/lifestyle';
+import { LEVEL1_ITEM_TEXT, level1Missing } from '../find/passportLevel';
+import { blobToBase64, findApi, shrinkImage } from '../lib/findApi';
+import { uploadToStorage } from '../lib/fillApi';
 
 type PassportRow = {
   level: number;
@@ -21,13 +26,7 @@ type PassportRow = {
   rent_history_verified: boolean;
 };
 
-export const LIFESTYLE_QUESTIONS = [
-  { key: 'schedule', label: 'Schedule', options: ['Early bird', 'Night owl', 'Varies'] },
-  { key: 'social', label: 'At home I am', options: ['Quiet', 'Social', 'In between'] },
-  { key: 'guests', label: 'Guests over', options: ['Rarely', 'Sometimes', 'Often'] },
-  { key: 'tidiness', label: 'Shared spaces', options: ['Relaxed', 'Tidy', 'Very tidy'] },
-  { key: 'wfh', label: 'Work from home', options: ['Never', 'Some days', 'Most days'] },
-] as const;
+export { LIFESTYLE_QUESTIONS };
 
 const cardClass = 'p-4 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm';
 const inputClass =
@@ -41,10 +40,27 @@ const cents = (value: string) => {
 
 interface PassportViewProps {
   onRequestSignIn: () => void;
+  /** Fenly staff only (FENLY_ADMIN_EMAILS) */
+  onOpenReview?: () => void;
 }
 
-export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn }) => {
+const PHOTO_PATH = (uid: string) => `${uid}/photo.jpg`;
+
+export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onOpenReview }) => {
   const { ready, configured, user, supabase, signOut } = useAuth();
+  const idCheckOn = useFlag('id_check');
+  const [bio, setBio] = useState('');
+  const [photoPath, setPhotoPath] = useState<string | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [notifyEmail, setNotifyEmail] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [idRequests, setIdRequests] = useState<{ applicationId: string; area: string | null }[]>([]);
+  const [idBusy, setIdBusy] = useState(false);
+  const [idMessage, setIdMessage] = useState<string | null>(null);
+  const [photoVersion, setPhotoVersion] = useState(0);
+  const photoInput = useRef<HTMLInputElement>(null);
+  const idInput = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -61,7 +77,7 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn }) =
     let alive = true;
     setLoading(true);
     Promise.all([
-      supabase.from('users').select('display_name').eq('id', user.id).maybeSingle(),
+      supabase.from('users').select('display_name, bio, photo_url, notify_email').eq('id', user.id).maybeSingle(),
       supabase
         .from('passports')
         .select(
@@ -77,7 +93,11 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn }) =
         return;
       }
       setDisplayName(profile.data?.display_name ?? '');
+      setBio(profile.data?.bio ?? '');
+      setPhotoPath(profile.data?.photo_url ?? null);
+      setNotifyEmail(profile.data?.notify_email !== false);
       const row = (pass.data as PassportRow | null) ?? null;
+      if (row) row.lifestyle = cleanLifestyle(row.lifestyle) as Record<string, string>;
       setPassport(row);
       setBudgetMin(dollars(row?.budget_min_cents ?? null));
       setBudgetMax(dollars(row?.budget_max_cents ?? null));
@@ -86,6 +106,80 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn }) =
       alive = false;
     };
   }, [supabase, user]);
+
+  // Profile photo: a path in the private bucket (signed for display) or a provider URL (Google).
+  useEffect(() => {
+    if (!supabase || !photoPath) {
+      setPhotoUrl(null);
+      return;
+    }
+    if (/^https?:/.test(photoPath)) {
+      setPhotoUrl(photoPath);
+      return;
+    }
+    supabase.storage
+      .from('profile-photos')
+      .createSignedUrl(photoPath, 3600)
+      .then(({ data }) => setPhotoUrl(data?.signedUrl ? `${data.signedUrl}&v=${photoVersion}` : null));
+  }, [supabase, photoPath, photoVersion]);
+
+  // Admin access and hosts' ID-check requests
+  useEffect(() => {
+    if (!user) return;
+    findApi.me().then((me) => setIsAdmin(me.isAdmin)).catch(() => setIsAdmin(false));
+    findApi
+      .idRequests()
+      .then((r) => setIdRequests(r.requests))
+      .catch(() => setIdRequests([]));
+  }, [user]);
+
+  const uploadPhoto = async (file: File) => {
+    if (!supabase || !user) return;
+    setPhotoBusy(true);
+    setMessage(null);
+    try {
+      const blob = await shrinkImage(file, 800);
+      const path = PHOTO_PATH(user.id);
+      await uploadToStorage('profile-photos', path, blob, 'image/jpeg');
+      const { error } = await supabase.from('users').update({ photo_url: path }).eq('id', user.id);
+      if (error) throw new Error(error.message);
+      setPhotoPath(path);
+      setPhotoVersion((v) => v + 1);
+      setMessage('Photo saved');
+    } catch (e) {
+      setMessage(e instanceof Error ? `Couldn't save the photo: ${e.message}` : "Couldn't save the photo.");
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const verifyId = async (file: File) => {
+    setIdBusy(true);
+    setIdMessage(null);
+    try {
+      const blob = await shrinkImage(file, 1600, 0.85);
+      const result = await findApi.verifyId(await blobToBase64(blob), 'image/jpeg');
+      setIdMessage(result.verified ? 'ID verified. Hosts now see the badge, never the document.' : result.message);
+      if (result.verified) {
+        setIdRequests([]);
+        setPassport((p) => (p ? { ...p, id_verified: true } : p));
+      }
+    } catch (e) {
+      setIdMessage(e instanceof Error ? e.message : "Couldn't check the ID.");
+    } finally {
+      setIdBusy(false);
+    }
+  };
+
+  const toggleEmail = async () => {
+    const next = !notifyEmail;
+    setNotifyEmail(next);
+    try {
+      await findApi.settings(next);
+    } catch {
+      setNotifyEmail(!next);
+    }
+  };
 
   if (!ready) {
     return (
@@ -141,7 +235,7 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn }) =
     const [profileResult, passportResult] = await Promise.all([
       supabase
         .from('users')
-        .update({ display_name: name || null, first_name: name ? name.split(/\s+/)[0].slice(0, 40) : null })
+        .update({ display_name: name || null, first_name: name ? name.split(/\s+/)[0].slice(0, 40) : null, bio: bio.trim().slice(0, 500) || null })
         .eq('id', user.id),
       supabase
         .from('passports')
@@ -157,14 +251,37 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn }) =
     setSaving(false);
     const error = profileResult.error ?? passportResult.error;
     setMessage(error ? `Couldn't save: ${error.message}` : 'Saved');
+    if (!error) {
+      const { data } = await supabase.from('passports').select('level').eq('user_id', user.id).maybeSingle();
+      if (data) setPassport((p) => (p ? { ...p, level: data.level } : p));
+    }
   };
 
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#F9F7F3]" data-testid="passport-signed-in">
       <div className={cardClass + ' flex items-center gap-3'}>
-        <div className="w-12 h-12 rounded-full bg-[#D06C4E]/15 text-[#D06C4E] border-2 border-[#7A907C] flex items-center justify-center font-black text-lg shrink-0">
-          {(displayName || user.email || user.phone || '?').trim().charAt(0).toUpperCase()}
-        </div>
+        <button
+          type="button"
+          onClick={() => photoInput.current?.click()}
+          aria-label="Change photo"
+          className="relative w-12 h-12 rounded-full bg-[#D06C4E]/15 text-[#D06C4E] border-2 border-[#7A907C] flex items-center justify-center font-black text-lg shrink-0 overflow-hidden"
+        >
+          {photoUrl ? <img src={photoUrl} alt="" className="w-full h-full object-cover" /> : (displayName || user.email || user.phone || '?').trim().charAt(0).toUpperCase()}
+          <span className="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-[#2C2724] text-white flex items-center justify-center">
+            {photoBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
+          </span>
+        </button>
+        <input
+          ref={photoInput}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (file) void uploadPhoto(file);
+          }}
+        />
         <div className="min-w-0 flex-1">
           <div className="font-extrabold text-sm text-[#2C2724] truncate">{displayName || 'Your Passport'}</div>
           <div className="text-[11px] text-[#6E655F] truncate">{user.email ?? user.phone}</div>
@@ -190,9 +307,73 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn }) =
           ))}
         </div>
         <p className="text-[10px] text-[#6E655F]">
-          Sign in with your phone to get the phone badge. ID checks come later, for finalists.
+          Sign in with your phone to get the phone badge. Hosts can ask shortlisted applicants for an ID check. They see a badge, never your document.
         </p>
       </div>
+
+      {passport && (() => {
+        const missing = level1Missing({
+          phoneVerified: passport.phone_verified,
+          photoUrl: photoPath,
+          bio,
+          moveInFrom: passport.move_in_from,
+          budgetMaxCents: cents(budgetMax),
+          lifestyle: passport.lifestyle,
+          idVerified: passport.id_verified,
+          rentHistoryVerified: passport.rent_history_verified,
+        });
+        if (missing.length === 0) return null;
+        return (
+          <div className={cardClass + ' space-y-1.5'} data-testid="passport-level1">
+            <h3 className="text-xs font-extrabold text-[#2C2724]">Finish Level 1 ({6 - missing.length}/6)</h3>
+            <p className="text-[10px] text-[#6E655F]">Hosts see Level 1 applicants first. Fill these in, then save below.</p>
+            {(['phone', 'photo', 'bio', 'move_in', 'budget', 'lifestyle'] as const).map((item) => {
+              const done = !missing.includes(item);
+              return (
+                <div key={item} className={`text-[11px] font-bold flex items-center gap-1.5 ${done ? 'text-[#485B4A]' : 'text-[#2C2724]'}`}>
+                  {done ? <BadgeCheck className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5 text-[#6E655F]" />}
+                  {LEVEL1_ITEM_TEXT[item]}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {idCheckOn && passport && !passport.id_verified && idRequests.length > 0 && (
+        <div className={cardClass + ' space-y-2 border-[#D06C4E]/50'} data-testid="passport-verify-id">
+          <h3 className="text-xs font-extrabold text-[#2C2724] flex items-center gap-1.5">
+            <IdCard className="w-4 h-4 text-[#D06C4E]" /> Verify your ID
+          </h3>
+          <p className="text-[11px] text-[#6E655F] leading-relaxed">
+            The host of the room in {idRequests[0].area ?? 'San Francisco'} shortlisted you and asked for an ID check. Take a clear photo of your
+            driver&apos;s license, state ID or passport. We check it once and don&apos;t keep the photo; hosts only see a badge.
+          </p>
+          <p className="text-[10px] text-[#8A5A14] bg-[#FBF1DE] rounded-lg px-2 py-1">Early version: an automated document check, not yet a full identity verification.</p>
+          <button
+            type="button"
+            disabled={idBusy}
+            onClick={() => idInput.current?.click()}
+            className="w-full py-2.5 rounded-xl bg-[#D06C4E] text-white text-xs font-extrabold flex items-center justify-center gap-1.5 disabled:opacity-60"
+          >
+            {idBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />} Photo of my ID
+          </button>
+          <input
+            ref={idInput}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (file) void verifyId(file);
+            }}
+          />
+          {idMessage && <p className="text-[11px] font-bold text-[#485B4A]">{idMessage}</p>}
+        </div>
+      )}
+      {idMessage && (passport?.id_verified || idRequests.length === 0) && <p className="text-[11px] font-bold text-[#485B4A] px-1">{idMessage}</p>}
 
       {loading || !passport ? (
         <div className={cardClass + ' text-xs text-[#6E655F] flex items-center gap-2'}>
@@ -205,6 +386,10 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn }) =
           <label className="block space-y-1">
             <span className="text-[11px] font-bold text-[#6E655F]">Name hosts see</span>
             <input className={inputClass} value={displayName} maxLength={80} onChange={(e) => setDisplayName(e.target.value)} />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-[11px] font-bold text-[#6E655F]">Short bio (what you do, your routine)</span>
+            <textarea className={inputClass + ' min-h-[70px]'} value={bio} maxLength={500} onChange={(e) => setBio(e.target.value)} />
           </label>
           <div className="grid grid-cols-2 gap-2">
             <label className="block space-y-1">
@@ -277,6 +462,35 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn }) =
             {message && <span className="text-xs font-bold text-[#485B4A]">{message}</span>}
           </div>
         </div>
+      )}
+
+      <div className={cardClass + ' flex items-center gap-3'}>
+        <Mail className="w-4 h-4 text-[#6E655F] shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="text-xs font-extrabold">Email me</div>
+          <div className="text-[10px] text-[#6E655F]">New applicants, decisions and move-out reminders</div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={notifyEmail}
+          aria-label="Email notifications"
+          onClick={() => void toggleEmail()}
+          className={`w-11 h-6 rounded-full p-0.5 transition-colors ${notifyEmail ? 'bg-[#7A907C]' : 'bg-[#2C2724]/20'}`}
+        >
+          <span className={`block w-5 h-5 rounded-full bg-white shadow transition-transform ${notifyEmail ? 'translate-x-5' : ''}`} />
+        </button>
+      </div>
+
+      {isAdmin && onOpenReview && (
+        <button
+          type="button"
+          onClick={onOpenReview}
+          className="w-full py-2.5 rounded-xl bg-[#2C2724] text-[#F9F7F3] text-xs font-extrabold flex items-center justify-center gap-1.5"
+          data-testid="open-review-queue"
+        >
+          <ShieldAlert className="w-3.5 h-3.5" /> Review queue
+        </button>
       )}
 
       <button

@@ -5,9 +5,11 @@
  * the channel it came through.
  */
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, Loader2, X } from 'lucide-react';
+import { BadgeCheck, CheckCircle2, ChevronRight, Loader2, X } from 'lucide-react';
 import { useAuth } from '../../auth/AuthProvider';
-import { fillApi, ApiError } from '../../lib/fillApi';
+import { fillApi, ApiError, storageVideoType, uploadToStorage } from '../../lib/fillApi';
+import { level1Missing, passportLevel } from '../../find/passportLevel';
+import { IntroVideoPicker } from '../find/IntroVideoPicker';
 import { formatMoveIn, formatRentCents } from '../../fill/publicListing';
 import { todayIn } from '../../fill/fillStatus';
 
@@ -26,9 +28,13 @@ interface ApplySheetProps {
   via: string | null;
   onClose: (applied: boolean) => void;
   onRequestSignIn: () => void;
+  /** opens the Passport tab to finish Level 1 */
+  onOpenPassport?: () => void;
 }
 
-export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose, onRequestSignIn }) => {
+type PassportPreview = { level: number; missing: number; phone: boolean; id: boolean; budgetMax: number | null };
+
+export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose, onRequestSignIn, onOpenPassport }) => {
   const { ready, configured, user, supabase } = useAuth();
   const [listing, setListing] = useState<PublicListing | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -37,6 +43,9 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [intro, setIntro] = useState<Blob | null>(null);
+  const [uploadPct, setUploadPct] = useState<number | null>(null);
+  const [preview, setPreview] = useState<PassportPreview | null>(null);
   const today = todayIn(new Date());
 
   useEffect(() => {
@@ -65,24 +74,52 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
     };
   }, [ready, supabase, listingId]);
 
-  // Prefill the move-in date from the Passport once signed in
+  // Prefill the move-in date from the Passport once signed in, and show what the host will see
   useEffect(() => {
     if (!supabase || !user) return;
-    supabase
-      .from('passports')
-      .select('move_in_from')
-      .eq('user_id', user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.move_in_from) setMoveIn(data.move_in_from as string);
+    Promise.all([
+      supabase
+        .from('passports')
+        .select('move_in_from, budget_max_cents, lifestyle, phone_verified, id_verified, rent_history_verified')
+        .eq('user_id', user.id)
+        .maybeSingle(),
+      supabase.from('users').select('photo_url, bio').eq('id', user.id).maybeSingle(),
+    ]).then(([{ data }, { data: profile }]) => {
+      if (!data) return;
+      if (data.move_in_from) setMoveIn(data.move_in_from as string);
+      const facts = {
+        phoneVerified: data.phone_verified === true,
+        photoUrl: profile?.photo_url ?? null,
+        bio: profile?.bio ?? null,
+        moveInFrom: data.move_in_from,
+        budgetMaxCents: data.budget_max_cents,
+        lifestyle: data.lifestyle,
+        idVerified: data.id_verified === true,
+        rentHistoryVerified: data.rent_history_verified === true,
+      };
+      setPreview({
+        level: passportLevel(facts),
+        missing: level1Missing(facts).length,
+        phone: facts.phoneVerified,
+        id: facts.idVerified,
+        budgetMax: data.budget_max_cents,
       });
+    });
   }, [supabase, user]);
 
   const submit = async () => {
     setBusy(true);
     setError(null);
     try {
-      await fillApi.apply(listingId, { note: note.trim() || undefined, moveInDate: moveIn || null, via });
+      let introVideoPath: string | undefined;
+      if (intro && user) {
+        const { contentType, ext } = storageVideoType(intro);
+        const id = Array.from(crypto.getRandomValues(new Uint8Array(9)), (b) => b.toString(16).padStart(2, '0')).join('');
+        introVideoPath = `${user.id}/${id}.${ext}`;
+        setUploadPct(0);
+        await uploadToStorage('applicant-intros', introVideoPath, intro, contentType, (f) => setUploadPct(Math.round(f * 100)));
+      }
+      await fillApi.apply(listingId, { note: note.trim() || undefined, moveInDate: moveIn || null, via, introVideoPath });
       setDone(true);
     } catch (e) {
       if (e instanceof ApiError && e.body?.error === 'already_applied') setDone(true);
@@ -90,6 +127,7 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
       else setError(e instanceof Error ? e.message : 'Something went wrong. Try again.');
     } finally {
       setBusy(false);
+      setUploadPct(null);
     }
   };
 
@@ -107,7 +145,7 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
         aria-label="Apply to this room"
         data-testid="apply-sheet"
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm bg-[#F9F7F3] text-[#2C2724] border border-[#2C2724] rounded-t-3xl sm:rounded-2xl p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-warm space-y-4"
+        className="w-full max-w-sm max-h-[92dvh] overflow-y-auto bg-[#F9F7F3] text-[#2C2724] border border-[#2C2724] rounded-t-3xl sm:rounded-2xl p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-warm space-y-4"
       >
         <div className="flex items-center justify-between border-b border-[#2C2724]/15 pb-3">
           <h3 className="font-extrabold text-sm">Apply to this room</h3>
@@ -159,6 +197,21 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
               </div>
             ) : (
               <div className="space-y-3">
+                {preview && (
+                  <div className="p-2.5 rounded-xl bg-white border border-[#2C2724]/15 space-y-1" data-testid="apply-passport-preview">
+                    <div className="flex items-center gap-1.5 text-[11px] font-extrabold flex-wrap">
+                      <span>Your Passport · Level {preview.level}</span>
+                      {preview.phone && <span className="px-1.5 py-0.5 rounded-md bg-[#EBF0EC] text-[#485B4A] flex items-center gap-0.5"><BadgeCheck className="w-3 h-3" /> Phone</span>}
+                      {preview.id && <span className="px-1.5 py-0.5 rounded-md bg-[#EBF0EC] text-[#485B4A] flex items-center gap-0.5"><BadgeCheck className="w-3 h-3" /> ID</span>}
+                      {preview.budgetMax != null && <span className="text-[#6E655F] font-bold">Budget up to {formatRentCents(preview.budgetMax)}</span>}
+                    </div>
+                    {preview.missing > 0 && onOpenPassport && (
+                      <button type="button" onClick={onOpenPassport} className="text-[11px] font-bold text-[#D06C4E] flex items-center gap-0.5">
+                        Finish your Passport ({preview.missing} left): hosts see complete ones first <ChevronRight className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                )}
                 <label className="block">
                   <span className="text-[11px] font-bold text-[#6E655F] block mb-1">When do you want to move in?</span>
                   <input
@@ -179,6 +232,7 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
                     className="w-full min-h-[90px] bg-white border border-[#2C2724]/25 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#D06C4E]"
                   />
                 </label>
+                <IntroVideoPicker value={intro} onChange={setIntro} />
                 {error && <p className="text-xs font-bold text-[#9A4A33]">{error}</p>}
                 <button
                   type="button"
@@ -188,7 +242,7 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
                   className="w-full py-3 rounded-xl bg-[#D06C4E] hover:bg-[#b85b3f] text-white text-sm font-extrabold shadow-warm-sm flex items-center justify-center gap-2 disabled:opacity-60"
                 >
                   {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  Apply with my Passport
+                  {uploadPct !== null ? `Uploading intro ${uploadPct}%` : 'Apply with my Passport'}
                 </button>
               </div>
             )}

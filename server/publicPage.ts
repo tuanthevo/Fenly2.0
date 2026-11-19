@@ -93,6 +93,7 @@ ${specs ? `<span class="chip">${escapeHtml(specs)}</span>` : ""}
 ${listing.description ? `<p>${escapeHtml(listing.description)}</p>` : ""}
 ${amenities}
 ${filled ? `<div class="card"><h2>This room is taken</h2><p>It filled through Fenn. See similar rooms nearby.</p></div>` : ""}
+<p style="font-size:12px;opacity:.7;margin-top:18px">Something wrong with this listing? <a href="/?report=${escapeHtml(listing.id)}" style="color:inherit">Report it</a>. Never pay a deposit before you have seen the room.</p>
 </main>
 <div class="cta">${
     filled

@@ -72,7 +72,7 @@ async function accessToken(): Promise<string | null> {
   return supabase ? (await supabase.auth.getSession()).data.session?.access_token ?? null : null;
 }
 
-async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
   const token = await accessToken();
   const res = await fetch(path, {
     method: init.method ?? 'GET',
@@ -105,7 +105,7 @@ export const fillApi = {
       nudges: Nudge[];
       links: LinkRow[];
     }>(`/api/listings/${id}/status`),
-  apply: (id: string, body: { note?: string; moveInDate?: string | null; via?: string | null }) =>
+  apply: (id: string, body: { note?: string; moveInDate?: string | null; via?: string | null; introVideoPath?: string }) =>
     api<{ application: { id: string } }>(`/api/listings/${id}/apply`, { method: 'POST', body }),
 };
 
@@ -124,7 +124,7 @@ export function storageVideoType(blob: Blob): { contentType: string; ext: string
  * report upload progress). Row-level security allows only the listing's owner.
  */
 export async function uploadToStorage(
-  bucket: 'listing-videos' | 'listing-thumbnails',
+  bucket: 'listing-videos' | 'listing-thumbnails' | 'profile-photos' | 'applicant-intros',
   path: string,
   blob: Blob,
   contentType: string,

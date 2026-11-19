@@ -72,6 +72,24 @@ import { FillFlow } from './components/fill/FillFlow';
 import { FillStatusView } from './components/fill/FillStatusView';
 import { ApplySheet } from './components/fill/ApplySheet';
 import { parseStoredVia, rememberVia, viaForListing } from './fill/attribution';
+import { todayIn } from './fill/fillStatus';
+import { FindFilterBar } from './components/find/FindFilterBar';
+import { ReportSheet } from './components/find/ReportSheet';
+import { InboxView } from './components/find/InboxView';
+import { ApplicantInbox } from './components/find/ApplicantInbox';
+import { ReviewQueue } from './components/find/ReviewQueue';
+import { findApi } from './lib/findApi';
+import {
+  DB_ROOM_PREFIX,
+  EMPTY_FIND_FILTERS,
+  dbListingId,
+  isDbRoomId,
+  matchesFindFilters,
+  toIsoDate,
+  toRoomListing,
+  type FindFilters,
+  type FindListing,
+} from './find/findFilters';
 import { isListingId } from './fill/linkCodes';
 
 /** The screen being shown: a bottom tab, a full-screen overlay ('post' or 'edit:<id>'), and the Home page. */
@@ -223,6 +241,47 @@ export default function App() {
   // Likes & Pinned Rooms
   const [likedRoomIds, setLikedRoomIds] = useState<Set<string>>(new Set(['room-1']));
   const [pinnedRoomIds, setPinnedRoomIds] = useState<Set<string>>(new Set(['room-1', 'room-3']));
+
+  // Fenly 2.0 Find (with Supabase): published rooms from the database, demo rooms behind a flag
+  const findMode = flagsLoaded && supabaseConfigured;
+  const [findFilters, setFindFilters] = useState<FindFilters>(EMPTY_FIND_FILTERS);
+  const [findListings, setFindListings] = useState<FindListing[]>([]);
+  const [savedOnly, setSavedOnly] = useState(false);
+  const [reportTarget, setReportTarget] = useState<{ id: string; hostId: string | null } | null>(null);
+  const [inboxThreadId, setInboxThreadId] = useState<string | null>(null);
+  const [findNotice, setFindNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!findMode) return;
+    let alive = true;
+    const load = savedOnly && auth.user ? findApi.savedListings() : findApi.feed(findFilters);
+    load
+      .then((data) => alive && setFindListings(data.listings))
+      .catch(() => alive && setFindListings([]));
+    return () => {
+      alive = false;
+    };
+  }, [findMode, findFilters, savedOnly, auth.user]);
+  // Saved rooms follow the account once signed in (rooms saved while signed out are synced up)
+  useEffect(() => {
+    if (!findMode || !auth.user) return;
+    let alive = true;
+    findApi
+      .savedIds()
+      .then(async ({ listingIds }) => {
+        if (!alive) return;
+        const server = new Set(listingIds.map((id) => `${DB_ROOM_PREFIX}${id}`));
+        let local: string[] = [];
+        setPinnedRoomIds((prev) => {
+          local = [...prev].filter((id) => isDbRoomId(id) && !server.has(id));
+          return new Set([...prev, ...server]);
+        });
+        await Promise.all(local.map((id) => findApi.save(dbListingId(id)!).catch(() => undefined)));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [findMode, auth.user]);
 
   // User Profile
   const [userProfile, setUserProfile] = useState<UserProfile>(INITIAL_USER_PROFILE);
@@ -391,6 +450,120 @@ export default function App() {
     }
     if (target) setApplyTarget({ listingId: target, via: viaForListing(parseStoredVia(read('fenlyVia')), target, now) });
   }, []);
+  // Find & Apply overlays: a room's applicants ('applicants:<id>'), the review queue ('review')
+  const applicantsListingId =
+    nav.overlay?.startsWith('applicants:') && isListingId(nav.overlay.slice('applicants:'.length))
+      ? nav.overlay.slice('applicants:'.length)
+      : null;
+  const reviewOpen = nav.overlay === 'review';
+  const openApplicants = (listingId: string) => navigate((prev) => ({ ...prev, tab: 'fill', overlay: `applicants:${listingId}` }));
+  const openThread = (applicationId: string) => {
+    setInboxThreadId(applicationId);
+    navigate((prev) => ({ ...prev, tab: 'messages', overlay: null }));
+  };
+  const openDbApply = (listingId: string) => {
+    let stored: string | null = null;
+    try {
+      stored = localStorage.getItem('fenlyVia');
+    } catch {
+      // ignore
+    }
+    setApplyTarget({ listingId, via: viaForListing(parseStoredVia(stored), listingId, Date.now()) });
+  };
+
+  // Deep links from emails and invites: ?house=<token>, ?inbox=<application id>, ?passport=..., ?applicants=<id>, ?fill=<id>
+  const [pendingHouse, setPendingHouse] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('fenlyPendingHouse');
+    } catch {
+      return null;
+    }
+  });
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    let handled = false;
+    const house = params.get('house');
+    if (house && /^[A-Za-z0-9_-]{32}$/.test(house)) {
+      try {
+        localStorage.setItem('fenlyPendingHouse', house);
+      } catch {
+        // private mode: the invite works while this tab stays open
+      }
+      setPendingHouse(house);
+      handled = true;
+    }
+    const inbox = params.get('inbox');
+    if (inbox) {
+      if (isListingId(inbox)) setInboxThreadId(inbox);
+      navigate((prev) => ({ ...prev, tab: 'messages', overlay: null }), { replace: true });
+      handled = true;
+    }
+    if (params.get('passport')) {
+      navigate((prev) => ({ ...prev, tab: 'passport', overlay: null }), { replace: true });
+      handled = true;
+    }
+    const applicants = params.get('applicants');
+    if (applicants && isListingId(applicants)) {
+      navigate((prev) => ({ ...prev, tab: 'fill', overlay: `applicants:${applicants}` }), { replace: true });
+      handled = true;
+    }
+    const report = params.get('report');
+    if (report && isListingId(report)) {
+      setPendingReport(report);
+      navigate((prev) => ({ ...prev, tab: 'listings', overlay: null }), { replace: true });
+      handled = true;
+    }
+    const fill = params.get('fill');
+    if (fill && isListingId(fill)) {
+      navigate((prev) => ({ ...prev, tab: 'fill', overlay: `status:${fill}` }), { replace: true });
+      handled = true;
+    }
+    if (handled) window.history.replaceState(window.history.state, '', window.location.pathname + window.location.hash);
+    // once per page load
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Reporting from the public listing page (/r/...): sign in first, then the report sheet opens
+  const [pendingReport, setPendingReport] = useState<string | null>(null);
+  useEffect(() => {
+    if (!pendingReport || !auth.ready) return;
+    if (!auth.user) {
+      if (auth.configured) setSignInReason('message');
+      return;
+    }
+    setReportTarget({ id: pendingReport, hostId: null });
+    setPendingReport(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingReport, auth.ready, auth.user]);
+
+  // A housemate invite needs an account: ask to sign in, then join and open the applicants
+  useEffect(() => {
+    if (!pendingHouse || !auth.ready) return;
+    if (!auth.user) {
+      if (auth.configured) setSignInReason('message');
+      return;
+    }
+    const clear = () => {
+      setPendingHouse(null);
+      try {
+        localStorage.removeItem('fenlyPendingHouse');
+      } catch {
+        // ignore
+      }
+    };
+    findApi
+      .redeemInvite(pendingHouse)
+      .then((r) => {
+        clear();
+        setFindNotice(r.alreadyMember ? null : `You joined the house${r.neighborhood ? ` in ${r.neighborhood}` : ''}. Vote on applicants with a thumbs up or down.`);
+        navigate((prev) => ({ ...prev, tab: 'fill', overlay: `applicants:${r.listingId}` }));
+      })
+      .catch((e) => {
+        clear();
+        setFindNotice(e?.body?.message ?? "That invite link didn't work. Ask the host for a new one.");
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingHouse, auth.ready, auth.user]);
+
   const closeApply = () => {
     setApplyTarget(null);
     try {
@@ -424,7 +597,7 @@ export default function App() {
   };
 
   // --- FILTERING & SHARED LOCATION LOGIC ---
-  const filteredRooms = useMemo(() => {
+  const legacyFilteredRooms = useMemo(() => {
     const cityQuery = filters.city.trim().toLowerCase();
     const matchedPreset = cityQuery
       ? LOCATION_PRESETS.find(
@@ -591,6 +764,22 @@ export default function App() {
     return matched;
   }, [rooms, filters, userProfile.renterProfile?.preferredMoveInDate]);
 
+  const findRooms = useMemo(() => {
+    const today = todayIn(new Date());
+    const real = findListings.map((l) => toRoomListing(l, today));
+    const demo = flags.demo_listings
+      ? rooms.filter((r) =>
+          matchesFindFilters(
+            { neighborhood: r.neighborhood, rentCents: r.price * 100, availableFrom: toIsoDate(r.availableDate, today) },
+            findFilters
+          )
+        )
+      : [];
+    const all = [...real, ...demo];
+    return savedOnly ? all.filter((r) => pinnedRoomIds.has(r.id)) : all;
+  }, [findListings, flags.demo_listings, rooms, findFilters, savedOnly, pinnedRoomIds]);
+  const filteredRooms = findMode ? findRooms : legacyFilteredRooms;
+
   // Keep index within bounds
   useEffect(() => {
     if (currentRoomIndex >= filteredRooms.length) {
@@ -743,6 +932,18 @@ export default function App() {
 
   const handleTogglePin = (roomId?: string) => {
     const targetId = roomId || currentRoom.id;
+    const listingId = dbListingId(targetId);
+    if (findMode && listingId && auth.user) {
+      const saving = !pinnedRoomIds.has(targetId);
+      (saving ? findApi.save(listingId) : findApi.unsave(listingId)).catch(() =>
+        setPinnedRoomIds((prev) => {
+          const next = new Set(prev);
+          if (saving) next.delete(targetId);
+          else next.add(targetId);
+          return next;
+        })
+      );
+    }
     setPinnedRoomIds((prev) => {
       const next = new Set(prev);
       if (next.has(targetId)) {
@@ -1181,7 +1382,25 @@ export default function App() {
         {/* SCREEN 1: Feed (Watch) — Native Vertical Scroll-Snap Video Feed */}
         {activeTab === 'listings' && (
           <>
-            {/* Clean Filter Button matching Earth-Tone palette */}
+            {/* Clean Filter Button matching Earth-Tone palette (2.0 with Supabase: area / rent / move-in chips) */}
+            {findMode ? (
+              <FindFilterBar
+                filters={findFilters}
+                onChange={(next) => {
+                  setFindFilters(next);
+                  setCurrentRoomIndex(0);
+                }}
+                savedOnly={savedOnly}
+                onToggleSaved={() => {
+                  setSavedOnly((v) => !v);
+                  setCurrentRoomIndex(0);
+                }}
+                savedCount={[...pinnedRoomIds].filter((id) => isDbRoomId(id) || flags.demo_listings).length}
+                total={filteredRooms.length}
+                onBack={canGoBack ? goBack : undefined}
+                extraActions={<NavMenu activeTab={activeTab} onSelectTab={handleSelectNavTab} />}
+              />
+            ) : (
             <FilterBar
               filters={filters}
               onUpdateFilters={handleUpdateFilters}
@@ -1191,6 +1410,12 @@ export default function App() {
               totalMatches={filteredRooms.length}
               onResetFilters={handleResetFilters}
             />
+            )}
+            {findNotice && activeTab === 'listings' && (
+              <button type="button" onClick={() => setFindNotice(null)} className="w-full text-left px-3 py-2 bg-[#EBF0EC] text-[11px] font-bold text-[#485B4A] shrink-0">
+                {findNotice}
+              </button>
+            )}
 
             {filteredRooms.length > 0 ? (
               <div className="relative w-full h-full flex-1 min-h-0 overflow-hidden bg-[#2C2724]">
@@ -1237,6 +1462,17 @@ export default function App() {
                           setCurrentRoomIndex(idx);
                           setIsShareOpen(true);
                         }}
+                        onReport={
+                          isDbRoomId(room.id)
+                            ? () => {
+                                if (!auth.user) {
+                                  if (auth.configured) setSignInReason('message');
+                                  return;
+                                }
+                                setReportTarget({ id: dbListingId(room.id)!, hostId: room.host.id || null });
+                              }
+                            : undefined
+                        }
                       />
 
                       {/* Bottom Room Info, Trust Badges & One-Tap Save to Den / Request to Book */}
@@ -1249,7 +1485,9 @@ export default function App() {
                         }}
                         onRequestToBook={() => {
                           setCurrentRoomIndex(idx);
-                          openApplication();
+                          const dbId = dbListingId(room.id);
+                          if (dbId) openDbApply(dbId);
+                          else openApplication();
                         }}
                         isPinned={pinnedRoomIds.has(room.id)}
                         onTogglePin={() => handleTogglePin(room.id)}
@@ -1306,7 +1544,14 @@ export default function App() {
                   </p>
                 </div>
                 <button
-                  onClick={handleResetFilters}
+                  onClick={
+                    findMode
+                      ? () => {
+                          setFindFilters(EMPTY_FIND_FILTERS);
+                          setSavedOnly(false);
+                        }
+                      : handleResetFilters
+                  }
                   className="px-4 py-2.5 bg-[#D06C4E] hover:bg-[#b85a3e] text-white font-extrabold text-xs rounded-xl shadow-xs transition-colors"
                 >
                   Reset All Filters
@@ -1368,7 +1613,17 @@ export default function App() {
         )}
 
         {/* SCREEN 5: Messages (Protected In-App Chat & Anti-Leakage Shield) */}
-        {activeTab === 'messages' && (
+        {activeTab === 'messages' && findMode && (
+          <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden">
+            <InboxView
+              signedIn={Boolean(auth.user)}
+              onRequestSignIn={() => setSignInReason('message')}
+              initialThreadId={inboxThreadId}
+              onOpenApplicants={openApplicants}
+            />
+          </div>
+        )}
+        {activeTab === 'messages' && flagsLoaded && !supabaseConfigured && (
           <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden">
             <DirectMessagingModal
               isOpen={true}
@@ -1409,14 +1664,23 @@ export default function App() {
         {/* Passport (Fenly 2.0) */}
         {activeTab === 'passport' && (
           <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden">
-            <PassportView onRequestSignIn={() => setSignInReason('passport')} />
+            {reviewOpen ? (
+              <ReviewQueue onBack={closeOverlay} />
+            ) : (
+              <PassportView
+                onRequestSignIn={() => setSignInReason('passport')}
+                onOpenReview={() => navigate((prev) => ({ ...prev, tab: 'passport', overlay: 'review' }))}
+              />
+            )}
           </div>
         )}
 
         {/* Fenly 2.0 Fill tab (with Supabase): fill a room, drafts, live listings' status */}
         {activeTab === 'fill' && flagsLoaded && supabaseConfigured && (
           <div className="relative flex-1 min-h-0 w-full flex flex-col overflow-hidden">
-            {statusListingId ? (
+            {applicantsListingId ? (
+              <ApplicantInbox key={applicantsListingId} listingId={applicantsListingId} onBack={closeOverlay} onOpenThread={openThread} />
+            ) : statusListingId ? (
               <FillStatusView key={statusListingId} listingId={statusListingId} onBack={closeOverlay} />
             ) : (
               <FillHome
@@ -1424,6 +1688,7 @@ export default function App() {
                 onStartFill={() => openFill(null)}
                 onResume={(id) => openFill(id)}
                 onOpenStatus={(id) => openFillStatus(id)}
+                onOpenApplicants={openApplicants}
                 onBack={() => setActiveTab('listings')}
               />
             )}
@@ -1619,6 +1884,27 @@ export default function App() {
           via={applyTarget.via}
           onClose={closeApply}
           onRequestSignIn={() => setSignInReason('apply')}
+          onOpenPassport={() => {
+            closeApply();
+            navigate((prev) => ({ ...prev, tab: 'passport', overlay: null }));
+          }}
+        />
+      )}
+
+      {/* Fenly 2.0: report a listing from the Find feed */}
+      {reportTarget && (
+        <ReportSheet
+          targetType="listing"
+          targetId={reportTarget.id}
+          blockUserId={reportTarget.hostId}
+          label="this listing"
+          onClose={({ blocked }) => {
+            setReportTarget(null);
+            if (blocked) {
+              setFindListings((prev) => prev.filter((l) => l.host.id !== reportTarget.hostId));
+              setFindNotice("You won't see this host's rooms again.");
+            }
+          }}
         />
       )}
 
