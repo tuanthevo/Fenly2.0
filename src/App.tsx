@@ -527,7 +527,7 @@ export default function App() {
   useEffect(() => {
     if (!pendingReport || !auth.ready) return;
     if (!auth.user) {
-      if (auth.configured) setSignInReason('message');
+      if (auth.configured) setSignInReason('report');
       return;
     }
     setReportTarget({ id: pendingReport, hostId: null });
@@ -539,7 +539,7 @@ export default function App() {
   useEffect(() => {
     if (!pendingHouse || !auth.ready) return;
     if (!auth.user) {
-      if (auth.configured) setSignInReason('message');
+      if (auth.configured) setSignInReason('house');
       return;
     }
     const clear = () => {
@@ -1466,7 +1466,7 @@ export default function App() {
                           isDbRoomId(room.id)
                             ? () => {
                                 if (!auth.user) {
-                                  if (auth.configured) setSignInReason('message');
+                                  if (auth.configured) setSignInReason('report');
                                   return;
                                 }
                                 setReportTarget({ id: dbListingId(room.id)!, hostId: room.host.id || null });

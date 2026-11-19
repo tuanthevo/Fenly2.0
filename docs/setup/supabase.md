@@ -16,6 +16,12 @@ runs as the signed-out demo (Passport says "Sign-in isn't set up").
 
 4. Then run `supabase/migrations/0002_fill.sql` the same way (Fill tab: channel
    attribution, one link per channel, caption, raw clip types).
+5. Then `supabase/migrations/0003_find_apply.sql` (Find & Apply: saved rooms,
+   housemate invites and votes, report/block, moderation flags, notifications,
+   computed Passport levels, the private buckets `profile-photos` and
+   `applicant-intros`). Running it recomputes every Passport level with the new
+   Level 1 rule (phone + photo + bio + move-in + budget + 6 lifestyle answers), so
+   existing phone-only Passports drop to Level 0 until they're filled in.
 
 Later schema changes go in a new numbered file (`0002_...sql`); never edit one
 that has already been run.
@@ -28,7 +34,15 @@ SUPABASE_URL=https://<project-ref>.supabase.co
 SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 SUPABASE_SECRET_KEY=sb_secret_...
 # optional: turn hidden 1.0 features back on, e.g. scout,ask_fenn
+# demo_listings = 1.0 mock rooms after the real ones in Find; id_check = Passport Level 2 (demo)
 FENLY_FLAGS=
+# Email (Resend). Without both, notifications are saved in the notifications table and marked "skipped".
+RESEND_API_KEY=re_...
+FENLY_EMAIL_FROM=Fenly <hello@yourdomain.com>
+# Review queue access (comma list of sign-in emails)
+FENLY_ADMIN_EMAILS=you@example.com
+# Daily move-out reminders: Vercel Cron sends it as a Bearer token. 16+ random characters.
+CRON_SECRET=
 ```
 
 - No `VITE_` prefix on any of them. The browser gets the URL and publishable key
@@ -71,6 +85,24 @@ projects allow up to 50 MB per file, which fits; if an upload fails with
 "larger than this project allows", raise **Storage → Settings → Upload file size
 limit** (the bucket itself allows 100 MB).
 
-## 8. Analytics
+## 8. Email, reminders and the review queue
+- **Resend:** create an API key and verify your sending domain (resend.com →
+  Domains), then set `RESEND_API_KEY` and `FENLY_EMAIL_FROM`. Every email is also a
+  row in `notifications` (`email_status`: sent / skipped / failed), so you can see
+  what would have gone out: `select kind, email_status, created_at from notifications order by created_at desc;`
+- **Move-out reminders** (14, 7 and 3 days before move-out, rooms not yet filled):
+  `vercel.json` runs `GET /api/cron/daily` every day at 16:00 UTC. Set `CRON_SECRET`
+  in Vercel; Vercel sends it automatically. Locally:
+  `curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/daily`.
+- **Review queue:** accounts listed in `FENLY_ADMIN_EMAILS` see Passport → Review
+  queue: AI and rule flags on listings and messages, and user reports. "Hide"
+  removes a listing from Find (its link still opens) or hides a message.
+- **ID check (demo):** with `id_check` on, a host can ask a shortlisted applicant
+  for an ID check. It's a Gemini look at a photo of the document, recorded as
+  provider `demo`, not a vendor verification; hosts see "ID (demo check)". The
+  photo is never stored. Swap in Stripe Identity or Persona in `server/idCheck.ts`
+  before relying on it.
+
+## 9. Analytics
 Every `track()` call lands in the `events` table. Weekly counts:
 `select * from weekly_event_counts order by week desc, events desc;` (SQL Editor).
