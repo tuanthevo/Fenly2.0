@@ -26,7 +26,7 @@ export type HeuristicSignals = {
   scamPhrases: string[];
 };
 
-export type FlagDecision = { category: ModerationCategory; severity: Severity; source: 'ai' | 'heuristic'; reason: string };
+export type FlagDecision = { category: ModerationCategory; severity: Severity; source: 'ai' | 'heuristic' | 'report'; reason: string };
 
 const SCAM_PATTERNS: [RegExp, string][] = [
   [/\b(wire|western union|moneygram)\b/i, 'asks for a wire transfer'],

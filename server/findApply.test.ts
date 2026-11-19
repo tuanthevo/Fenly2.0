@@ -45,3 +45,30 @@ test("emails: every kind builds, values are escaped, settings link included", ()
   const taken = buildEmail("room_taken", { area: "Mission", similar: [{ area: "Noe Valley", rent: "$1,500", url: "https://fenly.app/r/abcd1234" }] }, "https://fenly.app");
   assert.ok(taken.text.includes("Noe Valley, $1,500/mo: https://fenly.app/r/abcd1234"));
 });
+
+test("admin emails and the cron secret gate their routes", async () => {
+  const { isAdminUser } = await import("./routeKit");
+  const { isCronRequest } = await import("./adminRoutes");
+  const env = { FENLY_ADMIN_EMAILS: "Owner@Example.com, ops@example.com" } as NodeJS.ProcessEnv;
+  assert.ok(isAdminUser({ email: "owner@example.com" }, env));
+  assert.ok(isAdminUser({ email: " OPS@example.com " }, env));
+  assert.ok(!isAdminUser({ email: "someone@example.com" }, env));
+  assert.ok(!isAdminUser({ email: null }, env));
+  assert.ok(!isAdminUser({ email: "owner@example.com" }, {} as NodeJS.ProcessEnv));
+  const secret = "s".repeat(32);
+  assert.ok(isCronRequest(`Bearer ${secret}`, secret));
+  assert.ok(!isCronRequest(`Bearer ${secret}x`, secret));
+  assert.ok(!isCronRequest(undefined, secret));
+  assert.ok(!isCronRequest("Bearer short", "short"), "a weak secret never works");
+  assert.ok(!isCronRequest("Bearer ", undefined));
+});
+
+test("intro and ID image checks", async () => {
+  const { validIdImage } = await import("./idCheck");
+  const big = "A".repeat(4000);
+  assert.ok(validIdImage(big, "image/jpeg"));
+  assert.equal(validIdImage(big, "application/pdf"), null);
+  assert.equal(validIdImage("abc", "image/png"), null, "too small");
+  assert.equal(validIdImage("A".repeat(4_100_000), "image/png"), null, "too big");
+  assert.equal(validIdImage("<script>".repeat(200), "image/png"), null);
+});

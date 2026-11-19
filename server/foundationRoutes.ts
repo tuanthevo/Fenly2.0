@@ -8,6 +8,7 @@ import { currentUser, optionalUser, requireUser } from "./auth.js";
 import { getFlags } from "./flags.js";
 import { getAdminClient, publicSupabaseConfig } from "./supabase.js";
 import { CLIENT_EVENT_NAMES, buildEventRow, track } from "./track.js";
+import { isAdminUser } from "./routeKit.js";
 
 const MAX_EVENT_BODY = 8192;
 
@@ -27,7 +28,7 @@ export function registerFoundationRoutes(app: Express): void {
       return;
     }
     const [profile, passport] = await Promise.all([
-      admin.from("users").select("id, display_name, first_name, photo_url, bio").eq("id", user.id).maybeSingle(),
+      admin.from("users").select("id, display_name, first_name, photo_url, bio, notify_email").eq("id", user.id).maybeSingle(),
       admin
         .from("passports")
         .select(
@@ -41,7 +42,7 @@ export function registerFoundationRoutes(app: Express): void {
       res.status(500).json({ error: "profile_unavailable" });
       return;
     }
-    res.json({ user, profile: profile.data, passport: passport.data });
+    res.json({ user, profile: profile.data, passport: passport.data, isAdmin: isAdminUser(user) });
   });
 
   // Browser analytics: a short allowlist of events, signed in or not.
