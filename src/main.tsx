@@ -3,6 +3,7 @@ import App from './App.tsx';
 import { FlagsProvider } from './config/FlagsProvider';
 import { AuthProvider } from './auth/AuthProvider';
 import './index.css';
+import { registerServiceWorker } from './pwa/registerSw';
 
 (window as any).gm_authFailure = () => {
   window.dispatchEvent(new CustomEvent('gmp-quota-exceeded'));
@@ -24,3 +25,4 @@ createRoot(document.getElementById('root')!).render(
   </FlagsProvider>
 );
 
+registerServiceWorker();

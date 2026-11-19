@@ -7,9 +7,11 @@ import React from 'react';
 import { Composition } from 'remotion';
 import { FenlyViralTour } from './viral/FenlyViralTour';
 import { SAMPLE_PLAN } from './viral/sample';
+import { FennAppIcon, type FennAppIconProps } from './FennAppIcon';
 
 export const RemotionRoot: React.FC = () => {
   return (
+    <>
     <Composition
       id="FenlyViralTour"
       component={FenlyViralTour}
@@ -25,5 +27,17 @@ export const RemotionRoot: React.FC = () => {
         height: props.plan.height,
       })}
     />
+    {/* App icon (npm run icons) */}
+    <Composition
+      id="FennAppIcon"
+      component={FennAppIcon}
+      width={512}
+      height={512}
+      fps={30}
+      durationInFrames={1}
+      defaultProps={{ size: 512, mode: 'any' } as FennAppIconProps}
+      calculateMetadata={({ props }) => ({ width: props.size, height: props.size })}
+    />
+    </>
   );
 };

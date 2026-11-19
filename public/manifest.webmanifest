@@ -1,0 +1,19 @@
+{
+  "name": "Fenn: fill or find a room",
+  "short_name": "Fenn",
+  "description": "Fill your room with a 15-second video and one link, or find a room in San Francisco and apply with your Passport.",
+  "id": "/",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F9F7F3",
+  "theme_color": "#F9F7F3",
+  "categories": ["lifestyle", "social"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/fenn.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
