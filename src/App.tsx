@@ -87,6 +87,9 @@ import { FindFilterBar } from './components/find/FindFilterBar';
 import { ReportSheet } from './components/find/ReportSheet';
 import { findApi } from './lib/findApi';
 import { InstallPrompt } from './components/InstallPrompt';
+import { OnboardingBanner } from './components/OnboardingBanner';
+import { EMPTY_STATE } from './config/launchCopy';
+import { activeFilterCount } from './find/findFilters';
 import {
   DB_ROOM_PREFIX,
   EMPTY_FIND_FILTERS,
@@ -1420,6 +1423,7 @@ export default function App() {
               onResetFilters={handleResetFilters}
             />
             )}
+            {findMode && <OnboardingBanner tab="listings" />}
             {findNotice && activeTab === 'listings' && (
               <button type="button" onClick={() => setFindNotice(null)} className="w-full text-left px-3 py-2 bg-[#EBF0EC] text-[11px] font-bold text-[#485B4A] shrink-0">
                 {findNotice}
@@ -1553,6 +1557,37 @@ export default function App() {
                   </div>
                 )}
               </div>
+            ) : findMode ? (
+              (() => {
+                const filtered = activeFilterCount(findFilters) > 0;
+                const copy = savedOnly ? EMPTY_STATE.findSaved : filtered ? EMPTY_STATE.findFiltered : EMPTY_STATE.findNoRooms;
+                return (
+                  <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-8 text-center bg-[#F9F7F3] text-[#2C2724] space-y-3" data-testid="find-empty">
+                    <h2 className="font-extrabold text-base">{copy.title}</h2>
+                    <p className="text-sm text-[#6E655F] max-w-xs">{copy.line}</p>
+                    {savedOnly || filtered ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFindFilters(EMPTY_FIND_FILTERS);
+                          setSavedOnly(false);
+                        }}
+                        className="min-h-11 px-5 bg-[#B85B3F] hover:bg-[#A9513A] text-white font-extrabold text-sm rounded-xl shadow-xs transition-colors"
+                      >
+                        {savedOnly ? 'See all rooms' : 'Clear filters'}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('fill')}
+                        className="min-h-11 px-5 bg-white border border-[#2C2724] font-extrabold text-sm rounded-xl"
+                      >
+                        Moving out? Fill your room
+                      </button>
+                    )}
+                  </div>
+                );
+              })()
             ) : (
               /* Pose 2 (Empty State / No Results): Fenn lying down with oversized ears flopped over eyes */
               <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-8 text-center bg-[#F9F7F3] text-[#2C2724] space-y-3">
@@ -1637,6 +1672,7 @@ export default function App() {
         {/* SCREEN 5: Messages (Protected In-App Chat & Anti-Leakage Shield) */}
         {activeTab === 'messages' && findMode && (
           <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden">
+            <OnboardingBanner tab="messages" />
             <InboxView
               signedIn={Boolean(auth.user)}
               onRequestSignIn={() => setSignInReason('message')}
@@ -1686,6 +1722,7 @@ export default function App() {
         {/* Passport (Fenly 2.0) */}
         {activeTab === 'passport' && (
           <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden">
+            {!reviewOpen && !metricsOpen && findMode && <OnboardingBanner tab="passport" />}
             {reviewOpen ? (
               <ReviewQueue onBack={closeOverlay} />
             ) : metricsOpen ? (
@@ -1703,6 +1740,7 @@ export default function App() {
         {/* Fenly 2.0 Fill tab (with Supabase): fill a room, drafts, live listings' status */}
         {activeTab === 'fill' && flagsLoaded && supabaseConfigured && (
           <div className="relative flex-1 min-h-0 w-full flex flex-col overflow-hidden">
+            {!applicantsListingId && !statusListingId && <OnboardingBanner tab="fill" />}
             {applicantsListingId ? (
               <ApplicantInbox key={applicantsListingId} listingId={applicantsListingId} onBack={closeOverlay} onOpenThread={openThread} />
             ) : statusListingId ? (

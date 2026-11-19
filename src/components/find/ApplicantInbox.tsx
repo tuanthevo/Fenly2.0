@@ -32,6 +32,7 @@ import { formatMoveIn, formatRentCents } from '../../fill/publicListing';
 import { todayIn } from '../../fill/fillStatus';
 import type { FitLevel } from '../../find/fit';
 import { ReportSheet } from './ReportSheet';
+import { EMPTY_STATE } from '../../config/launchCopy';
 
 const FIT_STYLE: Record<FitLevel, string> = {
   great: 'bg-[#EBF0EC] text-[#485B4A] border-[#7A907C]/40',
@@ -320,7 +321,10 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
       {actionError && <p className="text-xs font-bold text-[#9A4A33]">{actionError}</p>}
 
       {data.applicants.length === 0 ? (
-        <p className="text-xs text-[#6E655F] px-1">No applicants yet. Share your link in another group to bring more in.</p>
+        <div className="p-4 rounded-2xl bg-white border border-[#2C2724]/15 text-center space-y-1">
+          <h3 className="text-sm font-extrabold">{EMPTY_STATE.noApplicants.title}</h3>
+          <p className="text-xs text-[#6E655F]">{EMPTY_STATE.noApplicants.line}</p>
+        </div>
       ) : (
         <div className="space-y-2.5">{open.map(card)}</div>
       )}

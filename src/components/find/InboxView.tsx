@@ -9,6 +9,7 @@ import { AlertTriangle, ArrowLeft, Ban, ChevronRight, Flag, Loader2, MoreHorizon
 import { findApi, type InboxThread, type ThreadMessage } from '../../lib/findApi';
 import { ApiError } from '../../lib/fillApi';
 import { roomTakenText } from '../../find/hostText';
+import { EMPTY_STATE, TAB_VALUE } from '../../config/launchCopy';
 import { formatRentCents } from '../../fill/publicListing';
 import { ReportSheet } from './ReportSheet';
 
@@ -56,7 +57,7 @@ export const InboxView: React.FC<InboxViewProps> = ({ signedIn, onRequestSignIn,
       <div className="flex-1 p-4 bg-[#F9F7F3]" data-testid="inbox-signed-out">
         <div className="p-4 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm space-y-3">
           <h2 className="font-extrabold text-base">Inbox</h2>
-          <p className="text-xs text-[#6E655F]">Messages with hosts and applicants show up here once you apply to a room or fill one.</p>
+          <p className="text-xs text-[#6E655F]">{TAB_VALUE.messages.line}</p>
           <button type="button" onClick={onRequestSignIn} className="w-full py-2.5 rounded-xl bg-[#D06C4E] text-white text-sm font-extrabold shadow-warm-sm">
             Sign in
           </button>
@@ -88,7 +89,10 @@ export const InboxView: React.FC<InboxViewProps> = ({ signedIn, onRequestSignIn,
       {threads === null && !error ? (
         <div className="flex justify-center py-8 text-[#6E655F]"><Loader2 className="w-5 h-5 animate-spin" /></div>
       ) : threads && threads.length === 0 ? (
-        <p className="text-xs text-[#6E655F] px-1">No conversations yet. Apply to a room in Find, or share your room’s link from Fill.</p>
+        <div className="p-4 rounded-2xl bg-white border border-[#2C2724]/15 text-center space-y-1" data-testid="inbox-empty">
+          <h2 className="text-sm font-extrabold">{EMPTY_STATE.inboxEmpty.title}</h2>
+          <p className="text-xs text-[#6E655F]">{EMPTY_STATE.inboxEmpty.line}</p>
+        </div>
       ) : (
         <div className="rounded-2xl bg-white border border-[#2C2724]/15 divide-y divide-[#2C2724]/10 shadow-warm-sm overflow-hidden">
           {threads?.map((t) => {

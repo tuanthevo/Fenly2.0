@@ -13,6 +13,7 @@ import { LIFESTYLE_QUESTIONS, cleanLifestyle } from '../find/lifestyle';
 import { LEVEL1_ITEM_TEXT, level1Missing } from '../find/passportLevel';
 import { blobToBase64, findApi, shrinkImage } from '../lib/findApi';
 import { uploadToStorage } from '../lib/fillApi';
+import { TAB_VALUE } from '../config/launchCopy';
 
 type PassportRow = {
   level: number;
@@ -200,10 +201,7 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
             </div>
             <h2 className="font-extrabold text-base text-[#2C2724]">Your Renter Passport</h2>
           </div>
-          <p className="text-xs text-[#6E655F] leading-relaxed">
-            One profile you take from move to move: verified phone and ID, rent history and housemate references. Apply
-            to any room with one tap. Hosts see badges, never your documents.
-          </p>
+          <p className="text-sm text-[#6E655F] leading-relaxed">{TAB_VALUE.passport.line}</p>
           {configured ? (
             <button
               type="button"
