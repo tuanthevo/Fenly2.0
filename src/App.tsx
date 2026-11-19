@@ -1609,7 +1609,7 @@ export default function App() {
                         }
                       : handleResetFilters
                   }
-                  className="px-4 py-2.5 bg-[#D06C4E] hover:bg-[#b85a3e] text-white font-extrabold text-xs rounded-xl shadow-xs transition-colors"
+                  className="px-4 py-2.5 bg-[#B85B3F] hover:bg-[#A9513A] text-white font-extrabold text-xs rounded-xl shadow-xs transition-colors"
                 >
                   Reset All Filters
                 </button>

@@ -155,7 +155,7 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
             type="button"
             onClick={() => onClose(done)}
             aria-label="Close"
-            className="w-7 h-7 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/25 flex items-center justify-center"
+            className="w-10 h-10 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/25 flex items-center justify-center"
           >
             <X className="w-4 h-4" />
           </button>
@@ -192,7 +192,7 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
                   type="button"
                   onClick={onRequestSignIn}
                   disabled={!configured}
-                  className="w-full py-3 rounded-xl bg-[#D06C4E] hover:bg-[#b85b3f] text-white text-sm font-extrabold shadow-warm-sm disabled:opacity-50"
+                  className="w-full py-3 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-sm font-extrabold shadow-warm-sm disabled:opacity-50"
                 >
                   Sign in to apply
                 </button>
@@ -208,7 +208,7 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
                       {preview.budgetMax != null && <span className="text-[#6E655F] font-bold">Budget up to {formatRentCents(preview.budgetMax)}</span>}
                     </div>
                     {preview.missing > 0 && onOpenPassport && (
-                      <button type="button" onClick={onOpenPassport} className="text-[11px] font-bold text-[#D06C4E] flex items-center gap-0.5">
+                      <button type="button" onClick={onOpenPassport} className="text-[11px] font-bold text-[#A9513A] flex items-center gap-0.5">
                         Finish your Passport ({preview.missing} left): hosts see complete ones first <ChevronRight className="w-3 h-3" />
                       </button>
                     )}
@@ -241,7 +241,7 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
                   onClick={() => void submit()}
                   disabled={busy}
                   data-testid="apply-submit"
-                  className="w-full py-3 rounded-xl bg-[#D06C4E] hover:bg-[#b85b3f] text-white text-sm font-extrabold shadow-warm-sm flex items-center justify-center gap-2 disabled:opacity-60"
+                  className="w-full py-3 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-sm font-extrabold shadow-warm-sm flex items-center justify-center gap-2 disabled:opacity-60"
                 >
                   {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                   {uploadPct !== null ? `Uploading intro ${uploadPct}%` : 'Apply with my Passport'}

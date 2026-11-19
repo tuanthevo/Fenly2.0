@@ -58,7 +58,7 @@ export const InboxView: React.FC<InboxViewProps> = ({ signedIn, onRequestSignIn,
         <div className="p-4 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm space-y-3">
           <h2 className="font-extrabold text-base">Inbox</h2>
           <p className="text-xs text-[#6E655F]">{TAB_VALUE.messages.line}</p>
-          <button type="button" onClick={onRequestSignIn} className="w-full py-2.5 rounded-xl bg-[#D06C4E] text-white text-sm font-extrabold shadow-warm-sm">
+          <button type="button" onClick={onRequestSignIn} className="w-full py-2.5 rounded-xl bg-[#B85B3F] text-white text-sm font-extrabold shadow-warm-sm">
             Sign in
           </button>
         </div>
@@ -103,7 +103,7 @@ export const InboxView: React.FC<InboxViewProps> = ({ signedIn, onRequestSignIn,
                 {t.other?.photoUrl ? (
                   <img src={t.other.photoUrl} alt="" className="w-10 h-10 rounded-full object-cover border border-[#7A907C] shrink-0" />
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-[#D06C4E]/15 text-[#D06C4E] flex items-center justify-center font-black shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-[#D06C4E]/15 text-[#A9513A] flex items-center justify-center font-black shrink-0">
                     {(t.other?.firstName ?? '?').charAt(0).toUpperCase()}
                   </div>
                 )}
@@ -116,7 +116,7 @@ export const InboxView: React.FC<InboxViewProps> = ({ signedIn, onRequestSignIn,
                     {taken ? roomTakenText(area, t.similar.length) : t.lastMessage ? `${t.lastMessage.fromMe ? 'You: ' : ''}${t.lastMessage.body}` : STATUS_LINE[t.status] ?? t.status}
                   </div>
                 </div>
-                {t.unread > 0 && <span className="min-w-5 h-5 px-1.5 rounded-full bg-[#D06C4E] text-white text-[10px] font-black flex items-center justify-center">{t.unread}</span>}
+                {t.unread > 0 && <span className="min-w-5 h-5 px-1.5 rounded-full bg-[#B85B3F] text-white text-[10px] font-black flex items-center justify-center">{t.unread}</span>}
                 <ChevronRight className="w-4 h-4 text-[#6E655F] shrink-0" />
               </button>
             );
@@ -192,7 +192,7 @@ const ThreadView: React.FC<{ thread: InboxThread; onBack: () => void; onOpenAppl
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-[#F9F7F3] text-[#2C2724]" data-testid="thread-view">
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-[#2C2724]/15 bg-white">
-        <button type="button" onClick={onBack} aria-label="Back to inbox" className="w-8 h-8 rounded-xl border border-[#2C2724] flex items-center justify-center shrink-0">
+        <button type="button" onClick={onBack} aria-label="Back to inbox" className="w-10 h-10 rounded-xl border border-[#2C2724] flex items-center justify-center shrink-0">
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div className="flex-1 min-w-0">
@@ -202,28 +202,28 @@ const ThreadView: React.FC<{ thread: InboxThread; onBack: () => void; onOpenAppl
           </div>
         </div>
         {thread.role !== 'applicant' && thread.listing && (
-          <button type="button" onClick={() => onOpenApplicants(thread.listing!.id)} className="px-2 py-1.5 rounded-lg border border-[#2C2724]/20 text-[10px] font-bold flex items-center gap-1 shrink-0">
+          <button type="button" onClick={() => onOpenApplicants(thread.listing!.id)} className="min-h-10 px-2 rounded-lg border border-[#2C2724]/20 text-[11px] font-bold flex items-center gap-1 shrink-0">
             <Users className="w-3.5 h-3.5" /> Applicants
           </button>
         )}
         <div className="relative">
-          <button type="button" onClick={() => setMenu(!menu)} aria-label="More" className="w-8 h-8 rounded-xl hover:bg-[#F2EFE9] flex items-center justify-center">
+          <button type="button" onClick={() => setMenu(!menu)} aria-label="More" className="w-10 h-10 rounded-xl hover:bg-[#F2EFE9] flex items-center justify-center">
             <MoreHorizontal className="w-4 h-4" />
           </button>
           {menu && (
-            <div className="absolute right-0 top-9 z-20 w-48 rounded-xl bg-white border border-[#2C2724]/20 shadow-warm p-1 text-xs font-bold">
+            <div role="menu" className="absolute right-0 top-11 z-20 w-52 rounded-xl bg-white border border-[#2C2724]/20 shadow-warm p-1 text-xs font-bold">
               {thread.other && (
-                <button type="button" onClick={() => { setMenu(false); setReport({ type: 'user', id: thread.other!.id, label: otherName }); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#F2EFE9] flex items-center gap-2">
+                <button type="button" onClick={() => { setMenu(false); setReport({ type: 'user', id: thread.other!.id, label: otherName }); }} className="w-full min-h-10 text-left px-3 py-2 rounded-lg hover:bg-[#F2EFE9] flex items-center gap-2">
                   <Flag className="w-3.5 h-3.5" /> Report {otherName}
                 </button>
               )}
               {thread.role === 'applicant' && thread.listing && (
-                <button type="button" onClick={() => { setMenu(false); setReport({ type: 'listing', id: thread.listing!.id, label: 'this listing' }); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#F2EFE9] flex items-center gap-2">
+                <button type="button" onClick={() => { setMenu(false); setReport({ type: 'listing', id: thread.listing!.id, label: 'this listing' }); }} className="w-full min-h-10 text-left px-3 py-2 rounded-lg hover:bg-[#F2EFE9] flex items-center gap-2">
                   <Flag className="w-3.5 h-3.5" /> Report listing
                 </button>
               )}
               {thread.other && (
-                <button type="button" onClick={() => void block()} className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#F2EFE9] text-[#9A4A33] flex items-center gap-2">
+                <button type="button" onClick={() => void block()} className="w-full min-h-10 text-left px-3 py-2 rounded-lg hover:bg-[#F2EFE9] text-[#9A4A33] flex items-center gap-2">
                   <Ban className="w-3.5 h-3.5" /> Block {otherName}
                 </button>
               )}
@@ -262,7 +262,7 @@ const ThreadView: React.FC<{ thread: InboxThread; onBack: () => void; onOpenAppl
                 )}
                 <div className={`px-3 py-2 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap break-words ${m.fromMe ? 'bg-[#2C2724] text-[#F9F7F3] rounded-br-md' : 'bg-white border border-[#2C2724]/15 rounded-bl-md'}`}>{m.body}</div>
                 {!m.fromMe && (
-                  <button type="button" onClick={() => setReport({ type: 'message', id: m.id, label: 'this message' })} className="text-[9px] font-bold text-[#6E655F] hover:text-[#9A4A33]">
+                  <button type="button" onClick={() => setReport({ type: 'message', id: m.id, label: 'this message' })} className="min-h-8 px-1 text-[11px] font-bold text-[#6E655F] hover:text-[#9A4A33]" aria-label="Report this message">
                     Report
                   </button>
                 )}
@@ -278,6 +278,7 @@ const ThreadView: React.FC<{ thread: InboxThread; onBack: () => void; onOpenAppl
       {!taken && status !== 'withdrawn' && (
         <div className="flex items-end gap-2 p-2.5 border-t border-[#2C2724]/15 bg-white pb-[max(0.625rem,env(safe-area-inset-bottom))]">
           <textarea
+            aria-label={`Message ${otherName}`}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             maxLength={4000}
@@ -285,7 +286,7 @@ const ThreadView: React.FC<{ thread: InboxThread; onBack: () => void; onOpenAppl
             placeholder={`Message ${otherName}`}
             className="flex-1 max-h-32 bg-[#F9F7F3] border border-[#2C2724]/20 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#D06C4E] resize-none"
           />
-          <button type="button" onClick={() => void send()} disabled={sending || !draft.trim()} aria-label="Send" data-testid="message-send" className="w-10 h-10 rounded-xl bg-[#D06C4E] text-white flex items-center justify-center disabled:opacity-50 shrink-0">
+          <button type="button" onClick={() => void send()} disabled={sending || !draft.trim()} aria-label="Send" data-testid="message-send" className="w-10 h-10 rounded-xl bg-[#B85B3F] text-white flex items-center justify-center disabled:opacity-50 shrink-0">
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </button>
         </div>

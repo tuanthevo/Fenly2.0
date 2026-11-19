@@ -147,3 +147,36 @@ body {
   animation: wrenGentleBob 3s ease-in-out infinite;
 }
 
+
+/* Accessibility (Fenly 2.0 launch) */
+:root {
+  --action-terracotta-strong: #B85B3F; /* white text on it: 4.6:1 (AA) */
+  --action-terracotta-text: #A9513A; /* small orange text on oatmeal/white: >= 5:1 */
+}
+
+/* A visible keyboard focus ring in the brand's espresso, on every control */
+:where(a, button, input, select, textarea, summary, [role='button'], [tabindex]):focus-visible {
+  outline: 3px solid #2C2724;
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+/* Inputs stay selectable even though the app shell disables selection */
+input,
+textarea,
+[contenteditable='true'] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Less motion for people who ask for it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

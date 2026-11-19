@@ -53,7 +53,7 @@ export const ShareKit: React.FC<ShareKitProps> = ({ listingId, links, posts, cap
       onClick={() => void copy(id, text, channel)}
       className={`px-3 py-2 rounded-xl text-[11px] font-extrabold flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
         primary
-          ? 'bg-[#D06C4E] hover:bg-[#b85b3f] text-white shadow-warm-sm'
+          ? 'bg-[#B85B3F] hover:bg-[#A9513A] text-white shadow-warm-sm'
           : 'bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/30 text-[#2C2724]'
       }`}
     >

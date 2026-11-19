@@ -67,7 +67,7 @@ const card = 'p-4 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm
 const input =
   'w-full bg-white border border-[#2C2724]/25 rounded-xl px-3 py-2.5 text-sm text-[#2C2724] focus:outline-none focus:border-[#D06C4E]';
 const primaryBtn =
-  'w-full py-3 rounded-xl bg-[#D06C4E] hover:bg-[#b85b3f] disabled:opacity-50 text-white text-sm font-extrabold shadow-warm-sm flex items-center justify-center gap-2 active:scale-95 transition-all';
+  'w-full py-3 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] disabled:opacity-50 text-white text-sm font-extrabold shadow-warm-sm flex items-center justify-center gap-2 active:scale-95 transition-all';
 const secondaryBtn =
   'w-full py-2.5 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/30 text-[#2C2724] text-xs font-extrabold flex items-center justify-center gap-1.5 active:scale-95 transition-all';
 const label = 'text-[11px] font-bold text-[#6E655F] block mb-1';
@@ -473,7 +473,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
               type="button"
               onClick={goBack}
               aria-label="Back"
-              className="w-9 h-9 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724] text-[#2C2724] flex items-center justify-center shrink-0 active:scale-90"
+              className="w-10 h-10 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724] text-[#2C2724] flex items-center justify-center shrink-0 active:scale-90"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
@@ -771,7 +771,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                     )}
                     <div className="min-w-0 space-y-1">
                       <h3 className="text-sm font-extrabold leading-snug">{title}</h3>
-                      <p className="text-xs font-extrabold text-[#D06C4E]">{formatRentCents(listing.rent_cents)}/mo</p>
+                      <p className="text-xs font-extrabold text-[#A9513A]">{formatRentCents(listing.rent_cents)}/mo</p>
                       <p className="text-[11px] text-[#6E655F]">
                         {neighborhood}, San Francisco
                         {formatMoveIn(availableFrom, today) ? ` · Move in ${formatMoveIn(availableFrom, today)}` : ''}

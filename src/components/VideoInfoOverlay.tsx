@@ -112,7 +112,7 @@ export const VideoInfoOverlay: React.FC<VideoInfoOverlayProps> = ({
         <button
           type="button"
           onClick={onRequestToBook || onOpenDetails}
-          className="flex-1 py-2.5 px-3.5 rounded-xl bg-[#D06C4E] hover:bg-[#b85b3f] text-white font-extrabold text-xs shadow-warm-sm transition-all active:scale-95 text-center"
+          className="flex-1 py-2.5 px-3.5 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white font-extrabold text-xs shadow-warm-sm transition-all active:scale-95 text-center"
         >
           Request to Book
         </button>

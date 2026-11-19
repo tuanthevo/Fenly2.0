@@ -7,7 +7,7 @@ import { ArrowLeft, Check, EyeOff, Loader2, ShieldAlert } from 'lucide-react';
 import { findApi, type QueueFlag } from '../../lib/findApi';
 
 const SEVERITY: Record<string, string> = {
-  high: 'bg-[#D06C4E] text-white',
+  high: 'bg-[#B85B3F] text-white',
   medium: 'bg-[#FBF1DE] text-[#8A5A14]',
   low: 'bg-[#F2EFE9] text-[#6E655F]',
 };
@@ -43,8 +43,8 @@ export const ReviewQueue: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   return (
     <div className="flex-1 overflow-y-auto bg-[#F9F7F3] text-[#2C2724] p-3.5 space-y-3" data-testid="review-queue">
       <div className="flex items-center gap-2">
-        <button type="button" onClick={onBack} aria-label="Back" className="w-9 h-9 rounded-xl bg-white border border-[#2C2724] flex items-center justify-center"><ArrowLeft className="w-4 h-4" /></button>
-        <h2 className="font-extrabold text-base flex items-center gap-1.5"><ShieldAlert className="w-4 h-4 text-[#D06C4E]" /> Review queue</h2>
+        <button type="button" onClick={onBack} aria-label="Back" className="w-10 h-10 rounded-xl bg-white border border-[#2C2724] flex items-center justify-center"><ArrowLeft className="w-4 h-4" /></button>
+        <h1 className="font-extrabold text-base flex items-center gap-1.5"><ShieldAlert className="w-4 h-4 text-[#D06C4E]" aria-hidden="true" /> Review queue</h1>
       </div>
       {error && <p className="text-xs font-bold text-[#9A4A33]">{error}</p>}
       {flags === null && !error ? (

@@ -37,7 +37,7 @@ export const FenlyNavBar: React.FC<FenlyNavBarProps> = ({ activeTab, onSelectTab
           aria-label={label}
           aria-current={active ? 'page' : undefined}
           className={`relative flex-1 py-1.5 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all active:scale-95 ${
-            active ? 'text-[#D06C4E] font-extrabold' : 'text-[#2C2724]/65 hover:text-[#2C2724]'
+            active ? 'text-[#A9513A] font-extrabold' : 'text-[#2C2724]/65 hover:text-[#2C2724]'
           }`}
         >
           <div
@@ -45,7 +45,7 @@ export const FenlyNavBar: React.FC<FenlyNavBarProps> = ({ activeTab, onSelectTab
           >
             <Icon className="w-4 h-4" />
             {tab === 'messages' && unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#D06C4E] text-white text-[9px] font-black flex items-center justify-center shadow">
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#B85B3F] text-white text-[9px] font-black flex items-center justify-center shadow">
                 {unreadCount}
               </span>
             )}

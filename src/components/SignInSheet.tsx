@@ -24,7 +24,7 @@ type Step = { kind: 'choose' } | { kind: 'emailSent'; email: string } | { kind: 
 const inputClass =
   'flex-1 min-w-0 bg-white border border-[#2C2724]/25 rounded-xl px-3 py-2.5 text-sm text-[#2C2724] placeholder:text-[#6E655F]/70 focus:outline-none focus:border-[#D06C4E]';
 const primaryButton =
-  'px-3.5 py-2.5 bg-[#D06C4E] hover:bg-[#b85b3f] disabled:opacity-60 text-white rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 shrink-0 shadow-warm-sm active:scale-95';
+  'px-3.5 py-2.5 bg-[#B85B3F] hover:bg-[#A9513A] disabled:opacity-60 text-white rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 shrink-0 shadow-warm-sm active:scale-95';
 
 export const SignInSheet: React.FC<SignInSheetProps> = ({ isOpen, reason, onClose }) => {
   const { configured, user, signInWithEmail, signInWithGoogle, sendPhoneCode, verifyPhoneCode } = useAuth();
@@ -85,7 +85,7 @@ export const SignInSheet: React.FC<SignInSheetProps> = ({ isOpen, reason, onClos
             type="button"
             onClick={onClose}
             aria-label="Close sign-in"
-            className="w-7 h-7 rounded-xl bg-white hover:bg-[#F2EFE9] text-[#2C2724] border border-[#2C2724]/25 flex items-center justify-center transition-colors"
+            className="w-10 h-10 rounded-xl bg-white hover:bg-[#F2EFE9] text-[#2C2724] border border-[#2C2724]/25 flex items-center justify-center transition-colors"
           >
             <X className="w-4 h-4" />
           </button>

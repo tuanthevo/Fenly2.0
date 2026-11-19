@@ -63,7 +63,7 @@ export const FillStatusView: React.FC<{ listingId: string; onBack: () => void }>
           type="button"
           onClick={kit ? () => setKit(null) : onBack}
           aria-label="Back"
-          className="w-9 h-9 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724] text-[#2C2724] flex items-center justify-center shrink-0 active:scale-90"
+          className="w-10 h-10 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724] text-[#2C2724] flex items-center justify-center shrink-0 active:scale-90"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
@@ -75,7 +75,7 @@ export const FillStatusView: React.FC<{ listingId: string; onBack: () => void }>
             type="button"
             onClick={() => void load()}
             aria-label="Refresh"
-            className="w-9 h-9 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/25 text-[#2C2724] flex items-center justify-center shrink-0"
+            className="w-10 h-10 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/25 text-[#2C2724] flex items-center justify-center shrink-0"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -100,7 +100,7 @@ export const FillStatusView: React.FC<{ listingId: string; onBack: () => void }>
             type="button"
             onClick={() => void openKit()}
             disabled={kitLoading}
-            className="w-full py-3 rounded-xl bg-[#D06C4E] hover:bg-[#b85b3f] text-white text-sm font-extrabold shadow-warm-sm flex items-center justify-center gap-2 active:scale-95 disabled:opacity-60"
+            className="w-full py-3 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-sm font-extrabold shadow-warm-sm flex items-center justify-center gap-2 active:scale-95 disabled:opacity-60"
           >
             {kitLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
             Share again
@@ -117,7 +117,7 @@ const DaysLeftCard: React.FC<{ daysLeft: number | null; moveOut: string | null; 
     <div className={`${cardClass} flex items-center gap-3`}>
       <div
         className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center shrink-0 ${
-          urgent ? 'bg-[#D06C4E] text-white' : 'bg-[#EBF0EC] text-[#485B4A]'
+          urgent ? 'bg-[#B85B3F] text-white' : 'bg-[#EBF0EC] text-[#485B4A]'
         }`}
       >
         <span className="text-xl font-black leading-none">{daysLeft === null ? '?' : Math.max(0, daysLeft)}</span>
@@ -187,7 +187,7 @@ const ChannelTable: React.FC<{ summary: FillSummary }> = ({ summary }) => (
           <tr key={row.channel} className="border-t border-[#2C2724]/10">
             <td className="py-2 font-bold text-[#2C2724]">{channelLabel(row.channel)}</td>
             <td className="py-2 text-right tabular-nums">{row.views}</td>
-            <td className="py-2 text-right tabular-nums font-extrabold text-[#D06C4E]">{row.applications}</td>
+            <td className="py-2 text-right tabular-nums font-extrabold text-[#A9513A]">{row.applications}</td>
           </tr>
         ))}
       </tbody>

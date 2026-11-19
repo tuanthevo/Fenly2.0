@@ -20,7 +20,7 @@ interface FindFilterBarProps {
 }
 
 const chip = (on: boolean) =>
-  `shrink-0 px-3 py-1.5 rounded-full text-[11px] font-extrabold border transition-all active:scale-95 ${
+  `shrink-0 min-h-10 inline-flex items-center px-3 py-1.5 rounded-full text-xs font-extrabold border transition-all active:scale-95 ${
     on ? 'bg-[#2C2724] text-[#F9F7F3] border-[#2C2724]' : 'bg-white text-[#2C2724] border-[#2C2724]/25 hover:bg-[#F2EFE9]'
   }`;
 
@@ -31,7 +31,7 @@ export const FindFilterBar: React.FC<FindFilterBarProps> = ({ filters, onChange,
     <div className="w-full bg-[#F9F7F3] border-b border-[#2C2724]/15 px-3 pt-2.5 pb-2 space-y-2 shrink-0" data-testid="find-filter-bar">
       <div className="flex items-center gap-2">
         {onBack && (
-          <button type="button" onClick={onBack} aria-label="Back" className="w-8 h-8 rounded-xl bg-white border border-[#2C2724] flex items-center justify-center shrink-0">
+          <button type="button" onClick={onBack} aria-label="Back" className="w-10 h-10 rounded-xl bg-white border border-[#2C2724] flex items-center justify-center shrink-0">
             <ArrowLeft className="w-4 h-4" />
           </button>
         )}
@@ -90,7 +90,7 @@ export const FindFilterBar: React.FC<FindFilterBarProps> = ({ filters, onChange,
             />
           </label>
           {count > 0 && (
-            <button type="button" onClick={() => onChange({ area: null, maxRentCents: null, moveInBy: null })} className="shrink-0 w-7 h-7 rounded-full bg-white border border-[#2C2724]/25 flex items-center justify-center" aria-label="Clear filters">
+            <button type="button" onClick={() => onChange({ area: null, maxRentCents: null, moveInBy: null })} className="shrink-0 w-10 h-10 rounded-full bg-white border border-[#2C2724]/25 flex items-center justify-center" aria-label="Clear filters">
               <X className="w-3.5 h-3.5" />
             </button>
           )}
