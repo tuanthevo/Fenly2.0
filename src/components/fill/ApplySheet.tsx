@@ -10,6 +10,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { fillApi, ApiError, storageVideoType, uploadToStorage } from '../../lib/fillApi';
 import { level1Missing, passportLevel } from '../../find/passportLevel';
 import { IntroVideoPicker } from '../find/IntroVideoPicker';
+import { announceInstallMoment } from '../../pwa/installPrompt';
 import { formatMoveIn, formatRentCents } from '../../fill/publicListing';
 import { todayIn } from '../../fill/fillStatus';
 
@@ -121,6 +122,7 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
       }
       await fillApi.apply(listingId, { note: note.trim() || undefined, moveInDate: moveIn || null, via, introVideoPath });
       setDone(true);
+      announceInstallMoment('applied');
     } catch (e) {
       if (e instanceof ApiError && e.body?.error === 'already_applied') setDone(true);
       else if (e instanceof ApiError && e.status === 403) setError(e.body?.message ?? "You can't apply to this room.");

@@ -79,6 +79,7 @@ import { InboxView } from './components/find/InboxView';
 import { ApplicantInbox } from './components/find/ApplicantInbox';
 import { ReviewQueue } from './components/find/ReviewQueue';
 import { findApi } from './lib/findApi';
+import { InstallPrompt } from './components/InstallPrompt';
 import {
   DB_ROOM_PREFIX,
   EMPTY_FIND_FILTERS,
@@ -1932,6 +1933,9 @@ export default function App() {
         }}
         room={currentRoom}
       />
+
+      {/* Fenly 2.0: "Add to Home Screen" after publishing or applying */}
+      <InstallPrompt />
 
       {/* Fenly 2.0 sign-in (Apply, Create Listing, Passport) */}
       <SignInSheet isOpen={signInReason !== null} reason={signInReason ?? 'passport'} onClose={closeSignIn} />

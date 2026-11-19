@@ -14,7 +14,10 @@ export type ClientEventName =
   | 'publish_gate_shown'
   | 'menu_feature_opened'
   | 'tour_recorded'
-  | 'link_shared';
+  | 'link_shared'
+  | 'pwa_prompt_shown'
+  | 'pwa_prompt_dismissed'
+  | 'pwa_installed';
 
 const ANON_KEY = 'fenlyAnonId';
 let memoryAnonId: string | null = null;

@@ -3,6 +3,7 @@
  * details + AI copy → video → publish → share kit. Each step saves to Supabase,
  * so the host can leave and pick up where they stopped.
  */
+import { announceInstallMoment } from '../../pwa/installPrompt';
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
@@ -441,6 +442,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
         setListing(result.listing);
         setPublished({ links: result.links, posts: result.posts });
         setStep('share');
+        announceInstallMoment('published');
       } catch (e) {
         if (e instanceof ApiError && e.problems) {
           setProblems(e.problems.problems.map((p, i) => ({ step: PROBLEM_STEP[p], text: e.problems!.messages[i] })));

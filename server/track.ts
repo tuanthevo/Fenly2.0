@@ -37,6 +37,10 @@ export const EVENT_NAMES = [
   "message_sent",
   "report_submitted",
   "housemate_joined",
+  // Launch
+  "pwa_prompt_shown",
+  "pwa_prompt_dismissed",
+  "pwa_installed",
 ] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 
@@ -52,6 +56,9 @@ export const CLIENT_EVENT_NAMES: readonly EventName[] = [
   "menu_feature_opened",
   "tour_recorded",
   "link_shared",
+  "pwa_prompt_shown",
+  "pwa_prompt_dismissed",
+  "pwa_installed",
 ];
 
 export type EventContext = { userId?: string | null; anonId?: string | null; listingId?: string | null };
