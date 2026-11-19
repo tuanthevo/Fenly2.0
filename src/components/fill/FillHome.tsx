@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { ArrowLeft, ChevronRight, DoorOpen, Loader2, Plus, Video, Link2, LineChart, Users } from 'lucide-react';
 import { fillApi } from '../../lib/fillApi';
 import { findApi, type HostingRow } from '../../lib/findApi';
+import { EMPTY_STATE } from '../../config/launchCopy';
 import { formatRentCents } from '../../fill/publicListing';
 import { daysUntil, todayIn } from '../../fill/fillStatus';
 
@@ -71,7 +72,7 @@ export const FillHome: React.FC<FillHomeProps> = ({ signedIn, onStartFill, onRes
           type="button"
           onClick={onBack}
           aria-label="Back to Find"
-          className="w-9 h-9 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724] text-[#2C2724] flex items-center justify-center shrink-0 active:scale-90"
+          className="w-10 h-10 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724] text-[#2C2724] flex items-center justify-center shrink-0 active:scale-90"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
@@ -99,7 +100,7 @@ export const FillHome: React.FC<FillHomeProps> = ({ signedIn, onStartFill, onRes
           type="button"
           onClick={onStartFill}
           data-testid="fill-start"
-          className="w-full py-3 rounded-xl bg-[#D06C4E] hover:bg-[#b85b3f] text-white text-sm font-extrabold shadow-warm-sm flex items-center justify-center gap-2 active:scale-95"
+          className="w-full py-3 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-sm font-extrabold shadow-warm-sm flex items-center justify-center gap-2 active:scale-95"
         >
           <Plus className="w-4 h-4" /> Fill my room
         </button>
@@ -129,7 +130,7 @@ export const FillHome: React.FC<FillHomeProps> = ({ signedIn, onStartFill, onRes
                   </div>
                 </div>
                 {h.open > 0 && h.status === 'published' && (
-                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-[#D06C4E] text-white text-[10px] font-black flex items-center justify-center">{h.open}</span>
+                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-[#B85B3F] text-white text-[10px] font-black flex items-center justify-center">{h.open}</span>
                 )}
                 <ChevronRight className="w-4 h-4 text-[#6E655F] shrink-0" />
               </button>
@@ -147,7 +148,7 @@ export const FillHome: React.FC<FillHomeProps> = ({ signedIn, onStartFill, onRes
               <Loader2 className="w-5 h-5 animate-spin" />
             </div>
           ) : rows && rows.length === 0 ? (
-            <p className="text-xs text-[#6E655F] px-1">No rooms yet. Start with "Fill my room".</p>
+            <p className="text-xs text-[#6E655F] px-1">{EMPTY_STATE.fillNoRooms.line}</p>
           ) : (
             <div className="rounded-2xl bg-white border border-[#2C2724]/15 divide-y divide-[#2C2724]/10 shadow-warm-sm overflow-hidden">
               {rows?.map((row) => {

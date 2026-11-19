@@ -6,13 +6,14 @@
  * Lifestyle questions are logistics and habits only, never protected traits.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { BadgeCheck, Phone, IdCard, Receipt, Loader2, LogOut, ShieldCheck, Check, Camera, Circle, Mail, ShieldAlert } from 'lucide-react';
+import { BadgeCheck, Phone, IdCard, Receipt, Loader2, LogOut, ShieldCheck, Check, Camera, Circle, Mail, ShieldAlert, BarChart3 } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
 import { useFlag } from '../config/FlagsProvider';
 import { LIFESTYLE_QUESTIONS, cleanLifestyle } from '../find/lifestyle';
 import { LEVEL1_ITEM_TEXT, level1Missing } from '../find/passportLevel';
 import { blobToBase64, findApi, shrinkImage } from '../lib/findApi';
 import { uploadToStorage } from '../lib/fillApi';
+import { TAB_VALUE } from '../config/launchCopy';
 
 type PassportRow = {
   level: number;
@@ -42,11 +43,12 @@ interface PassportViewProps {
   onRequestSignIn: () => void;
   /** Fenly staff only (FENLY_ADMIN_EMAILS) */
   onOpenReview?: () => void;
+  onOpenMetrics?: () => void;
 }
 
 const PHOTO_PATH = (uid: string) => `${uid}/photo.jpg`;
 
-export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onOpenReview }) => {
+export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onOpenReview, onOpenMetrics }) => {
   const { ready, configured, user, supabase, signOut } = useAuth();
   const idCheckOn = useFlag('id_check');
   const [bio, setBio] = useState('');
@@ -199,15 +201,12 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
             </div>
             <h2 className="font-extrabold text-base text-[#2C2724]">Your Renter Passport</h2>
           </div>
-          <p className="text-xs text-[#6E655F] leading-relaxed">
-            One profile you take from move to move: verified phone and ID, rent history and housemate references. Apply
-            to any room with one tap. Hosts see badges, never your documents.
-          </p>
+          <p className="text-sm text-[#6E655F] leading-relaxed">{TAB_VALUE.passport.line}</p>
           {configured ? (
             <button
               type="button"
               onClick={onRequestSignIn}
-              className="w-full py-2.5 rounded-xl bg-[#D06C4E] hover:bg-[#b85b3f] text-white text-sm font-extrabold shadow-warm-sm active:scale-95 transition-all"
+              className="w-full py-2.5 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-sm font-extrabold shadow-warm-sm active:scale-95 transition-all"
             >
               Sign in to start your Passport
             </button>
@@ -264,7 +263,7 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
           type="button"
           onClick={() => photoInput.current?.click()}
           aria-label="Change photo"
-          className="relative w-12 h-12 rounded-full bg-[#D06C4E]/15 text-[#D06C4E] border-2 border-[#7A907C] flex items-center justify-center font-black text-lg shrink-0 overflow-hidden"
+          className="relative w-12 h-12 rounded-full bg-[#D06C4E]/15 text-[#A9513A] border-2 border-[#7A907C] flex items-center justify-center font-black text-lg shrink-0 overflow-hidden"
         >
           {photoUrl ? <img src={photoUrl} alt="" className="w-full h-full object-cover" /> : (displayName || user.email || user.phone || '?').trim().charAt(0).toUpperCase()}
           <span className="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-[#2C2724] text-white flex items-center justify-center">
@@ -354,7 +353,7 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
             type="button"
             disabled={idBusy}
             onClick={() => idInput.current?.click()}
-            className="w-full py-2.5 rounded-xl bg-[#D06C4E] text-white text-xs font-extrabold flex items-center justify-center gap-1.5 disabled:opacity-60"
+            className="w-full py-2.5 rounded-xl bg-[#B85B3F] text-white text-xs font-extrabold flex items-center justify-center gap-1.5 disabled:opacity-60"
           >
             {idBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />} Photo of my ID
           </button>
@@ -454,7 +453,7 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
               type="button"
               onClick={() => void save()}
               disabled={saving}
-              className="px-4 py-2.5 rounded-xl bg-[#D06C4E] hover:bg-[#b85b3f] disabled:opacity-60 text-white text-xs font-extrabold shadow-warm-sm active:scale-95 transition-all flex items-center gap-1.5"
+              className="px-4 py-2.5 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] disabled:opacity-60 text-white text-xs font-extrabold shadow-warm-sm active:scale-95 transition-all flex items-center gap-1.5"
             >
               {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
               Save Passport
@@ -492,6 +491,16 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
           <ShieldAlert className="w-3.5 h-3.5" /> Review queue
         </button>
       )}
+      {isAdmin && onOpenMetrics && (
+        <button
+          type="button"
+          onClick={onOpenMetrics}
+          className="w-full min-h-11 rounded-xl bg-white border border-[#2C2724] text-xs font-extrabold flex items-center justify-center gap-1.5"
+          data-testid="open-metrics"
+        >
+          <BarChart3 className="w-3.5 h-3.5" /> Metrics
+        </button>
+      )}
 
       <button
         type="button"
@@ -500,6 +509,11 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
       >
         <LogOut className="w-3.5 h-3.5" /> Sign out
       </button>
+      <p className="text-center text-[11px] text-[#6E655F]">
+        <a href="/privacy.html" className="inline-flex items-center min-h-10 px-2 underline font-bold">Privacy</a>
+        <span aria-hidden="true">·</span>
+        <a href="/terms.html" className="inline-flex items-center min-h-10 px-2 underline font-bold">Terms</a>
+      </p>
     </div>
   );
 };

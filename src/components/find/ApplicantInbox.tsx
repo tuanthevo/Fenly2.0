@@ -32,6 +32,7 @@ import { formatMoveIn, formatRentCents } from '../../fill/publicListing';
 import { todayIn } from '../../fill/fillStatus';
 import type { FitLevel } from '../../find/fit';
 import { ReportSheet } from './ReportSheet';
+import { EMPTY_STATE } from '../../config/launchCopy';
 
 const FIT_STYLE: Record<FitLevel, string> = {
   great: 'bg-[#EBF0EC] text-[#485B4A] border-[#7A907C]/40',
@@ -167,14 +168,14 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
           {a.photoUrl ? (
             <img src={a.photoUrl} alt="" className="w-12 h-12 rounded-full object-cover border-2 border-[#7A907C] shrink-0" />
           ) : (
-            <div className="w-12 h-12 rounded-full bg-[#D06C4E]/15 text-[#D06C4E] border-2 border-[#7A907C] flex items-center justify-center font-black shrink-0">
+            <div className="w-12 h-12 rounded-full bg-[#D06C4E]/15 text-[#A9513A] border-2 border-[#7A907C] flex items-center justify-center font-black shrink-0">
               {(a.firstName ?? '?').charAt(0).toUpperCase()}
             </div>
           )}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="font-extrabold text-sm">{a.firstName ?? 'Applicant'}</span>
-              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${a.status === 'chosen' ? 'bg-[#D06C4E] text-white border-[#D06C4E]' : 'bg-[#F2EFE9] border-[#2C2724]/15'}`}>
+              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${a.status === 'chosen' ? 'bg-[#B85B3F] text-white border-[#D06C4E]' : 'bg-[#F2EFE9] border-[#2C2724]/15'}`}>
                 {a.status === 'declined' && a.declineReason === 'room_filled' ? 'Room filled' : STATUS_TEXT[a.status] ?? a.status}
               </span>
               {a.fit.strong && a.status !== 'declined' && (
@@ -196,7 +197,7 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
               <span className="px-1.5 py-0.5 rounded-md bg-[#F2EFE9] text-[#6E655F]">via {a.channel}</span>
             </div>
           </div>
-          <button type="button" onClick={() => setReporting(a)} aria-label="Report applicant" className="w-7 h-7 rounded-lg text-[#6E655F] hover:bg-[#F2EFE9] flex items-center justify-center shrink-0">
+          <button type="button" onClick={() => setReporting(a)} aria-label="Report applicant" className="w-10 h-10 rounded-lg text-[#6E655F] hover:bg-[#F2EFE9] flex items-center justify-center shrink-0">
             <Flag className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -227,22 +228,22 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
         )}
 
         <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-[#2C2724]/10">
-          <button type="button" disabled={busy} onClick={() => void vote(a, 1)} aria-pressed={a.votes.mine === 1} className={`px-2 py-1.5 rounded-lg text-[11px] font-bold border flex items-center gap-1 ${a.votes.mine === 1 ? 'bg-[#EBF0EC] border-[#7A907C]' : 'bg-white border-[#2C2724]/20'}`}>
+          <button type="button" disabled={busy} onClick={() => void vote(a, 1)} aria-pressed={a.votes.mine === 1} className={`min-h-10 px-2.5 py-1.5 rounded-lg text-xs font-bold border flex items-center gap-1 ${a.votes.mine === 1 ? 'bg-[#EBF0EC] border-[#7A907C]' : 'bg-white border-[#2C2724]/20'}`}>
             <ThumbsUp className="w-3.5 h-3.5" /> {a.votes.up}
           </button>
-          <button type="button" disabled={busy} onClick={() => void vote(a, -1)} aria-pressed={a.votes.mine === -1} className={`px-2 py-1.5 rounded-lg text-[11px] font-bold border flex items-center gap-1 ${a.votes.mine === -1 ? 'bg-[#F7E3DC] border-[#D06C4E]' : 'bg-white border-[#2C2724]/20'}`}>
+          <button type="button" disabled={busy} onClick={() => void vote(a, -1)} aria-pressed={a.votes.mine === -1} className={`min-h-10 px-2.5 py-1.5 rounded-lg text-xs font-bold border flex items-center gap-1 ${a.votes.mine === -1 ? 'bg-[#F7E3DC] border-[#D06C4E]' : 'bg-white border-[#2C2724]/20'}`}>
             <ThumbsDown className="w-3.5 h-3.5" /> {a.votes.down}
           </button>
-          <button type="button" onClick={() => onOpenThread(a.applicationId)} className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold border bg-white border-[#2C2724]/20 flex items-center gap-1">
+          <button type="button" onClick={() => onOpenThread(a.applicationId)} className="min-h-10 px-2.5 py-1.5 rounded-lg text-xs font-bold border bg-white border-[#2C2724]/20 flex items-center gap-1">
             <MessageCircle className="w-3.5 h-3.5" /> Message
           </button>
           {canAct && a.status === 'submitted' && (
-            <button type="button" disabled={busy} onClick={() => void act(a, 'shortlist')} className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold border bg-white border-[#2C2724]/20 flex items-center gap-1">
+            <button type="button" disabled={busy} onClick={() => void act(a, 'shortlist')} className="min-h-10 px-2.5 py-1.5 rounded-lg text-xs font-bold border bg-white border-[#2C2724]/20 flex items-center gap-1">
               <Star className="w-3.5 h-3.5" /> Shortlist
             </button>
           )}
           {canAct && a.status === 'shortlisted' && data.idCheckEnabled && !a.badges.id && (
-            <button type="button" disabled={busy || Boolean(a.idCheckRequestedAt)} onClick={() => void act(a, 'request-id')} className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold border bg-white border-[#2C2724]/20 flex items-center gap-1 disabled:opacity-60">
+            <button type="button" disabled={busy || Boolean(a.idCheckRequestedAt)} onClick={() => void act(a, 'request-id')} className="min-h-10 px-2.5 py-1.5 rounded-lg text-xs font-bold border bg-white border-[#2C2724]/20 flex items-center gap-1 disabled:opacity-60">
               <IdCard className="w-3.5 h-3.5" /> {a.idCheckRequestedAt ? 'ID check asked' : 'Ask for ID check'}
             </button>
           )}
@@ -255,11 +256,11 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
                   setDeclining(a);
                   setDeclineText(declineTemplate(a.firstName, area));
                 }}
-                className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold border bg-white border-[#2C2724]/20 flex items-center gap-1"
+                className="min-h-10 px-2.5 py-1.5 rounded-lg text-xs font-bold border bg-white border-[#2C2724]/20 flex items-center gap-1"
               >
                 <X className="w-3.5 h-3.5" /> Decline
               </button>
-              <button type="button" disabled={busy} onClick={() => setChoosing(a)} className="px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold bg-[#D06C4E] text-white flex items-center gap-1 ml-auto">
+              <button type="button" disabled={busy} onClick={() => setChoosing(a)} className="min-h-10 px-3 py-1.5 rounded-lg text-xs font-extrabold bg-[#B85B3F] text-white flex items-center gap-1 ml-auto">
                 {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Choose
               </button>
             </>
@@ -272,7 +273,7 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
   return (
     <div className="w-full h-full bg-[#F9F7F3] text-[#2C2724] pt-4 pb-10 px-3.5 overflow-y-auto space-y-3" data-testid="applicant-inbox">
       <div className="flex items-center gap-2">
-        <button type="button" onClick={onBack} aria-label="Back" className="w-9 h-9 rounded-xl bg-white border border-[#2C2724] flex items-center justify-center shrink-0 active:scale-90">
+        <button type="button" onClick={onBack} aria-label="Back" className="w-10 h-10 rounded-xl bg-white border border-[#2C2724] flex items-center justify-center shrink-0 active:scale-90">
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div className="flex-1 min-w-0">
@@ -284,7 +285,7 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
           </div>
         </div>
         {isHost && (
-          <button type="button" onClick={() => void makeInvite()} className="px-2.5 py-2 rounded-xl bg-white border border-[#2C2724]/25 text-[11px] font-bold flex items-center gap-1 shrink-0">
+          <button type="button" onClick={() => void makeInvite()} className="min-h-10 px-2.5 rounded-xl bg-white border border-[#2C2724]/25 text-xs font-bold flex items-center gap-1 shrink-0">
             <UserPlus className="w-3.5 h-3.5" /> Housemates
           </button>
         )}
@@ -295,7 +296,7 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
           <div className="font-bold text-[#485B4A]">{invite.copied ? 'Invite link copied.' : 'Send this link to a housemate:'} It works once and expires in 7 days.</div>
           <div className="flex items-center gap-2">
             <code className="flex-1 truncate bg-white rounded-lg px-2 py-1 border border-[#2C2724]/10">{invite.url}</code>
-            <button type="button" aria-label="Copy invite link" onClick={() => void navigator.clipboard?.writeText(invite.url).then(() => setInvite({ ...invite, copied: true }))} className="w-7 h-7 rounded-lg bg-white border border-[#2C2724]/20 flex items-center justify-center">
+            <button type="button" aria-label="Copy invite link" onClick={() => void navigator.clipboard?.writeText(invite.url).then(() => setInvite({ ...invite, copied: true }))} className="w-10 h-10 rounded-lg bg-white border border-[#2C2724]/20 flex items-center justify-center">
               <Copy className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -310,7 +311,7 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
         <div className="flex items-center justify-between gap-2">
           <p className="text-[10px] text-[#6E655F]">Based on badges, move-in, budget and lifestyle answers only.</p>
           {open.length > 0 && !ai && (
-            <button type="button" onClick={() => void summarize()} disabled={aiBusy} className="text-[11px] font-extrabold text-[#D06C4E] flex items-center gap-1 shrink-0">
+            <button type="button" onClick={() => void summarize()} disabled={aiBusy} className="min-h-10 px-1 text-xs font-extrabold text-[#A9513A] flex items-center gap-1 shrink-0">
               {aiBusy && <Loader2 className="w-3 h-3 animate-spin" />} Compare with AI
             </button>
           )}
@@ -320,13 +321,16 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
       {actionError && <p className="text-xs font-bold text-[#9A4A33]">{actionError}</p>}
 
       {data.applicants.length === 0 ? (
-        <p className="text-xs text-[#6E655F] px-1">No applicants yet. Share your link in another group to bring more in.</p>
+        <div className="p-4 rounded-2xl bg-white border border-[#2C2724]/15 text-center space-y-1">
+          <h3 className="text-sm font-extrabold">{EMPTY_STATE.noApplicants.title}</h3>
+          <p className="text-xs text-[#6E655F]">{EMPTY_STATE.noApplicants.line}</p>
+        </div>
       ) : (
         <div className="space-y-2.5">{open.map(card)}</div>
       )}
       {closed.length > 0 && (
         <div className="space-y-2.5">
-          <button type="button" onClick={() => setShowClosed(!showClosed)} className="text-[11px] font-extrabold text-[#6E655F] px-1">
+          <button type="button" onClick={() => setShowClosed(!showClosed)} aria-expanded={showClosed} className="min-h-10 text-xs font-extrabold text-[#6E655F] px-1">
             {showClosed ? 'Hide' : 'Show'} {closed.length} closed
           </button>
           {showClosed && closed.map(card)}
@@ -371,7 +375,7 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
                 onClick={async () => {
                   if (await act(choosing, 'choose')) setChoosing(null);
                 }}
-                className="flex-1 py-2.5 rounded-xl bg-[#D06C4E] text-white text-xs font-extrabold flex items-center justify-center gap-1"
+                className="flex-1 py-2.5 rounded-xl bg-[#B85B3F] text-white text-xs font-extrabold flex items-center justify-center gap-1"
               >
                 {busyId === choosing.applicationId && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Choose and fill the room
               </button>

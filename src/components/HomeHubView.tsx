@@ -40,11 +40,8 @@ import {
   buildPrepopulatedRoommateLeaseOptions,
 } from '../utils/trustSafety';
 
-export type HomeRole = 'account' | 'renter' | 'landlord';
-export type RenterSubPage = 'none' | 'profile' | 'verification' | 'escrow' | 'lease' | 'applications' | 'pinned';
-export type LandlordSubPage = 'none' | 'verification' | 'admin' | 'lease' | 'applications' | 'activeListings';
-export type HomeNav = { role: HomeRole; renterPage: RenterSubPage; landlordPage: LandlordSubPage };
-export const HOME_NAV_START: HomeNav = { role: 'account', renterPage: 'none', landlordPage: 'none' };
+import { HOME_NAV_START, type HomeNav, type HomeRole, type RenterSubPage, type LandlordSubPage } from './homeNav';
+export { HOME_NAV_START, type HomeNav, type HomeRole, type RenterSubPage, type LandlordSubPage };
 
 interface HomeHubViewProps {
   userProfile: UserProfile;

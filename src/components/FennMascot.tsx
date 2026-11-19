@@ -34,7 +34,7 @@ const SIZE_MAP: Record<NonNullable<FennMascotProps['size']>, number> = {
  * - Terracotta: #D96B43
  * - Deep Charcoal: #18181B
  */
-const FennMascotArt: React.FC<FennMascotProps> = ({
+export const FennMascotArt: React.FC<FennMascotProps> = ({
   size = 'md',
   variant = 'avatar',
   earsPerked = false,

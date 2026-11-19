@@ -12,7 +12,8 @@
     "lint": "tsc --noEmit",
     "remotion:studio": "remotion studio",
     "remotion:render": "remotion render FenlyViralTour out/fenly-viral-tour.mp4",
-    "test": "tsx --test \"src/**/*.test.ts\" \"server/*.test.ts\""
+    "test": "tsx --test \"src/**/*.test.ts\" \"server/*.test.ts\"",
+    "icons": "tsx scripts/make-icons.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

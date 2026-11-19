@@ -63,7 +63,7 @@ export const ReportSheet: React.FC<ReportSheetProps> = ({ targetType, targetId, 
           <h3 className="font-extrabold text-sm flex items-center gap-2">
             <Flag className="w-4 h-4 text-[#D06C4E]" /> Report {label}
           </h3>
-          <button type="button" onClick={close} aria-label="Close" className="w-7 h-7 rounded-xl bg-white border border-[#2C2724]/25 flex items-center justify-center">
+          <button type="button" onClick={close} aria-label="Close" className="w-10 h-10 rounded-xl bg-white border border-[#2C2724]/25 flex items-center justify-center">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -85,7 +85,7 @@ export const ReportSheet: React.FC<ReportSheetProps> = ({ targetType, targetId, 
                   type="button"
                   aria-pressed={reason === r.id}
                   onClick={() => setReason(r.id)}
-                  className={`w-full text-left px-3 py-2 rounded-xl border text-xs font-bold ${
+                  className={`w-full min-h-10 text-left px-3 py-2 rounded-xl border text-xs font-bold ${
                     reason === r.id ? 'bg-[#2C2724] text-[#F9F7F3] border-[#2C2724]' : 'bg-white border-[#2C2724]/20 hover:bg-[#F2EFE9]'
                   }`}
                 >
@@ -94,6 +94,7 @@ export const ReportSheet: React.FC<ReportSheetProps> = ({ targetType, targetId, 
               ))}
             </div>
             <textarea
+              aria-label="Details (optional)"
               value={details}
               maxLength={1000}
               onChange={(e) => setDetails(e.target.value)}
@@ -111,7 +112,7 @@ export const ReportSheet: React.FC<ReportSheetProps> = ({ targetType, targetId, 
               type="button"
               disabled={!reason || busy}
               onClick={() => void submit()}
-              className="w-full py-2.5 rounded-xl bg-[#D06C4E] hover:bg-[#b85b3f] text-white text-xs font-extrabold disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full py-2.5 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-xs font-extrabold disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Send report
             </button>

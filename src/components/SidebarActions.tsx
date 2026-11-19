@@ -35,7 +35,7 @@ export const SidebarActions: React.FC<SidebarActionsProps> = ({
         }}
         className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all transform active:scale-90 shadow-warm-sm ${
           isPinned
-            ? 'bg-[#D06C4E] text-white border border-[#D06C4E]'
+            ? 'bg-[#B85B3F] text-white border border-[#D06C4E]'
             : 'bg-[#F9F7F3]/95 hover:bg-white text-[#2C2724] border border-[#2C2724]'
         }`}
         title="Save to My Den"

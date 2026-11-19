@@ -35,50 +35,61 @@ import { geminiService } from './services/geminiService';
 
 import { HeaderNav } from './components/HeaderNav';
 import { FilterBar } from './components/FilterBar';
-import { FilterModal, LOCATION_PRESETS } from './components/FilterModal';
 import { VideoPlayer } from './components/VideoPlayer';
 import { SidebarActions } from './components/SidebarActions';
 import { VideoInfoOverlay } from './components/VideoInfoOverlay';
-import { ExploreNeighborhoodView } from './components/ExploreNeighborhoodView';
-import { HomeHubView } from './components/HomeHubView';
-import { DirectMessagingModal } from './components/DirectMessagingModal';
-import { GeminiChatbotModal } from './components/GeminiChatbotModal';
-import { AiStagingStudioModal } from './components/AiStagingStudioModal';
-import { RoomDetailsModal } from './components/RoomDetailsModal';
-import { ApplicationModal } from './components/ApplicationModal';
-import { UserProfileModal } from './components/UserProfileModal';
-import { PostRoomModal } from './components/PostRoomModal';
 import { useHistoryNav } from './utils/historyNav';
-import { HOME_NAV_START, type HomeNav } from './components/HomeHubView';
-import { EditListingModal } from './components/EditListingModal';
-import { AiDirectorStudioModal } from './components/AiDirectorStudioModal';
-import { ShareModal } from './components/ShareModal';
+import { LOCATION_PRESETS } from './data/locationPresets';
+import { HOME_NAV_START, type HomeNav } from './components/homeNav';
+import { lazyComponent, lazyModal, lazyScreen } from './utils/lazyComponent';
+
+// Code-split screens and modals: the app shell (Find feed, nav, sign-in) loads first;
+// everything else downloads when it's opened. Hidden 1.0 screens never load unless their flag is on.
+const FilterModal = lazyModal(() => import('./components/FilterModal').then((m) => m.FilterModal));
+const DirectMessagingModal = lazyModal(() => import('./components/DirectMessagingModal').then((m) => m.DirectMessagingModal));
+const GeminiChatbotModal = lazyModal(() => import('./components/GeminiChatbotModal').then((m) => m.GeminiChatbotModal));
+const AiStagingStudioModal = lazyModal(() => import('./components/AiStagingStudioModal').then((m) => m.AiStagingStudioModal));
+const RoomDetailsModal = lazyModal(() => import('./components/RoomDetailsModal').then((m) => m.RoomDetailsModal));
+const ApplicationModal = lazyModal(() => import('./components/ApplicationModal').then((m) => m.ApplicationModal));
+const UserProfileModal = lazyModal(() => import('./components/UserProfileModal').then((m) => m.UserProfileModal));
+const PostRoomModal = lazyModal(() => import('./components/PostRoomModal').then((m) => m.PostRoomModal));
+const AiDirectorStudioModal = lazyModal(() => import('./components/AiDirectorStudioModal').then((m) => m.AiDirectorStudioModal));
+const ShareModal = lazyModal(() => import('./components/ShareModal').then((m) => m.ShareModal));
+const FennStickerSheetModal = lazyModal(() => import('./components/FennMascot').then((m) => m.FennStickerSheetModal));
+const FennMascot = lazyComponent(() => import('./components/FennMascot').then((m) => m.FennMascot));
+const EditListingModal = lazyComponent(() => import('./components/EditListingModal').then((m) => m.EditListingModal));
+const ExploreNeighborhoodView = lazyScreen(() => import('./components/ExploreNeighborhoodView').then((m) => m.ExploreNeighborhoodView));
+const HomeHubView = lazyScreen(() => import('./components/HomeHubView').then((m) => m.HomeHubView));
+const AskFennView = lazyScreen(() => import('./components/AskFennView').then((m) => m.AskFennView));
+const MyDenView = lazyScreen(() => import('./components/MyDenView').then((m) => m.MyDenView));
+const HouseOsView = lazyScreen(() => import('./components/HouseOsView').then((m) => m.HouseOsView));
+const PassportView = lazyScreen(() => import('./components/PassportView').then((m) => m.PassportView));
+const FillStatusView = lazyScreen(() => import('./components/fill/FillStatusView').then((m) => m.FillStatusView));
+const InboxView = lazyScreen(() => import('./components/find/InboxView').then((m) => m.InboxView));
+const ApplicantInbox = lazyScreen(() => import('./components/find/ApplicantInbox').then((m) => m.ApplicantInbox));
+const ReviewQueue = lazyScreen(() => import('./components/find/ReviewQueue').then((m) => m.ReviewQueue));
+const MetricsView = lazyScreen(() => import('./components/find/MetricsView').then((m) => m.MetricsView));
+const FillFlow = lazyComponent(() => import('./components/fill/FillFlow').then((m) => m.FillFlow));
+const ApplySheet = lazyComponent(() => import('./components/fill/ApplySheet').then((m) => m.ApplySheet));
 import { BottomNavBar, FennTab } from './components/BottomNavBar';
-import { AskFennView } from './components/AskFennView';
-import { MyDenView } from './components/MyDenView';
-import { HouseOsView } from './components/HouseOsView';
-import { FennMascot, FennStickerSheetModal } from './components/FennMascot';
 import { FenlyNavBar } from './components/FenlyNavBar';
 import { NavMenu } from './components/NavMenu';
 import { SignInSheet, type SignInReason } from './components/SignInSheet';
-import { PassportView } from './components/PassportView';
 import { useFlags } from './config/FlagsProvider';
 import { fallbackTab, isTabAllowed } from './config/featureFlags';
 import { useAuth } from './auth/AuthProvider';
 import { needsSignIn } from './utils/authGuards';
 import { trackEvent } from './lib/analytics';
 import { FillHome } from './components/fill/FillHome';
-import { FillFlow } from './components/fill/FillFlow';
-import { FillStatusView } from './components/fill/FillStatusView';
-import { ApplySheet } from './components/fill/ApplySheet';
 import { parseStoredVia, rememberVia, viaForListing } from './fill/attribution';
 import { todayIn } from './fill/fillStatus';
 import { FindFilterBar } from './components/find/FindFilterBar';
 import { ReportSheet } from './components/find/ReportSheet';
-import { InboxView } from './components/find/InboxView';
-import { ApplicantInbox } from './components/find/ApplicantInbox';
-import { ReviewQueue } from './components/find/ReviewQueue';
 import { findApi } from './lib/findApi';
+import { InstallPrompt } from './components/InstallPrompt';
+import { OnboardingBanner } from './components/OnboardingBanner';
+import { EMPTY_STATE } from './config/launchCopy';
+import { activeFilterCount } from './find/findFilters';
 import {
   DB_ROOM_PREFIX,
   EMPTY_FIND_FILTERS,
@@ -456,6 +467,7 @@ export default function App() {
       ? nav.overlay.slice('applicants:'.length)
       : null;
   const reviewOpen = nav.overlay === 'review';
+  const metricsOpen = nav.overlay === 'metrics';
   const openApplicants = (listingId: string) => navigate((prev) => ({ ...prev, tab: 'fill', overlay: `applicants:${listingId}` }));
   const openThread = (applicationId: string) => {
     setInboxThreadId(applicationId);
@@ -1411,6 +1423,7 @@ export default function App() {
               onResetFilters={handleResetFilters}
             />
             )}
+            {findMode && <OnboardingBanner tab="listings" />}
             {findNotice && activeTab === 'listings' && (
               <button type="button" onClick={() => setFindNotice(null)} className="w-full text-left px-3 py-2 bg-[#EBF0EC] text-[11px] font-bold text-[#485B4A] shrink-0">
                 {findNotice}
@@ -1436,6 +1449,17 @@ export default function App() {
                       data-testid={`feed-slide-${idx}`}
                       className="relative w-full h-full shrink-0 snap-start snap-always overflow-hidden"
                     >
+                      {Math.abs(idx - currentRoomIndex) > 1 ? (
+                        <img
+                          src={room.fallbackThumbnail || undefined}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                          data-testid={`feed-poster-${idx}`}
+                          className="absolute inset-0 w-full h-full object-cover bg-[#2C2724]"
+                        />
+                      ) : (
+                      <>
                       <VideoPlayer
                         room={room}
                         isActive={idx === currentRoomIndex}
@@ -1492,6 +1516,8 @@ export default function App() {
                         isPinned={pinnedRoomIds.has(room.id)}
                         onTogglePin={() => handleTogglePin(room.id)}
                       />
+                      </>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1508,7 +1534,7 @@ export default function App() {
                       onClick={handlePrevRoom}
                       aria-label="Previous Listing"
                       title="Previous Listing"
-                      className="w-7 h-7 rounded-lg hover:bg-[#EBF0EC] text-[#2C2724] flex items-center justify-center active:scale-90 transition-all"
+                      className="w-10 h-10 rounded-lg hover:bg-[#EBF0EC] text-[#2C2724] flex items-center justify-center active:scale-90 transition-all"
                     >
                       <ChevronUp className="w-4 h-4" />
                     </button>
@@ -1524,13 +1550,44 @@ export default function App() {
                       onClick={handleNextRoom}
                       aria-label="Next Listing"
                       title="Next Listing"
-                      className="w-7 h-7 rounded-lg hover:bg-[#EBF0EC] text-[#2C2724] flex items-center justify-center active:scale-90 transition-all"
+                      className="w-10 h-10 rounded-lg hover:bg-[#EBF0EC] text-[#2C2724] flex items-center justify-center active:scale-90 transition-all"
                     >
                       <ChevronDown className="w-4 h-4" />
                     </button>
                   </div>
                 )}
               </div>
+            ) : findMode ? (
+              (() => {
+                const filtered = activeFilterCount(findFilters) > 0;
+                const copy = savedOnly ? EMPTY_STATE.findSaved : filtered ? EMPTY_STATE.findFiltered : EMPTY_STATE.findNoRooms;
+                return (
+                  <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-8 text-center bg-[#F9F7F3] text-[#2C2724] space-y-3" data-testid="find-empty">
+                    <h2 className="font-extrabold text-base">{copy.title}</h2>
+                    <p className="text-sm text-[#6E655F] max-w-xs">{copy.line}</p>
+                    {savedOnly || filtered ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFindFilters(EMPTY_FIND_FILTERS);
+                          setSavedOnly(false);
+                        }}
+                        className="min-h-11 px-5 bg-[#B85B3F] hover:bg-[#A9513A] text-white font-extrabold text-sm rounded-xl shadow-xs transition-colors"
+                      >
+                        {savedOnly ? 'See all rooms' : 'Clear filters'}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('fill')}
+                        className="min-h-11 px-5 bg-white border border-[#2C2724] font-extrabold text-sm rounded-xl"
+                      >
+                        Moving out? Fill your room
+                      </button>
+                    )}
+                  </div>
+                );
+              })()
             ) : (
               /* Pose 2 (Empty State / No Results): Fenn lying down with oversized ears flopped over eyes */
               <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-8 text-center bg-[#F9F7F3] text-[#2C2724] space-y-3">
@@ -1552,7 +1609,7 @@ export default function App() {
                         }
                       : handleResetFilters
                   }
-                  className="px-4 py-2.5 bg-[#D06C4E] hover:bg-[#b85a3e] text-white font-extrabold text-xs rounded-xl shadow-xs transition-colors"
+                  className="px-4 py-2.5 bg-[#B85B3F] hover:bg-[#A9513A] text-white font-extrabold text-xs rounded-xl shadow-xs transition-colors"
                 >
                   Reset All Filters
                 </button>
@@ -1615,6 +1672,7 @@ export default function App() {
         {/* SCREEN 5: Messages (Protected In-App Chat & Anti-Leakage Shield) */}
         {activeTab === 'messages' && findMode && (
           <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden">
+            <OnboardingBanner tab="messages" />
             <InboxView
               signedIn={Boolean(auth.user)}
               onRequestSignIn={() => setSignInReason('message')}
@@ -1664,12 +1722,16 @@ export default function App() {
         {/* Passport (Fenly 2.0) */}
         {activeTab === 'passport' && (
           <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden">
+            {!reviewOpen && !metricsOpen && findMode && <OnboardingBanner tab="passport" />}
             {reviewOpen ? (
               <ReviewQueue onBack={closeOverlay} />
+            ) : metricsOpen ? (
+              <MetricsView onBack={closeOverlay} />
             ) : (
               <PassportView
                 onRequestSignIn={() => setSignInReason('passport')}
                 onOpenReview={() => navigate((prev) => ({ ...prev, tab: 'passport', overlay: 'review' }))}
+                onOpenMetrics={() => navigate((prev) => ({ ...prev, tab: 'passport', overlay: 'metrics' }))}
               />
             )}
           </div>
@@ -1678,6 +1740,7 @@ export default function App() {
         {/* Fenly 2.0 Fill tab (with Supabase): fill a room, drafts, live listings' status */}
         {activeTab === 'fill' && flagsLoaded && supabaseConfigured && (
           <div className="relative flex-1 min-h-0 w-full flex flex-col overflow-hidden">
+            {!applicantsListingId && !statusListingId && <OnboardingBanner tab="fill" />}
             {applicantsListingId ? (
               <ApplicantInbox key={applicantsListingId} listingId={applicantsListingId} onBack={closeOverlay} onOpenThread={openThread} />
             ) : statusListingId ? (
@@ -1932,6 +1995,9 @@ export default function App() {
         }}
         room={currentRoom}
       />
+
+      {/* Fenly 2.0: "Add to Home Screen" after publishing or applying */}
+      <InstallPrompt />
 
       {/* Fenly 2.0 sign-in (Apply, Create Listing, Passport) */}
       <SignInSheet isOpen={signInReason !== null} reason={signInReason ?? 'passport'} onClose={closeSignIn} />

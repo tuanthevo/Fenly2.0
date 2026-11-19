@@ -71,7 +71,7 @@ export const NavMenu: React.FC<{ activeTab: FennTab; onSelectTab: (tab: FennTab)
                   onSelectTab(item.tab);
                 }}
                 className={`w-full px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-colors ${
-                  active ? 'bg-[#D06C4E]/15 text-[#D06C4E]' : 'text-[#2C2724] hover:bg-[#F2EFE9]'
+                  active ? 'bg-[#D06C4E]/15 text-[#A9513A]' : 'text-[#2C2724] hover:bg-[#F2EFE9]'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
