@@ -16,7 +16,8 @@ export interface Host {
 
 export interface Roommate {
   name: string;
-  age: number;
+  /** 1.0 demo rooms only; Fenly 2.0 never asks for or shows age (fair housing). */
+  age?: number;
   role: string;
   avatar: string;
   vibe: string;

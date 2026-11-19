@@ -199,7 +199,7 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-xs text-[#2C2724]">{mate.name}, {mate.age}</span>
+                      <span className="font-bold text-xs text-[#2C2724]">{mate.name}{mate.age != null ? `, ${mate.age}` : ''}</span>
                       <span className="text-[10px] text-[#485B4A] bg-[#E8EFE9] px-2 py-0.5 rounded-full border border-[#7A907C]/30 font-semibold">
                         {mate.role}
                       </span>

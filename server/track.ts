@@ -28,6 +28,15 @@ export const EVENT_NAMES = [
   "link_shared",
   "link_opened",
   "application_submitted",
+  // Find & Apply
+  "listing_saved",
+  "shortlisted",
+  "chosen",
+  "room_filled",
+  "id_verified",
+  "message_sent",
+  "report_submitted",
+  "housemate_joined",
 ] as const;
 export type EventName = (typeof EVENT_NAMES)[number];
 

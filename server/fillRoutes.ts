@@ -13,6 +13,9 @@ import { currentAccessToken, currentUser, requireUser } from "./auth.js";
 import { getAdminClient, getUserClient } from "./supabase.js";
 import { track } from "./track.js";
 import { renderListingPage, renderNotFoundPage } from "./publicPage.js";
+import { checkText, recordFlags } from "./moderation.js";
+import { notify } from "./notify.js";
+import { shouldHideListing } from "../src/find/moderation.js";
 import { generateLinkCode, isLinkCode, isListingId, shareUrl } from "../src/fill/linkCodes.js";
 import {
   PUBLISH_PROBLEM_TEXT,
@@ -154,6 +157,27 @@ function referrerHost(req: Request): string | null {
   }
 }
 
+/**
+ * Scam / fair-housing check on a newly published listing. Flags go to the review
+ * queue; a high-risk scam flag hides the room from Find (its link keeps working).
+ * Returns true when the listing was hidden for review. Never throws.
+ */
+async function moderateListing(listing: ListingRow): Promise<boolean> {
+  try {
+    const admin = getAdminClient();
+    const text = [listing.title, listing.description, listing.house_rules].filter(Boolean).join(" — ");
+    if (!admin || !text) return false;
+    const { flags } = await checkText(text, "listing");
+    await recordFlags(admin, "listing", listing.id, flags.filter((f) => f.category !== "off_platform"));
+    if (!shouldHideListing(flags)) return false;
+    await admin.from("listings").update({ hidden_at: new Date().toISOString() }).eq("id", listing.id);
+    return true;
+  } catch (error) {
+    console.error("listing moderation:", error instanceof Error ? error.message : error);
+    return false;
+  }
+}
+
 export function registerFillRoutes(app: Express): void {
   // Start a draft: the two-question start (move-out date, rent for the room).
   app.post("/api/listings", requireUser(), async (req, res) => {
@@ -273,6 +297,7 @@ export function registerFillRoutes(app: Express): void {
       return res.status(500).json({ error: "links_failed" });
     }
     let published = listing;
+    let underReview = false;
     if (listing.status !== "published") {
       const { data, error } = await db
         .from("listings")
@@ -283,12 +308,14 @@ export function registerFillRoutes(app: Express): void {
       if (error) return dbError(res, error, "publish listing");
       published = data as ListingRow;
       await track("listing_published", { channels: links.length }, { userId: user.id, listingId: listing.id });
+      underReview = await moderateListing(published);
     }
     const urls = Object.fromEntries(links.map((l) => [l.channel, shareUrl(origin, l.code)])) as Record<ShareChannel, string>;
     res.json({
       listing: published,
       links: links.map((l) => ({ ...l, url: urls[l.channel] })),
       posts: buildSharePosts(toFillListingInfo(published), urls, todayIn(new Date())),
+      underReview,
     });
   });
 
@@ -336,7 +363,12 @@ export function registerFillRoutes(app: Express): void {
     const user = currentUser(res)!;
     const id = req.params.id;
     if (!isListingId(id)) return res.status(404).json({ error: "not_found" });
-    const { note, moveInDate, via } = req.body ?? {};
+    const { note, moveInDate, via, introVideoPath } = req.body ?? {};
+    const intro =
+      typeof introVideoPath === "string" && introVideoPath.length <= 200 && introVideoPath.startsWith(`${user.id}/`) && /^[A-Za-z0-9_-]+\.(webm|mp4|mov)$/.test(introVideoPath.slice(user.id.length + 1))
+        ? introVideoPath
+        : null;
+    if (introVideoPath != null && !intro) return res.status(400).json({ error: "invalid", errors: ["That intro video didn't upload correctly."] });
     if (note != null && (typeof note !== "string" || note.length > 1000)) {
       return res.status(400).json({ error: "invalid", errors: ["Keep the note under 1,000 characters."] });
     }
@@ -362,6 +394,7 @@ export function registerFillRoutes(app: Express): void {
         note: typeof note === "string" && note.trim() ? note.trim() : null,
         move_in_date: moveInDate ?? null,
         source_link_id: sourceLinkId,
+        intro_video_path: intro,
       })
       .select("id, status, created_at")
       .single();
@@ -370,7 +403,30 @@ export function registerFillRoutes(app: Express): void {
       if (error.code === "42501") return res.status(403).json({ error: "not_open", message: "This room isn't taking applications (or it's your own listing)." });
       return dbError(res, error, "apply");
     }
-    await track("application_submitted", { channel }, { userId: user.id, listingId: id });
+    await track("application_submitted", { channel, intro: Boolean(intro) }, { userId: user.id, listingId: id });
+    if (admin) {
+      // Tell the host and housemates.
+      const [{ data: listing }, { data: members }, { count }] = await Promise.all([
+        admin.from("listings").select("owner_id, neighborhood, city").eq("id", id).maybeSingle(),
+        admin.from("house_members").select("user_id").eq("listing_id", id),
+        admin.from("applications").select("id", { count: "exact", head: true }).eq("listing_id", id),
+      ]);
+      if (listing) {
+        const recipients = [...new Set([listing.owner_id, ...(members ?? []).map((m) => m.user_id)])];
+        const { data: names } = await admin.from("users").select("id, first_name").in("id", recipients);
+        await Promise.all(
+          recipients.map((uid) =>
+            notify({
+              userId: uid,
+              kind: "new_applicant",
+              listingId: id,
+              payload: { area: listing.neighborhood ?? listing.city, firstName: (names ?? []).find((n) => n.id === uid)?.first_name ?? null, applicantCount: count ?? 1, path: `/?applicants=${id}` },
+              appUrl: publicOrigin(req),
+            })
+          )
+        );
+      }
+    }
     res.status(201).json({ application: data });
   });
 

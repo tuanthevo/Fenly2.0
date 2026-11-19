@@ -14,6 +14,8 @@ export const FEATURE_FLAGS = [
   'ai_staging', // AI staging studio (image generation)
   'mascots', // Fenn / Wren mascot illustrations and the brand-kit sheet
   'house_os_extras', // House OS: utility bill splitter, Credit Boost
+  'demo_listings', // 1.0 mock rooms in the Find feed after the real ones
+  'id_check', // Passport Level 2 ID check (demo provider until a vendor is wired in server/idCheck.ts)
 ] as const;
 
 export type FeatureFlag = (typeof FEATURE_FLAGS)[number];
@@ -27,6 +29,8 @@ export const DEFAULT_FLAGS: Readonly<FeatureFlags> = Object.freeze({
   ai_staging: false,
   mascots: false,
   house_os_extras: false,
+  demo_listings: false,
+  id_check: false,
 });
 
 export function isFeatureFlag(value: string): value is FeatureFlag {

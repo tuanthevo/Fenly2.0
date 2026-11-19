@@ -45,6 +45,11 @@ import type { ViralAiHints } from "../src/remotion/viral/types.js";
 import { requireFlag } from "./flags.js";
 import { registerFoundationRoutes } from "./foundationRoutes.js";
 import { registerFillRoutes } from "./fillRoutes.js";
+import { registerFindRoutes } from "./findRoutes.js";
+import { registerHostRoutes } from "./hostRoutes.js";
+import { registerInboxRoutes } from "./inboxRoutes.js";
+import { registerPassportRoutes } from "./passportRoutes.js";
+import { registerAdminRoutes } from "./adminRoutes.js";
 
 const app = express();
 
@@ -1292,6 +1297,11 @@ If you don't know the song, infer a fitting feel from the words. Never include t
 registerFoundationRoutes(app);
 // Fenly 2.0 Fill: /api/listings/*, /api/media/thumb/:id, /r/:code
 registerFillRoutes(app);
+registerFindRoutes(app);
+registerHostRoutes(app);
+registerInboxRoutes(app);
+registerPassportRoutes(app);
+registerAdminRoutes(app);
 
 // Unknown /api routes get a JSON 404 instead of falling through to the React app.
 app.use("/api", (_req, res) => {

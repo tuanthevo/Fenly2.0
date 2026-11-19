@@ -2,13 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { Mail, Phone, X, ShieldCheck, Loader2, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
 
-export type SignInReason = 'apply' | 'publish' | 'passport' | 'message';
+export type SignInReason = 'apply' | 'publish' | 'passport' | 'message' | 'house' | 'report';
 
 const REASON_TEXT: Record<SignInReason, string> = {
   apply: 'Sign in to apply. Your Passport fills in the application for you.',
   publish: 'Sign in to list your room. Your listing and applicants stay under your account.',
   passport: 'Sign in to build your Renter Passport.',
-  message: 'Sign in to message the host.',
+  message: 'Sign in to see your messages.',
+  house: 'Sign in to join your house and review applicants with the host.',
+  report: 'Sign in to send a report. We review every one.',
 };
 
 interface SignInSheetProps {

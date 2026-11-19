@@ -3,8 +3,9 @@
  * listings' status. Signed out, the button asks to sign in first (App's gate).
  */
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, ChevronRight, DoorOpen, Loader2, Plus, Video, Link2, LineChart } from 'lucide-react';
+import { ArrowLeft, ChevronRight, DoorOpen, Loader2, Plus, Video, Link2, LineChart, Users } from 'lucide-react';
 import { fillApi } from '../../lib/fillApi';
+import { findApi, type HostingRow } from '../../lib/findApi';
 import { formatRentCents } from '../../fill/publicListing';
 import { daysUntil, todayIn } from '../../fill/fillStatus';
 
@@ -21,12 +22,30 @@ interface FillHomeProps {
   onStartFill: () => void;
   onResume: (listingId: string) => void;
   onOpenStatus: (listingId: string) => void;
+  /** applicant inbox for a live or filled room (host or housemate) */
+  onOpenApplicants?: (listingId: string) => void;
   onBack: () => void;
 }
 
-export const FillHome: React.FC<FillHomeProps> = ({ signedIn, onStartFill, onResume, onOpenStatus, onBack }) => {
+export const FillHome: React.FC<FillHomeProps> = ({ signedIn, onStartFill, onResume, onOpenStatus, onOpenApplicants, onBack }) => {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hosting, setHosting] = useState<HostingRow[]>([]);
+
+  useEffect(() => {
+    if (!signedIn || !onOpenApplicants) {
+      setHosting([]);
+      return;
+    }
+    let alive = true;
+    findApi
+      .hosting()
+      .then((data) => alive && setHosting(data.listings))
+      .catch(() => alive && setHosting([]));
+    return () => {
+      alive = false;
+    };
+  }, [signedIn, onOpenApplicants]);
 
   useEffect(() => {
     if (!signedIn) {
@@ -85,6 +104,39 @@ export const FillHome: React.FC<FillHomeProps> = ({ signedIn, onStartFill, onRes
           <Plus className="w-4 h-4" /> Fill my room
         </button>
       </div>
+
+      {signedIn && hosting.length > 0 && onOpenApplicants && (
+        <div className="space-y-2" data-testid="fill-applicants">
+          <h3 className="text-xs font-extrabold text-[#6E655F] uppercase tracking-wide px-1">Applicants</h3>
+          <div className="rounded-2xl bg-white border border-[#2C2724]/15 divide-y divide-[#2C2724]/10 shadow-warm-sm overflow-hidden">
+            {hosting.map((h) => (
+              <button
+                key={h.id}
+                type="button"
+                onClick={() => onOpenApplicants(h.id)}
+                data-testid={`fill-applicants-${h.id}`}
+                className="w-full px-4 py-3.5 flex items-center gap-3 hover:bg-[#F9F7F3] transition-colors text-left"
+              >
+                <div className="w-9 h-9 rounded-xl bg-[#EBF0EC] text-[#485B4A] flex items-center justify-center shrink-0">
+                  <Users className="w-4 h-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-bold truncate">{h.title || `Room in ${h.neighborhood || 'San Francisco'}`}</div>
+                  <div className="text-[11px] text-[#6E655F]">
+                    {h.applicants === 0 ? 'No applicants yet' : `${h.applicants} applicant${h.applicants === 1 ? '' : 's'}${h.open ? ` · ${h.open} open` : ''}`}
+                    {h.status === 'filled' ? ' · Filled' : ''}
+                    {h.role === 'housemate' ? ' · You’re a housemate' : ''}
+                  </div>
+                </div>
+                {h.open > 0 && h.status === 'published' && (
+                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-[#D06C4E] text-white text-[10px] font-black flex items-center justify-center">{h.open}</span>
+                )}
+                <ChevronRight className="w-4 h-4 text-[#6E655F] shrink-0" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {signedIn && (
         <div className="space-y-2">
