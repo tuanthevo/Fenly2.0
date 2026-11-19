@@ -509,6 +509,11 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
       >
         <LogOut className="w-3.5 h-3.5" /> Sign out
       </button>
+      <p className="text-center text-[11px] text-[#6E655F]">
+        <a href="/privacy.html" className="inline-flex items-center min-h-10 px-2 underline font-bold">Privacy</a>
+        <span aria-hidden="true">·</span>
+        <a href="/terms.html" className="inline-flex items-center min-h-10 px-2 underline font-bold">Terms</a>
+      </p>
     </div>
   );
 };

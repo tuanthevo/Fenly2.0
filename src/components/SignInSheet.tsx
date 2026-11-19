@@ -237,7 +237,9 @@ export const SignInSheet: React.FC<SignInSheetProps> = ({ isOpen, reason, onClos
           </p>
         )}
         <p className="text-[10px] text-[#6E655F]/80 leading-relaxed">
-          We only show badges to hosts (phone verified, ID verified). Your documents stay private.
+          We only show badges to hosts (phone verified, ID verified). Your documents stay private. By continuing you agree to the{' '}
+          <a href="/terms.html" target="_blank" rel="noopener" className="underline font-bold text-[#6E655F]">Terms</a> and{' '}
+          <a href="/privacy.html" target="_blank" rel="noopener" className="underline font-bold text-[#6E655F]">Privacy policy</a>.
         </p>
       </div>
     </div>
