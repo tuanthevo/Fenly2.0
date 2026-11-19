@@ -1534,7 +1534,7 @@ export default function App() {
                       onClick={handlePrevRoom}
                       aria-label="Previous Listing"
                       title="Previous Listing"
-                      className="w-7 h-7 rounded-lg hover:bg-[#EBF0EC] text-[#2C2724] flex items-center justify-center active:scale-90 transition-all"
+                      className="w-10 h-10 rounded-lg hover:bg-[#EBF0EC] text-[#2C2724] flex items-center justify-center active:scale-90 transition-all"
                     >
                       <ChevronUp className="w-4 h-4" />
                     </button>
@@ -1550,7 +1550,7 @@ export default function App() {
                       onClick={handleNextRoom}
                       aria-label="Next Listing"
                       title="Next Listing"
-                      className="w-7 h-7 rounded-lg hover:bg-[#EBF0EC] text-[#2C2724] flex items-center justify-center active:scale-90 transition-all"
+                      className="w-10 h-10 rounded-lg hover:bg-[#EBF0EC] text-[#2C2724] flex items-center justify-center active:scale-90 transition-all"
                     >
                       <ChevronDown className="w-4 h-4" />
                     </button>
