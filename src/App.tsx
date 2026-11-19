@@ -68,6 +68,7 @@ const FillStatusView = lazyScreen(() => import('./components/fill/FillStatusView
 const InboxView = lazyScreen(() => import('./components/find/InboxView').then((m) => m.InboxView));
 const ApplicantInbox = lazyScreen(() => import('./components/find/ApplicantInbox').then((m) => m.ApplicantInbox));
 const ReviewQueue = lazyScreen(() => import('./components/find/ReviewQueue').then((m) => m.ReviewQueue));
+const MetricsView = lazyScreen(() => import('./components/find/MetricsView').then((m) => m.MetricsView));
 const FillFlow = lazyComponent(() => import('./components/fill/FillFlow').then((m) => m.FillFlow));
 const ApplySheet = lazyComponent(() => import('./components/fill/ApplySheet').then((m) => m.ApplySheet));
 import { BottomNavBar, FennTab } from './components/BottomNavBar';
@@ -463,6 +464,7 @@ export default function App() {
       ? nav.overlay.slice('applicants:'.length)
       : null;
   const reviewOpen = nav.overlay === 'review';
+  const metricsOpen = nav.overlay === 'metrics';
   const openApplicants = (listingId: string) => navigate((prev) => ({ ...prev, tab: 'fill', overlay: `applicants:${listingId}` }));
   const openThread = (applicationId: string) => {
     setInboxThreadId(applicationId);
@@ -1686,10 +1688,13 @@ export default function App() {
           <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden">
             {reviewOpen ? (
               <ReviewQueue onBack={closeOverlay} />
+            ) : metricsOpen ? (
+              <MetricsView onBack={closeOverlay} />
             ) : (
               <PassportView
                 onRequestSignIn={() => setSignInReason('passport')}
                 onOpenReview={() => navigate((prev) => ({ ...prev, tab: 'passport', overlay: 'review' }))}
+                onOpenMetrics={() => navigate((prev) => ({ ...prev, tab: 'passport', overlay: 'metrics' }))}
               />
             )}
           </div>

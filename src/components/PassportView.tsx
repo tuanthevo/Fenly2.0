@@ -6,7 +6,7 @@
  * Lifestyle questions are logistics and habits only, never protected traits.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { BadgeCheck, Phone, IdCard, Receipt, Loader2, LogOut, ShieldCheck, Check, Camera, Circle, Mail, ShieldAlert } from 'lucide-react';
+import { BadgeCheck, Phone, IdCard, Receipt, Loader2, LogOut, ShieldCheck, Check, Camera, Circle, Mail, ShieldAlert, BarChart3 } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
 import { useFlag } from '../config/FlagsProvider';
 import { LIFESTYLE_QUESTIONS, cleanLifestyle } from '../find/lifestyle';
@@ -42,11 +42,12 @@ interface PassportViewProps {
   onRequestSignIn: () => void;
   /** Fenly staff only (FENLY_ADMIN_EMAILS) */
   onOpenReview?: () => void;
+  onOpenMetrics?: () => void;
 }
 
 const PHOTO_PATH = (uid: string) => `${uid}/photo.jpg`;
 
-export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onOpenReview }) => {
+export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onOpenReview, onOpenMetrics }) => {
   const { ready, configured, user, supabase, signOut } = useAuth();
   const idCheckOn = useFlag('id_check');
   const [bio, setBio] = useState('');
@@ -490,6 +491,16 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
           data-testid="open-review-queue"
         >
           <ShieldAlert className="w-3.5 h-3.5" /> Review queue
+        </button>
+      )}
+      {isAdmin && onOpenMetrics && (
+        <button
+          type="button"
+          onClick={onOpenMetrics}
+          className="w-full min-h-11 rounded-xl bg-white border border-[#2C2724] text-xs font-extrabold flex items-center justify-center gap-1.5"
+          data-testid="open-metrics"
+        >
+          <BarChart3 className="w-3.5 h-3.5" /> Metrics
         </button>
       )}
 

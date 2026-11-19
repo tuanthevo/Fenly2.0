@@ -7,6 +7,8 @@ import { api } from './fillApi';
 import { findQueryString, type FindFilters, type FindListing } from '../find/findFilters';
 import type { Fit } from '../find/fit';
 import type { Lifestyle } from '../find/lifestyle';
+import type { FunnelReport } from '../../server/metrics';
+export type { FunnelReport };
 
 export type HostingRow = {
   id: string;
@@ -120,6 +122,7 @@ export const findApi = {
   settings: (notifyEmail: boolean) => api<{ notifyEmail: boolean }>('/api/me/settings', { method: 'PATCH', body: { notifyEmail } }),
 
   queue: () => api<{ flags: QueueFlag[] }>('/api/admin/queue'),
+  metrics: (days: 7 | 28) => api<FunnelReport>(`/api/admin/metrics?days=${days}`),
   resolveFlag: (flagId: string, action: 'clear' | 'hide') => api<{ ok: boolean }>(`/api/admin/flags/${flagId}`, { method: 'POST', body: { action } }),
 };
 

@@ -10,6 +10,8 @@ import { publicOrigin } from "./fillRoutes.js";
 import { adminDb, dbError, isAdminUser, isUuid } from "./routeKit.js";
 import { moveOutReminderDue } from "./emails.js";
 import { daysUntil, todayIn } from "../src/fill/fillStatus.js";
+import { buildFunnel, median, parseMetricsDays } from "./metrics.js";
+import { LAUNCH_AREAS, launchAreaOf } from "../src/find/findFilters.js";
 
 type Row = Record<string, any>;
 
@@ -91,6 +93,78 @@ export function registerAdminRoutes(app: Express): void {
       }
     }
     res.json({ ok: true });
+  });
+
+  // Part 6 funnel for the last 7 or 28 days (counts only; no personal data leaves the server).
+  app.get("/api/admin/metrics", requireUser(), requireAdmin, async (req, res) => {
+    const admin = adminDb(res);
+    if (!admin) return;
+    const days = parseMetricsDays(req.query.days);
+    const now = Date.now();
+    const since = new Date(now - days * 86_400_000).toISOString();
+    const sixtyDaysAgo = new Date(now - 60 * 86_400_000).toISOString();
+    const DAY = 86_400_000;
+    try {
+      const countEvent = async (name: string) => {
+        const { count, error } = await admin.from("events").select("id", { count: "exact", head: true }).eq("name", name).gte("created_at", since);
+        if (error) throw new Error(error.message);
+        return count ?? 0;
+      };
+      const [fillStarted, listingPublished, linkShared, linkOpened, applicationSubmitted] = await Promise.all(
+        ["fill_started", "listing_published", "link_shared", "link_opened", "application_submitted"].map(countEvent)
+      );
+      const [published, shares, apps, filledRows, chosenOld] = await Promise.all([
+        admin.from("listings").select("id").gte("published_at", since).limit(10000),
+        admin.from("events").select("listing_id").eq("name", "link_shared").gte("created_at", since).not("listing_id", "is", null).limit(50000),
+        admin.from("applications").select("listing_id, source_link_id").gte("created_at", since).limit(50000),
+        admin.from("listings").select("id, neighborhood, published_at, filled_at").eq("status", "filled").gte("filled_at", since).limit(10000),
+        admin.from("applications").select("applicant_id").eq("status", "chosen").lte("updated_at", sixtyDaysAgo).limit(10000),
+      ]);
+      for (const r of [published, shares, apps, filledRows, chosenOld]) if (r.error) throw new Error(r.error.message);
+      const publishedIds = new Set((published.data ?? []).map((l) => l.id));
+      const sharedIds = new Set((shares.data ?? []).map((e) => e.listing_id).filter((id) => publishedIds.has(id)));
+      const appListingIds = [...new Set((apps.data ?? []).map((a) => a.listing_id))];
+      const { data: appListings } = appListingIds.length
+        ? await admin.from("listings").select("id, status").in("id", appListingIds)
+        : { data: [] as Row[] };
+      const linkIds = [...new Set((apps.data ?? []).map((a) => a.source_link_id).filter(Boolean))];
+      const { data: links } = linkIds.length ? await admin.from("listing_links").select("id, channel").in("id", linkIds) : { data: [] as Row[] };
+      const sharedLinkIds = new Set((links ?? []).filter((l) => l.channel !== "direct").map((l) => l.id));
+      const chosenIds = [...new Set((chosenOld.data ?? []).map((a) => a.applicant_id))];
+      const { count: active } = chosenIds.length
+        ? await admin.from("passports").select("user_id", { count: "exact", head: true }).in("user_id", chosenIds).gte("updated_at", sixtyDaysAgo)
+        : { count: 0 };
+      const filled = filledRows.data ?? [];
+      const launch = new Set<string>(LAUNCH_AREAS);
+      res.json(
+        buildFunnel({
+          days,
+          events: {
+            fill_started: fillStarted,
+            listing_published: listingPublished,
+            link_shared: linkShared,
+            link_opened: linkOpened,
+            application_submitted: applicationSubmitted,
+          },
+          publishedListings: publishedIds.size,
+          sharedListings: sharedIds.size,
+          listingsWithApplications: appListingIds.length,
+          filledOfThose: (appListings ?? []).filter((l) => l.status === "filled").length,
+          filled: filled.length,
+          filledLaunchArea: filled.filter((l) => launch.has(launchAreaOf(l.neighborhood) ?? "")).length,
+          medianDaysToFill: median(
+            filled.filter((l) => l.published_at && l.filled_at).map((l) => (Date.parse(l.filled_at) - Date.parse(l.published_at)) / DAY)
+          ),
+          applications: (apps.data ?? []).length,
+          applicationsViaSharedLink: (apps.data ?? []).filter((a) => a.source_link_id && sharedLinkIds.has(a.source_link_id)).length,
+          chosenLongAgo: chosenIds.length,
+          chosenStillActive: active ?? 0,
+        })
+      );
+    } catch (error) {
+      console.error("metrics:", error instanceof Error ? error.message : error);
+      res.status(500).json({ error: "database_error" });
+    }
   });
 
   // Daily: move-out reminders (14, 7 and 3 days before) for rooms that aren't filled yet.
