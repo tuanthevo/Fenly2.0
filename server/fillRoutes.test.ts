@@ -82,3 +82,27 @@ test("a filled listing says so and offers similar rooms instead of Apply", () =>
   assert.ok(!html.includes("Apply with your Passport"));
   assert.ok(renderNotFoundPage("/").includes("isn&#39;t available") || renderNotFoundPage("/").includes("isn't available"));
 });
+
+test("listing page stays small and paints the cover first on mobile data", () => {
+  const info = toFillListingInfo({
+    ...ROW,
+    description: "A long description. ".repeat(190),
+    amenities: ["Furnished", "In-unit laundry", "Private bath", "Backyard", "Bike storage", "Dishwasher", "Fast wifi", "Utilities included"],
+  });
+  const html = renderListingPage({
+    listing: info,
+    status: "published",
+    metaTags: buildListingMeta(info, { url: "https://fenly.app/r/fbCode01", imageUrl: "https://fenly.app/api/media/thumb/a.jpg" }),
+    videoUrl: "https://x.supabase.co/storage/v1/object/sign/listing-videos/a/full.mp4?token=t",
+    posterUrl: "https://x.supabase.co/storage/v1/object/sign/listing-thumbnails/a/thumb.jpg?token=t",
+    applyHref: "/?apply=aaaa&via=fbCode01",
+    findHref: "/",
+    today: "2026-11-17",
+  });
+  const bytes = Buffer.byteLength(html, "utf8");
+  assert.ok(bytes < 20_000, `listing page is ${bytes} bytes`);
+  assert.ok(html.includes('<link rel="preconnect" href="https://x.supabase.co" crossorigin>'));
+  assert.ok(/<link rel="preload" as="image" href="https:\/\/x\.supabase\.co[^"]*thumb\.jpg[^"]*" fetchpriority="high">/.test(html));
+  assert.ok(html.includes('preload="none"'), "the video waits for the cover");
+  assert.ok(!/<script/i.test(html), "no JavaScript on the listing page");
+});

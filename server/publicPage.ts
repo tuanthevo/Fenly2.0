@@ -57,6 +57,22 @@ ${body}
 </html>`;
 }
 
+/**
+ * First paint on mobile data: connect to the media host early and fetch the
+ * cover first, so the room shows before the video has buffered.
+ */
+function speedHints(input: ListingPageInput): string {
+  const hints: string[] = ['<link rel="icon" href="/icons/fenn.svg" type="image/svg+xml">', '<link rel="manifest" href="/manifest.webmanifest">'];
+  const media = input.posterUrl ?? input.videoUrl;
+  try {
+    if (media && /^https:/.test(media)) hints.push(`<link rel="preconnect" href="${escapeHtml(new URL(media).origin)}" crossorigin>`);
+  } catch {
+    // not a URL: skip the hint
+  }
+  if (input.posterUrl) hints.push(`<link rel="preload" as="image" href="${escapeHtml(input.posterUrl)}" fetchpriority="high">`);
+  return hints.join("\n");
+}
+
 export function renderListingPage(input: ListingPageInput): string {
   const { listing } = input;
   const title = listing.title?.trim() || listingHeadline(listing);
@@ -69,9 +85,9 @@ export function renderListingPage(input: ListingPageInput): string {
   const filled = input.status === "filled";
 
   const media = input.videoUrl
-    ? `<video src="${escapeHtml(input.videoUrl)}"${input.posterUrl ? ` poster="${escapeHtml(input.posterUrl)}"` : ""} playsinline muted autoplay loop controls preload="metadata"></video>`
+    ? `<video src="${escapeHtml(input.videoUrl)}"${input.posterUrl ? ` poster="${escapeHtml(input.posterUrl)}"` : ""} playsinline muted autoplay loop controls preload="none" aria-label="Video tour of the room in ${escapeHtml(area)}"></video>`
     : input.posterUrl
-      ? `<img src="${escapeHtml(input.posterUrl)}" alt="Room in ${escapeHtml(area)}">`
+      ? `<img src="${escapeHtml(input.posterUrl)}" alt="Room in ${escapeHtml(area)}" fetchpriority="high">`
       : "";
 
   const amenities = listing.amenities.length
@@ -101,7 +117,8 @@ ${filled ? `<div class="card"><h2>This room is taken</h2><p>It filled through Fe
       : `<a href="${escapeHtml(input.applyHref)}">Apply with your Passport</a>`
   }</div>`;
 
-  return page(`${title} · Fenn`, input.metaTags, body);
+  return page(`${title} · Fenn`, `${speedHints(input)}
+${input.metaTags}`, body);
 }
 
 export function renderNotFoundPage(findHref: string): string {
