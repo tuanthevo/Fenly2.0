@@ -227,6 +227,8 @@ export type ViralShot = {
    * scale 1 = no reframe.
    */
   reframe: { scale: number; originX: number };
+  /** 2 = a second moment from later in the same clip (long clips; see plan.ts MOMENT_SEC) */
+  part?: 2;
   /** Set for photo tours: the shot is a still photo moved by this camera path instead of video */
   photo?: PhotoMotion;
 };

@@ -1,24 +1,24 @@
 /**
  * Turns the host's guided clips into a short-form edit plan.
  *
- * FULL TOUR (default, balanced pace, 5 guided 7 s shots, about 27 s;
- * snappy ~24 s, relaxed ~31 s)
+ * FULL TOUR (default, balanced pace, 5 guided 7 s shots, about 34 s; long clips
+ * add a second moment per room, up to 45 s. Rooms play at a calm speed matched
+ * to the camera's movement, 0.85-1.15x, with no speed ramps.)
  *   0.0 s   HOOK     best frame of the best shot, price + neighborhood headline.
  *                    On screen for its reading time (2.5-3.2 s), 1.0x speed.
  *   ~2.7 s  ANSWER   same shot keeps rolling; "1 bed · 1 bath", "220 sq ft" and
  *                    an amenity pop in (about 3 s).
- *   ~5.7 s  ROOMS    ~5 s per room: a 2x speed ramp through the whip / zoom
- *                    cut, then a speed matched to how fast the camera moves
- *                    (0.95-1.35x) so every room feels equally paced; the room
- *                    callout at 0.3 s and a second detail at ~2.3 s. A
+ *   ~5.7 s  ROOMS    ~7 s per room (two ~5.5 s moments for a long clip, joined
+ *                    by a zoom cut); whips between rooms; a calm speed matched
+ *                    to how fast the camera moves (0.85-1.15x), no ramps; the
+ *                    room callout at 0.3 s and a second detail at ~2.3 s. A
  *                    "wait for…" re-hook lands near the middle of the video.
- *   ~20.7 s PERK     light-leak cut, 2x ramp into 0.85x slow motion, the perk
- *                    revealed big (about 3.4 s).
- *   ~24.1 s END      price question over the last shot (about 3.2 s), then the
+ *   PERK             light-leak cut, 0.85x slow motion, the perk revealed big.
+ *   END              price question over the last shot (about 3.2 s), then the
  *                    first frame fades back in so the video loops.
  *
  * TEASER (~13-15 s): same structure without the answer beat or second callouts,
- * ~2.2 s rooms at 1.1-1.6x.
+ * ~2.2 s rooms at 1.0-1.25x.
  *
  * Section lengths shrink to fit the clean footage a clip actually has (room in
  * view, steady camera, from the clip analysis), so a short clip never shows a
@@ -109,9 +109,10 @@ export const LENGTH_PRESETS: Record<ViralLength, LengthPreset> = {
     minTourSec: 2.6,
     closerSec: 5,
     endCardSec: 3.5,
-    tourRate: { targetMotion: 0.075, fallback: 1.12, min: 0.95, max: 1.35 },
+    // Calm by default: a fast camera is slowed down, a very slow one sped up a little (host feedback, Nov 2026)
+    tourRate: { targetMotion: 0.05, fallback: 1, min: 0.85, max: 1.15 },
     closerRate: 0.85,
-    ramp: { rate: 2, extraFrames: 4 },
+    ramp: null,
     details: true,
   },
   teaser: {
@@ -123,9 +124,9 @@ export const LENGTH_PRESETS: Record<ViralLength, LengthPreset> = {
     minTourSec: 1.2,
     closerSec: 2.2,
     endCardSec: 2.2,
-    tourRate: { targetMotion: 0.1, fallback: 1.35, min: 1.1, max: 1.6 },
+    tourRate: { targetMotion: 0.07, fallback: 1.1, min: 1, max: 1.25 },
     closerRate: 1,
-    ramp: { rate: 2, extraFrames: 3 },
+    ramp: null,
     details: false,
   },
 };
@@ -141,9 +142,10 @@ export const PACE_PRESETS: Record<
 };
 
 /** Speed limits. The hook plays in real time so its first frame and headline read cleanly. */
-export const SPEED = { hero: 1, minHero: 0.8, minTour: 0.9, minCloser: 0.7, max: 1.6 } as const;
+export const SPEED = { hero: 1, minHero: 0.8, minTour: 0.85, minCloser: 0.7, max: 1.6 } as const;
 
-export const CUT_CYCLE: ViralCutKind[] = ['whip-left', 'zoom-through', 'whip-right'];
+/** Room changes alternate whips; the zoom is kept for two moments of the same room. */
+export const CUT_CYCLE: ViralCutKind[] = ['whip-left', 'whip-right'];
 export const CLOSER_OVERLAY_FRAMES = 12;
 
 /** Guided slots that usually make the best opener: bedroom, perk, kitchen. */
@@ -164,6 +166,24 @@ const CLOSER_KEEP_RATE = 0.75;
 /** A room may play up to 15% slower than its matched speed to fill its section */
 const ROOM_KEEP_FACTOR = 0.85;
 const SOURCE_TAIL_SEC = 0.05;
+
+/**
+ * Long clips (full tour only) give a room a second moment from later in the
+ * same clip, joined by a zoom cut, instead of throwing that footage away:
+ * a tour room splits in two, the opener's room gets a tour moment after the
+ * headline, and a closer that isn't the perk gets a moment before its reveal.
+ */
+export const MOMENT_SEC = 5.5;
+/** Clean footage a room needs before it is split into two moments */
+export const SPLIT_MIN_CLEAN_SEC = 10;
+/** Clean footage left beside the opener's headline that's worth a moment of its own */
+export const EXTRA_MIN_CLEAN_SEC = 4;
+/** Footage skipped between two moments of one clip, so the cut reads as a cut */
+const MOMENT_GAP_SEC = 0.5;
+/** Extra moments are dropped, last first, until the tour fits this */
+export const MAX_TOUR_TOTAL_SEC = 45;
+/** On-screen text size for video tours (photo tours use PHOTO_TEXT_SCALE) */
+export const VIDEO_TEXT_SCALE = 0.8;
 const MIN_START_SEC = 0.25;
 const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
 const round3 = (x: number) => Math.round(x * 1000) / 1000;
@@ -371,7 +391,90 @@ function snapToBeats(seconds: number[], endCardSec: number, fps: number, bpm: nu
   };
 }
 
+type Window = { startSec: number; endSec: number };
+type Segment = { clip: ViralClipInput; role: ViralShotRole; part: 1 | 2; window?: Window };
+
+/** One segment per clip, plus a second moment for clips with long clean footage (see MOMENT_SEC). */
+function planSegments(
+  ordered: ViralClipInput[],
+  length: ViralLength,
+  hookUseSec: number,
+  options: BuildViralPlanOptions,
+  maxExtras: number
+): { segs: Segment[]; extras: number } {
+  const n = ordered.length;
+  const segs: Segment[] = [];
+  let extras = 0;
+  const allow = () => length === 'full' && n > 1 && extras < maxExtras;
+  const halves = (src: SourceInfo): [Window, Window] => {
+    const { startSec: s, endSec: e } = src.clean;
+    const mid = (s + e) / 2;
+    const aStart = src.preferred >= s && src.preferred <= mid - 3 ? src.preferred : s;
+    return [
+      { startSec: aStart, endSec: mid - MOMENT_GAP_SEC / 2 },
+      { startSec: mid + MOMENT_GAP_SEC / 2, endSec: e },
+    ];
+  };
+  ordered.forEach((clip, i) => {
+    const role: ViralShotRole = i === 0 ? 'hook' : i === n - 1 ? 'closer' : 'tour';
+    const src = sourceInfo(clip, options.ai?.windows?.[clip.slotNumber]);
+    const { startSec: s, endSec: e } = src.clean;
+    if (role === 'hook') {
+      const earliest = Math.max(s, src.preferred - MAX_HOOK_SHIFT_SEC);
+      const hs = src.preferred + hookUseSec <= e ? src.preferred : Math.max(earliest, e - hookUseSec);
+      const he = Math.min(e, hs + hookUseSec);
+      const after = { startSec: he + MOMENT_GAP_SEC, endSec: e };
+      const before = { startSec: s, endSec: hs - MOMENT_GAP_SEC };
+      const side = after.endSec - after.startSec >= before.endSec - before.startSec ? after : before;
+      if (allow() && side.endSec - side.startSec >= EXTRA_MIN_CLEAN_SEC) {
+        extras++;
+        segs.push({ clip, role, part: 1, window: { startSec: hs, endSec: he } });
+        segs.push({ clip, role: 'tour', part: 2, window: side });
+      } else {
+        segs.push({ clip, role, part: 1 });
+      }
+      return;
+    }
+    const splittable = role === 'tour' || (role === 'closer' && clip.slotNumber !== 5);
+    if (splittable && allow() && e - s >= SPLIT_MIN_CLEAN_SEC) {
+      extras++;
+      const [a, b] = halves(src);
+      segs.push({ clip, role: 'tour', part: 1, window: a });
+      segs.push({ clip, role, part: 2, window: b });
+      return;
+    }
+    segs.push({ clip, role, part: 1 });
+  });
+  return { segs, extras };
+}
+
+/** The room's second callout (the one hosts edit as "detail"), wherever the plan placed it. */
+export function roomDetail(plan: Pick<ViralEditPlan, 'shots'>, slotNumber: number): string {
+  const shots = plan.shots.filter((s) => s.slotNumber === slotNumber && s.role !== 'hook');
+  const untagged = shots.find((s) => s.role === 'tour' && !s.tag && s.callouts.length > 0);
+  return (untagged?.callouts[0] ?? shots.flatMap((s) => s.callouts).find((c) => c.row === 1))?.text ?? '';
+}
+
+/** The shots the editor lists: the opener, then one row per room (the moment that carries the room's label). */
+export function editableShots(plan: Pick<ViralEditPlan, 'shots'>): ViralShot[] {
+  return plan.shots.filter((s, i) => {
+    if (s.role === 'hook') return true;
+    const same = plan.shots.filter((p) => p.slotNumber === s.slotNumber && p.role !== 'hook');
+    const pick = same.find((p) => p.tag) ?? same[0];
+    return pick === s && plan.shots.indexOf(pick) === i;
+  });
+}
+
 export function buildViralEditPlan(input: BuildViralPlanInput, options: BuildViralPlanOptions = {}): ViralEditPlan {
+  let plan = buildPlanWith(input, options, Infinity);
+  // Too long: drop extra moments, last first
+  for (let extras = plan.shots.filter((s) => s.part === 2).length - 1; extras >= 0 && plan.totalFrames / plan.fps > MAX_TOUR_TOTAL_SEC; extras--) {
+    plan = buildPlanWith(input, options, extras);
+  }
+  return plan;
+}
+
+function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOptions, maxExtras: number): ViralEditPlan {
   const clips = input.clips.filter((c) => Boolean(c.src));
   if (clips.length === 0) throw new Error('buildViralEditPlan needs at least one clip');
 
@@ -388,15 +491,32 @@ export function buildViralEditPlan(input: BuildViralPlanInput, options: BuildVir
       : null;
   const listing = input.listing;
 
-  const ordered = orderShots(clips, pickHookSlot(clips, options));
-  const n = ordered.length;
-  const roles: ViralShotRole[] = ordered.map((_, i) => (i === 0 ? 'hook' : i === n - 1 ? 'closer' : 'tour'));
-  const sources = ordered.map((clip) => sourceInfo(clip, options.ai?.windows?.[clip.slotNumber]));
+  const hook = resolveHook(style, input, options);
+  const hookTarget = hookReadSec(hook.text, length, pace);
+  const orderedClips = orderShots(clips, pickHookSlot(clips, options));
+  // Footage the opener uses (headline + facts beat + the cut out of it), so a second moment never repeats it
+  const hookUseSec = hookTarget + lp.heroFactsSec * preset.scale + 0.5;
+  const { segs } = planSegments(orderedClips, length, hookUseSec, options, maxExtras);
+  const ordered = segs.map((sg) => sg.clip);
+  const n = segs.length;
+  const roles: ViralShotRole[] = segs.map((sg) => sg.role);
+  const windowOf = (i: number) => segs[i].window ?? options.ai?.windows?.[segs[i].clip.slotNumber];
+  const sources = segs.map((_, i) => sourceInfo(ordered[i], windowOf(i)));
+  const isSplit = (i: number) => segs.some((sg, k) => k !== i && sg.clip === segs[i].clip && sg.role !== 'hook') && roles[i] !== 'hook';
 
-  // Cuts: whip / zoom transitions between rooms, a light-leak (or flash) hit into the closer
+  // Cuts: whip / zoom transitions between rooms, a zoom between two moments of one room, a light-leak (or flash) hit into the closer
   const cutKinds: ViralCutKind[] = [];
+  let roomCuts = 0;
   for (let i = 0; i < n - 1; i++) {
-    cutKinds.push(i === n - 2 ? (enableEffects ? 'light-leak' : 'flash') : CUT_CYCLE[i % CUT_CYCLE.length]);
+    cutKinds.push(
+      i === n - 2
+        ? enableEffects
+          ? 'light-leak'
+          : 'flash'
+        : segs[i + 1].clip === segs[i].clip
+        ? 'zoom-through'
+        : CUT_CYCLE[roomCuts++ % CUT_CYCLE.length]
+    );
   }
   const isOverlay = (kind: ViralCutKind) => kind === 'flash' || kind === 'light-leak';
   const overlapOf = (kind: ViralCutKind) => (isOverlay(kind) ? 0 : preset.cutFrames);
@@ -420,8 +540,6 @@ export function buildViralEditPlan(input: BuildViralPlanInput, options: BuildVir
   );
 
   // Section lengths: the preset's targets, shortened to the clean footage each clip has
-  const hook = resolveHook(style, input, options);
-  const hookTarget = hookReadSec(hook.text, length, pace);
   // Each shot also plays under the transition out of it, and frames round up: leave that footage spare
   const spareSec = (i: number) => (i < n - 1 ? overlapOf(cutKinds[i]) : 0) / fps + 1 / fps;
   const heroMax = cleanSeconds(sources[0], 'hook') / HERO_KEEP_RATE - spareSec(0);
@@ -445,7 +563,7 @@ export function buildViralEditPlan(input: BuildViralPlanInput, options: BuildVir
     const rampExtra = ramp ? (ramp.frames * (ramp.rate - keepRates[i])) / fps : 0;
     const fit = (cleanSeconds(sources[i], 'tour') - rampExtra) / keepRates[i] - spareSec(i);
     const floor = Math.min(lp.minTourSec * preset.scale, hardMax(i, SPEED.minTour));
-    return clamp(fit, floor, lp.tourSec * preset.scale);
+    return clamp(fit, floor, (isSplit(i) ? MOMENT_SEC : lp.tourSec) * preset.scale);
   });
   const { primary, endCard: endCardFrames } = snapToBeats(seconds, lp.endCardSec * preset.scale, fps, bpm);
 
@@ -463,8 +581,11 @@ export function buildViralEditPlan(input: BuildViralPlanInput, options: BuildVir
       cleanTag(clip.room)
     );
   })();
+  const unlabeled = (i: number) =>
+    roles[i] === 'tour' &&
+    ((i > 0 && segs[i - 1].clip === segs[i].clip && roles[i - 1] === 'tour') || (i < n - 1 && segs[i + 1].clip === segs[i].clip && roles[i + 1] === 'closer'));
   const tourTags = ordered.map((clip, i) =>
-    roles[i] === 'tour'
+    roles[i] === 'tour' && !unlabeled(i)
       ? cleanTag(options.tagOverrides?.[clip.slotNumber]) ||
         aiTag(options.ai?.tags?.[clip.slotNumber]) ||
         tags[clip.slotNumber] ||
@@ -496,7 +617,7 @@ export function buildViralEditPlan(input: BuildViralPlanInput, options: BuildVir
         minRate: role === 'hook' ? SPEED.minHero : role === 'closer' ? SPEED.minCloser : SPEED.minTour,
         ramp: rampFor(i),
       },
-      options.ai?.windows?.[clip.slotNumber]
+      windowOf(i)
     );
 
     let tag = '';
@@ -516,7 +637,14 @@ export function buildViralEditPlan(input: BuildViralPlanInput, options: BuildVir
       const rows = facts.length === 3 ? [-1, 0, 1] : facts.length === 2 ? [0, 1] : [0];
       facts.forEach((text, k) => callouts.push({ text, kind: 'fact', inFrame: from + 6 * k, outFrame: visibleEnd, row: rows[k] }));
     }
-    if (role === 'tour' && lp.details) {
+    // A room split in two: the labeled moment gets a listing fact, the other moment the room's detail
+    const hasDetailMoment = role === 'tour' && segs.some((sg, k) => k !== i && sg.clip === clip && unlabeled(k));
+    if (role === 'tour' && lp.details && hasDetailMoment) {
+      const inFrame = tagInFrame + Math.max(Math.round(1.6 * fps), Math.round(0.42 * primary[i]));
+      if (factQueue.length > 0 && inFrame < visibleEnd - Math.round(1.2 * fps)) {
+        callouts.push({ text: factQueue.shift()!, kind: 'fact', inFrame, outFrame: visibleEnd, row: 1 });
+      }
+    } else if (role === 'tour' && lp.details) {
       const hostDetail = options.detailOverrides?.[clip.slotNumber];
       const aiDetail = aiTag(options.ai?.details?.[clip.slotNumber]);
       const detail =
@@ -524,19 +652,21 @@ export function buildViralEditPlan(input: BuildViralPlanInput, options: BuildVir
           ? cleanTag(hostDetail)
             ? { text: cleanTag(hostDetail), kind: 'room' as const }
             : null
-          : aiDetail && aiDetail.toLowerCase() !== tag.toLowerCase()
+          : aiDetail && aiDetail.toLowerCase() !== (tag || tourTags.find((t, k) => t && segs[k].clip === clip) || '').toLowerCase()
           ? { text: aiDetail, kind: 'room' as const }
           : factQueue.length > 0
           ? { text: factQueue.shift()!, kind: 'fact' as const }
           : null;
-      const inFrame = tagInFrame + Math.max(Math.round(1.6 * fps), Math.round(0.42 * primary[i]));
+      // An unlabeled moment shows its detail right after the cut, in the label's place
+      const inFrame = unlabeled(i) ? tagInFrame + Math.round(0.3 * fps) : tagInFrame + Math.max(Math.round(1.6 * fps), Math.round(0.42 * primary[i]));
       if (detail && inFrame < visibleEnd - Math.round(1.2 * fps)) {
-        callouts.push({ ...detail, inFrame, outFrame: visibleEnd, row: 1 });
+        callouts.push({ ...detail, inFrame, outFrame: visibleEnd, row: unlabeled(i) ? 0 : 1 });
       }
     }
 
     shots.push({
-      id: `shot-${clip.slotNumber}`,
+      id: segs[i].part === 2 ? `shot-${clip.slotNumber}-2` : `shot-${clip.slotNumber}`,
+      ...(segs[i].part === 2 ? { part: 2 as const } : null),
       slotNumber: clip.slotNumber,
       room: clip.room,
       src: clip.src,
@@ -585,7 +715,9 @@ export function buildViralEditPlan(input: BuildViralPlanInput, options: BuildVir
 
   // Re-hook ("wait for the best part") on the room nearest the middle of the video
   let rehook: ViralEditPlan['rehook'] = null;
-  const tourIdx = shots.map((s, i) => (s.role === 'tour' ? i : -1)).filter((i) => i >= 0);
+  const tourAll = shots.map((s, i) => (s.role === 'tour' ? i : -1)).filter((i) => i >= 0);
+  const tourLabeled = tourAll.filter((i) => shots[i].tag);
+  const tourIdx = tourLabeled.length > 0 ? tourLabeled : tourAll;
   if (n >= 4 && tourIdx.length > 0) {
     const target = (length === 'full' ? 0.45 : 0.5) * totalFrames;
     const k =
@@ -666,6 +798,7 @@ export function buildViralEditPlan(input: BuildViralPlanInput, options: BuildVir
     length,
     hook,
     hookFontSize: hookFontSizeFor(hook.text),
+    textScale: VIDEO_TEXT_SCALE,
     hookExitFrame,
     hookExitFrames,
     priceLabel: priceLabel(listing.monthlyRent),

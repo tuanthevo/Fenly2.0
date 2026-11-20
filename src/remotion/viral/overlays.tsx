@@ -165,6 +165,9 @@ export const HookTitle: React.FC<{ plan: ViralEditPlan }> = ({ plan }) => {
   );
 };
 
+/** Story bar position (px from the top of 1920). */
+export const STORY_BAR_TOP = 110;
+
 /** Segmented story bar: tells viewers the video is short and how far along they are. */
 export const StoryProgress: React.FC<{ plan: ViralEditPlan }> = ({ plan }) => {
   const frame = useCurrentFrame();
@@ -175,7 +178,8 @@ export const StoryProgress: React.FC<{ plan: ViralEditPlan }> = ({ plan }) => {
     <div
       style={{
         position: 'absolute',
-        top: SAFE.top + 6,
+        // Higher than the text safe zone: it's a thin bar, not text, so app buttons covering it costs nothing
+        top: STORY_BAR_TOP,
         left: SAFE.left,
         width: 1080 - SAFE.left - SAFE.right,
         height: 8,
