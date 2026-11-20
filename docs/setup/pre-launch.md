@@ -3,7 +3,7 @@
 Work top to bottom. Detailed Supabase steps are in [supabase.md](supabase.md).
 
 ## 1. Supabase (production project)
-- [ ] **Schema:** SQL Editor → run `supabase/migrations/0001_foundation.sql`, then `0002_fill.sql`, then `0003_find_apply.sql`. Table Editor shows every table with the RLS badge on.
+- [ ] **Schema:** SQL Editor → run `supabase/migrations/0001_foundation.sql`, then `0002_fill.sql`, then `0003_find_apply.sql`, then `0004_listings_owner_select.sql`. Table Editor shows every table with the RLS badge on.
 - [ ] **Storage:** buckets `listing-videos`, `listing-thumbnails`, `profile-photos`, `applicant-intros` exist and are private. Storage → Settings → upload file size limit **≥ 50 MB** (finished tours are 15-30 MB).
 - [ ] **Auth → URL Configuration:**
   - Site URL = `https://<your-domain>`.
