@@ -26,6 +26,7 @@ export type ListingRow = {
   lease_permission: 'can_replace' | 'leaseholder' | 'not_sure' | null;
   beds: number | null;
   baths: number | string | null;
+  square_feet: number | null;
   amenities: string[];
   house_rules: string | null;
   caption: string | null;

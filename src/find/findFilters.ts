@@ -90,6 +90,7 @@ export type FindListing = {
   leaseTerm: string | null;
   beds: number | null;
   baths: number | null;
+  squareFeet?: number | null;
   amenities: string[];
   houseRules: string | null;
   status: 'published' | 'filled';
@@ -136,7 +137,7 @@ export function toRoomListing(l: FindListing, today: string): RoomListing {
     spaceCategory: 'room',
     leaseTerm: LEASE_TERM_MAP[(l.leaseTerm ?? '').toLowerCase()] ?? 'Month-to-month',
     availableDate: l.availableFrom ? (l.availableFrom <= today ? 'Available Now' : formatDay(l.availableFrom)) : 'Flexible',
-    squareFeet: 0,
+    squareFeet: l.squareFeet ?? 0,
     amenities: l.amenities ?? [],
     videoUrl: l.videoUrl ?? '',
     fallbackThumbnail: l.thumbUrl ?? '',

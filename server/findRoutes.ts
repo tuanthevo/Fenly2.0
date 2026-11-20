@@ -14,7 +14,7 @@ import { LAUNCH_AREAS, launchAreaOf, parseFindQuery, type FindListing } from "..
 
 const FEED_LIMIT = 40;
 const FEED_COLUMNS =
-  "id, owner_id, status, title, description, neighborhood, city, rent_cents, deposit_cents, available_from, lease_term, beds, baths, amenities, house_rules, published_at";
+  "id, owner_id, status, title, description, neighborhood, city, rent_cents, deposit_cents, available_from, lease_term, beds, baths, square_feet, amenities, house_rules, published_at";
 
 type Row = Record<string, any>;
 
@@ -59,6 +59,7 @@ export async function buildFindListings(admin: SupabaseClient, rows: Row[]): Pro
     leaseTerm: r.lease_term ?? null,
     beds: r.beds ?? null,
     baths: r.baths == null ? null : Number(r.baths),
+    squareFeet: r.square_feet ?? null,
     amenities: Array.isArray(r.amenities) ? r.amenities : [],
     houseRules: r.house_rules ?? null,
     status: r.status,

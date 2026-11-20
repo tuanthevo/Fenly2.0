@@ -26,6 +26,7 @@ runs as the signed-out demo (Passport says "Sign-in isn't set up").
    the draft listing they just created; without it, Fill shows "not_allowed").
 7. Then `supabase/migrations/0005_passport_stay_length.sql` (Passport "Length of
    stay", the same choices as the host's lease term).
+8. Then `supabase/migrations/0006_listing_square_feet.sql` (room size on listings).
 
 Later schema changes go in a new numbered file (`0002_...sql`); never edit one
 that has already been run.
