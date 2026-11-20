@@ -1805,8 +1805,9 @@ export default function App() {
                 setMasterLeaseConfig((prev) => ({ ...prev, ...updated }))
               }
             />
-            {/* Back within thumb reach on Home's sub-pages (the top one scrolls away on long pages) */}
-            {((homeRole === 'landlord' && nav.home.landlordPage !== 'none') ||
+            {/* Back within thumb reach on Home's long sub-pages (the top one scrolls away). Not on the
+                short Applications and Active listings pages, where the top back button stays in view. */}
+            {((homeRole === 'landlord' && !['none', 'applications', 'activeListings'].includes(nav.home.landlordPage)) ||
               (homeRole === 'renter' && nav.home.renterPage !== 'none')) && (
               <button
                 type="button"
