@@ -48,7 +48,7 @@ Targets after the November 2026 update: 30-45 s (rooms aim for 7 s, the perk for
 | Each room | ≈5 s (shorter when the clip has less clean footage, never under 2.6 s) | 2x ramp for the first ~11 frames (under the whip/zoom cut), then matched to camera movement, 0.95-1.35x | room tag at 0.3 s, a second callout at ~2.3 s | something new every ~2 s; a slow shuffle is sped up, a brisk walk stays near real time |
 | Re-hook | 1.2 s, on the room nearest 45% of the runtime | | "Wait for the best part" | carries viewers through the mid-video dip |
 | Perk | ≈3.4 s | 2x ramp into 0.85x slow motion | "THE BEST PART" + the perk, big | the payoff gets the slow, readable moment |
-| End card | ≈3.2 s | footage keeps rolling (may hold its last frame here only) | price question, place, specs, "Tour it on Fenn" | ~10 words need ~3 s to read |
+| End card | ≈3.2 s | footage keeps rolling (may hold its last frame here only) | price question, place, specs, "Tour it on Fenly" | ~10 words need ~3 s to read |
 | Loop | last ~0.3 s | | the opening shot fades back in | the replay starts seamlessly |
 
 Pace scales the sections: snappy ×0.85 (≈24 s), relaxed ×1.15 (≈31 s). The
