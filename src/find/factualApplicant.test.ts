@@ -19,6 +19,7 @@ const FULL = {
   moveInDate: '2026-12-01',
   moveInFrom: '2026-11-25',
   moveInTo: '2026-12-10',
+  stayLength: '6 months',
   budgetMinCents: 120000,
   budgetMaxCents: 160000,
   lifestyle: { sleep: 'Early bird', cleanliness: 'Tidy', guests: 'Rarely', pets: 'No pets', smoking: 'Never', wfh: 'Some days' },

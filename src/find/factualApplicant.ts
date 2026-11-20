@@ -9,6 +9,7 @@
  * term shows up in any of these shapes.
  */
 import { cleanLifestyle, type Lifestyle } from './lifestyle';
+import { isLeaseTerm, type LeaseTerm } from '../fill/leaseTerms';
 
 export const FACTUAL_FIELDS = [
   'phoneVerified',
@@ -18,6 +19,7 @@ export const FACTUAL_FIELDS = [
   'moveInDate',
   'moveInFrom',
   'moveInTo',
+  'stayLength',
   'budgetMinCents',
   'budgetMaxCents',
   'lifestyle',
@@ -34,6 +36,8 @@ export type FactualApplicant = {
   moveInDate: string | null;
   moveInFrom: string | null;
   moveInTo: string | null;
+  /** One of LEASE_TERMS (how long they want to stay). */
+  stayLength: LeaseTerm | null;
   budgetMinCents: number | null;
   budgetMaxCents: number | null;
   lifestyle: Lifestyle;
@@ -87,6 +91,7 @@ export function toFactualApplicant(raw: Record<string, unknown>): FactualApplica
     moveInDate: isoDate(raw.moveInDate),
     moveInFrom: isoDate(raw.moveInFrom),
     moveInTo: isoDate(raw.moveInTo),
+    stayLength: isLeaseTerm(raw.stayLength) ? raw.stayLength : null,
     budgetMinCents: cents(raw.budgetMinCents),
     budgetMaxCents: cents(raw.budgetMaxCents),
     lifestyle: cleanLifestyle(raw.lifestyle),

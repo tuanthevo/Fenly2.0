@@ -14,11 +14,13 @@ import { LEVEL1_ITEM_TEXT, level1Missing } from '../find/passportLevel';
 import { blobToBase64, findApi, shrinkImage } from '../lib/findApi';
 import { uploadToStorage } from '../lib/fillApi';
 import { TAB_VALUE } from '../config/launchCopy';
+import { LEASE_TERMS } from '../fill/leaseTerms';
 
 type PassportRow = {
   level: number;
   move_in_from: string | null;
   move_in_to: string | null;
+  stay_length: string | null;
   budget_min_cents: number | null;
   budget_max_cents: number | null;
   lifestyle: Record<string, string>;
@@ -83,7 +85,7 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
       supabase
         .from('passports')
         .select(
-          'level, move_in_from, move_in_to, budget_min_cents, budget_max_cents, lifestyle, phone_verified, id_verified, rent_history_verified'
+          'level, move_in_from, move_in_to, stay_length, budget_min_cents, budget_max_cents, lifestyle, phone_verified, id_verified, rent_history_verified'
         )
         .eq('user_id', user.id)
         .maybeSingle(),
@@ -240,7 +242,10 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
         .from('passports')
         .update({
           move_in_from: passport.move_in_from || null,
-          move_in_to: passport.move_in_to || null,
+          // "Move in by" is replaced by length of stay; clear the old end date so
+          // it can't conflict with a later move-in date.
+          move_in_to: null,
+          stay_length: passport.stay_length || null,
           budget_min_cents: cents(budgetMin),
           budget_max_cents: cents(budgetMax),
           lifestyle: passport.lifestyle ?? {},
@@ -401,13 +406,17 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
               />
             </label>
             <label className="block space-y-1">
-              <span className="text-[11px] font-bold text-[#6E655F]">Move in by</span>
-              <input
-                type="date"
+              <span className="text-[11px] font-bold text-[#6E655F]">Length of stay</span>
+              <select
                 className={inputClass}
-                value={passport.move_in_to ?? ''}
-                onChange={(e) => setPassport({ ...passport, move_in_to: e.target.value || null })}
-              />
+                value={passport.stay_length ?? ''}
+                onChange={(e) => setPassport({ ...passport, stay_length: e.target.value || null })}
+              >
+                <option value="">Choose</option>
+                {LEASE_TERMS.map((term) => (
+                  <option key={term} value={term}>{term}</option>
+                ))}
+              </select>
             </label>
             <label className="block space-y-1">
               <span className="text-[11px] font-bold text-[#6E655F]">Budget from ($/mo)</span>

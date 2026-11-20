@@ -42,7 +42,7 @@ export interface RoomListing {
   city: string;
   roomType: 'Private Room' | 'Master Suite' | 'Studio Sublet' | 'Shared Room' | 'Entire Place';
   spaceCategory?: 'room' | 'entire_place';
-  leaseTerm: 'Month-to-month' | '3 Months' | '6 Months' | '12+ Months';
+  leaseTerm: 'Month-to-month' | '3 Months' | '6 Months' | '9 Months' | '12+ Months';
   availableDate: string;
   squareFeet: number;
   amenities: string[];

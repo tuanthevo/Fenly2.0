@@ -206,6 +206,11 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
             {a.budget.maxCents != null ? `Up to ${formatRentCents(a.budget.maxCents)}: ` : ''}
             {a.fit.budget.text}
           </span>
+          {a.stayLength && (
+            <span className="text-[11px] font-bold px-2 py-1 rounded-lg bg-[#F2EFE9] text-[#6E655F]">
+              Stay: {a.stayLength}
+            </span>
+          )}
         </div>
         {aiNote && <p className="text-[11px] text-[#485B4A] font-semibold flex items-start gap-1"><Sparkles className="w-3 h-3 mt-0.5 shrink-0" />{aiNote.reason}</p>}
         {a.note && <p className={`text-xs leading-relaxed ${expanded ? '' : 'line-clamp-2'}`}>“{a.note}”</p>}
