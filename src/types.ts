@@ -224,7 +224,7 @@ export interface SubmittedApplication {
   moveInDate: string;
   leaseTerm: string;
   submittedAt: string;
-  status: 'Under Host Review' | 'Approved • Escrow Active' | 'Move-In Scheduled';
+  status: 'Under Host Review' | 'Approved • Escrow Active' | 'Move-In Scheduled' | 'Declined';
   escrowAmount: number;
   idVerified: boolean;
   incomeVerified: boolean;
