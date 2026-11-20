@@ -166,6 +166,26 @@ export type ViralCallout = {
   row: number;
 };
 
+/**
+ * Camera path over a still photo (photo tours): turns a listing picture into a
+ * "walking into the home" shot. Positions are CSS object-position percentages
+ * of the photo (0 = left/top edge, 100 = right/bottom).
+ */
+export type PhotoMotion = {
+  /** 'walk' pushes forward with a walking bob; 'look' pans across the room like turning your head */
+  move: 'walk' | 'look';
+  fromScale: number;
+  toScale: number;
+  fromX: number;
+  toX: number;
+  fromY: number;
+  toY: number;
+  /** Walking bob in px (0 = steady) */
+  bob: number;
+  /** Door frame edges slide away as you step through the doorway (first shot only) */
+  doorway: boolean;
+};
+
 export type ViralShot = {
   id: string;
   slotNumber: number;
@@ -203,6 +223,8 @@ export type ViralShot = {
    * scale 1 = no reframe.
    */
   reframe: { scale: number; originX: number };
+  /** Set for photo tours: the shot is a still photo moved by this camera path instead of video */
+  photo?: PhotoMotion;
 };
 
 export type ViralCut = {
@@ -237,6 +259,8 @@ export type ViralEditPlan = {
   length: ViralLength;
   hook: HookCopy;
   hookFontSize: number;
+  /** Shrinks every on-screen text block (photo tours use 0.8); 1 or unset = full size */
+  textScale?: number;
   /** Absolute frame where the hook headline starts to leave */
   hookExitFrame: number;
   hookExitFrames: number;

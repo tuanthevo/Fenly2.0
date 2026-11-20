@@ -15,6 +15,7 @@ export const FEATURE_FLAGS = [
   'mascots', // Fenn / Wren mascot illustrations and the brand-kit sheet
   'house_os_extras', // House OS: utility bill splitter, Credit Boost
   'demo_listings', // 1.0 mock rooms in the Find feed after the real ones
+  'photo_tour', // demo rooms in Find play their photos as a moving tour (Remotion) instead of the slideshow
   'id_check', // Passport Level 2 ID check (demo provider until a vendor is wired in server/idCheck.ts)
 ] as const;
 
@@ -31,6 +32,7 @@ export const DEFAULT_FLAGS: Readonly<FeatureFlags> = Object.freeze({
   house_os_extras: false,
   demo_listings: false,
   id_check: false,
+  photo_tour: false,
 });
 
 export function isFeatureFlag(value: string): value is FeatureFlag {

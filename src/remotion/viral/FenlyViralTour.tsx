@@ -12,7 +12,7 @@
  * layers are built programmatically rather than edited in Studio.
  */
 import React from 'react';
-import { AbsoluteFill, Easing, Sequence, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, Easing, Img, Sequence, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { Audio, Video } from '@remotion/media';
 import { TransitionSeries, linearTiming } from '@remotion/transitions';
 import { colorCorrection } from '@remotion/effects/color-correction';
@@ -29,6 +29,7 @@ import {
   ReHook,
   RoomTag,
   StoryProgress,
+  TextScaleProvider,
   Watermark,
 } from './overlays';
 import { sfxSrc } from './sfx';
@@ -56,12 +57,61 @@ function gradeEffects(plan: ViralEditPlan, shot: ViralShot, blurRadius: number) 
 }
 
 /**
+ * A still photo moved along its camera path (photo tours, photoTour.ts):
+ * WALK pushes forward with a slight walking bob, LOOK pans across the room
+ * like turning your head. On the opening shot the doorway's edges slide away
+ * as you step in. `atFrame` freezes the pose (used by the loop bridge).
+ */
+const PhotoFootage: React.FC<{ shot: ViralShot; blurRadius: number; atFrame?: number }> = ({ shot, blurRadius, atFrame }) => {
+  const current = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const frame = atFrame ?? current;
+  const m = shot.photo!;
+  const d = Math.max(1, shot.durationInFrames - 1);
+  const ease = m.move === 'walk' ? Easing.bezier(0.25, 0.1, 0.45, 1) : Easing.bezier(0.45, 0, 0.55, 1);
+  const p = interpolate(frame, [0, d], [0, 1], { ...clamp, easing: ease });
+  const scale = m.fromScale + (m.toScale - m.fromScale) * p;
+  const x = m.fromX + (m.toX - m.fromX) * p;
+  const y = m.fromY + (m.toY - m.fromY) * p;
+  const t = frame / fps;
+  // ~1.7 steps per second: a gentle up-down and a smaller sway
+  const bobY = m.bob * Math.sin(2 * Math.PI * 1.7 * t);
+  const sway = m.bob * 0.05 * Math.sin(2 * Math.PI * 0.85 * t);
+  const door = m.doorway ? interpolate(frame, [0, Math.round(0.8 * fps)], [1, 0], { ...clamp, easing: Easing.bezier(0.5, 0, 0.2, 1) }) : 0;
+  return (
+    <AbsoluteFill>
+      <Img
+        src={shot.src}
+        alt=""
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          objectPosition: `${x}% ${y}%`,
+          scale: String(scale),
+          translate: `0px ${bobY}px`,
+          rotate: `${sway}deg`,
+          filter: `saturate(1.08) contrast(1.04)${blurRadius >= 0.75 ? ` blur(${(blurRadius * 0.6).toFixed(1)}px)` : ''}`,
+        }}
+      />
+      {door > 0 ? (
+        <>
+          <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: `${22 * door}%`, background: 'linear-gradient(90deg, #1E1A18 70%, rgba(30,26,24,0.85))', boxShadow: '12px 0 40px rgba(0,0,0,0.45)' }} />
+          <div style={{ position: 'absolute', top: 0, bottom: 0, right: 0, width: `${22 * door}%`, background: 'linear-gradient(270deg, #1E1A18 70%, rgba(30,26,24,0.85))', boxShadow: '-12px 0 40px rgba(0,0,0,0.45)' }} />
+        </>
+      ) : null}
+    </AbsoluteFill>
+  );
+};
+
+/**
  * The footage of one shot. With a speed ramp it is two back-to-back segments
  * of the same clip: the ramp (fast, hidden under the incoming cut's motion
  * blur) and the settle, which picks up exactly where the ramp left off.
  */
 const ShotFootage: React.FC<{ plan: ViralEditPlan; shot: ViralShot; blurRadius: number }> = ({ plan, shot, blurRadius }) => {
   const { fps } = useVideoConfig();
+  if (shot.photo) return <PhotoFootage shot={shot} blurRadius={blurRadius} />;
   const trim = shot.srcStartSec * fps;
   const common = {
     src: shot.src,
@@ -132,8 +182,10 @@ const ShotLayer: React.FC<{
   // Slow push-in keeps every shot moving. The opener starts tight and settles
   // while the headline is up, then pushes in again under the facts.
   const hookExit = Math.max(1, Math.min(d, plan.hookExitFrame - shot.startFrame));
-  const zoom =
-    shot.role === 'hook'
+  // Photo shots carry their own camera path
+  const zoom = shot.photo
+    ? 1
+    : shot.role === 'hook'
       ? frame < hookExit
         ? interpolate(frame, [0, hookExit], [1.12, 1], { ...clamp, easing: Easing.bezier(0.33, 0, 0.67, 1) })
         : interpolate(frame, [hookExit, d], [1, 1.06], clamp)
@@ -177,7 +229,10 @@ const LoopBridge: React.FC<{ plan: ViralEditPlan }> = ({ plan }) => {
       }}
     >
       <AbsoluteFill style={{ backgroundColor: FENN.espresso, overflow: 'hidden' }}>
-        <AbsoluteFill style={reframeStyle(hook, 1.12)}>
+        <AbsoluteFill style={hook.photo ? undefined : reframeStyle(hook, 1.12)}>
+          {hook.photo ? (
+            <PhotoFootage shot={hook} blurRadius={0} atFrame={0} />
+          ) : (
           <Video
             name="Loop bridge footage"
             src={hook.src}
@@ -189,6 +244,7 @@ const LoopBridge: React.FC<{ plan: ViralEditPlan }> = ({ plan }) => {
             maxCanvasSinkFrameSize={{ width: 1280, height: 1280 }}
             effects={gradeEffects(plan, hook, 0)}
           />
+          )}
         </AbsoluteFill>
       </AbsoluteFill>
       <LegibilityShade />
@@ -265,6 +321,7 @@ export const FenlyViralTour: React.FC<FenlyViralTourProps> = ({ plan }) => {
   });
 
   return (
+    <TextScaleProvider value={plan.textScale ?? 1}>
     <AbsoluteFill style={{ backgroundColor: FENN.espresso, fontFamily: brandFont }}>
       <TransitionSeries name="Tour shots">{series}</TransitionSeries>
       <LegibilityShade />
@@ -293,5 +350,6 @@ export const FenlyViralTour: React.FC<FenlyViralTourProps> = ({ plan }) => {
       </Sequence>
       <SoundLayer plan={plan} />
     </AbsoluteFill>
+    </TextScaleProvider>
   );
 };
