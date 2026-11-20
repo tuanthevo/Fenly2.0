@@ -22,7 +22,7 @@ export const LEVEL1_ITEM_TEXT: Record<Level1Item, string> = {
   phone: 'Verify your phone number',
   photo: 'Add a photo',
   bio: 'Write a short bio',
-  move_in: 'Set your move-in window',
+  move_in: 'Set your move-in date',
   budget: 'Set your budget',
   lifestyle: 'Answer the 6 lifestyle questions',
 };

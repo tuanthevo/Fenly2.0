@@ -1,7 +1,7 @@
 /**
  * Passport tab (Fenly 2.0). Signed out: what a Passport is + sign in.
  * Signed in: profile basics, Level 0-3 badges and the application profile
- * (move-in window, budget, lifestyle answers), saved through row-level security.
+ * (move-in date, length of stay, budget, lifestyle answers), saved through row-level security.
  *
  * Lifestyle questions are logistics and habits only, never protected traits.
  */
