@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildPhotoTourPlan, closerTagFromLabel, photoHookSec, tagsFromLabel, PHOTO_TIMING, PHOTO_TEXT_SCALE } from './photoTour';
+import { buildPhotoTourPlan, closerTagFromLabel, photoHookSec, tagsFromLabel, PHOTO_TIMING, PHOTO_TEXT_SCALE, PAN_DIRECTIONS } from './photoTour';
 import { checkPlan } from './plan';
 import type { ViralListingInfo } from './types';
 
@@ -30,8 +30,7 @@ test('4 photos make a ~17 s walk-through: hook, look around, 2 rooms (walk + loo
   ]);
   assert.deepEqual(plan.cuts.map((c) => c.kind), ['whip-left', 'zoom-through', 'whip-right', 'zoom-through', 'whip-left', 'light-leak']);
   assert.ok(plan.shots.every((s) => s.photo && s.src.startsWith('https://img/')));
-  assert.equal(plan.shots[0].photo!.doorway, true, 'the first shot steps through the doorway');
-  assert.ok(plan.shots.slice(1).every((s) => !s.photo!.doorway));
+  assert.ok(plan.shots.every((s) => !s.photo!.doorway));
   assert.equal(plan.endCard.durationInFrames, Math.round(PHOTO_TIMING.endCardSec * 30));
 });
 
@@ -60,18 +59,24 @@ test('rooms get their callout on the walk in and a second one on the look around
   for (const s of plan.shots) for (const c of s.callouts) assert.ok(c.inFrame < c.outFrame && c.outFrame < s.durationInFrames);
 });
 
-test('walks push forward with a bob, looks pan across the room; variants move differently', () => {
+test('every shot pans one way only (up, down, left or right): no bob, no zoom, directions take turns', () => {
   const a = buildPhotoTourPlan({ listing, photos: photos(4) }, { variant: 0 });
   const b = buildPhotoTourPlan({ listing, photos: photos(4) }, { variant: 1 });
   for (const s of a.shots) {
     const m = s.photo!;
-    if (m.move === 'walk') {
-      assert.ok(m.toScale > m.fromScale && m.bob > 0);
-    } else {
-      assert.ok(Math.abs(m.toX - m.fromX) >= 50, 'a look pans across most of the photo');
-    }
+    assert.equal(m.bob, 0, 'no up-and-down bob');
+    assert.equal(m.fromScale, m.toScale, 'no zoom during the shot');
+    const movesX = m.fromX !== m.toX;
+    const movesY = m.fromY !== m.toY;
+    assert.ok(movesX !== movesY, `${s.id} moves along exactly one axis`);
+    if (m.direction === 'right') assert.ok(m.toX > m.fromX);
+    if (m.direction === 'left') assert.ok(m.toX < m.fromX);
+    if (m.direction === 'up') assert.ok(m.toY < m.fromY, 'going up ends on the top of the photo');
+    if (m.direction === 'down') assert.ok(m.toY > m.fromY);
   }
-  assert.notEqual(a.shots[1].photo!.fromX, b.shots[1].photo!.fromX);
+  for (let i = 1; i < a.shots.length; i++) assert.notEqual(a.shots[i].photo!.direction, a.shots[i - 1].photo!.direction);
+  assert.deepEqual(new Set(a.shots.map((s) => s.photo!.direction)), new Set(PAN_DIRECTIONS));
+  assert.notEqual(a.shots[0].photo!.direction, b.shots[0].photo!.direction);
 });
 
 test('re-hook on the middle room, guess-the-rent hides the price, every style is valid', () => {

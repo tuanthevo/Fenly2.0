@@ -171,9 +171,13 @@ export type ViralCallout = {
  * "walking into the home" shot. Positions are CSS object-position percentages
  * of the photo (0 = left/top edge, 100 = right/bottom).
  */
+export type PanDirection = 'up' | 'down' | 'left' | 'right';
+
 export type PhotoMotion = {
-  /** 'walk' pushes forward with a walking bob; 'look' pans across the room like turning your head */
+  /** 'walk' = the room's first shot, 'look' = its second shot (both are straight pans) */
   move: 'walk' | 'look';
+  /** The one way the camera moves during the shot */
+  direction: PanDirection;
   fromScale: number;
   toScale: number;
   fromX: number;
