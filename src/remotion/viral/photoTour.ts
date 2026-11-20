@@ -3,14 +3,16 @@
  * home" short, using the same composition, overlays and sound as video tours.
  *
  * Each photo becomes two shots of the same picture:
- *   WALK  push forward with a slight walking bob (you step into the room)
- *   LOOK  pan across the photo like turning your head to take the room in
+ *   WALK  the room's first shot, with its callout
+ *   LOOK  a second shot of the same photo, with a second callout
+ * Every shot moves the camera one way only: up, down, left or right
+ * (PAN_DIRECTIONS, taking turns), never bobbing or zooming.
  * A whip cut joins WALK and LOOK (the head turn), and a zoom-through cut leads
  * to the next photo (walking through the next doorway). The last photo is the
  * reveal: a light-leak cut, then a slow push under "THE BEST PART".
  *
  * TIMING (4 photos, ~17 s)
- *   0.0 s  hook: first photo, framed by the doorway, headline on screen for its
+ *   0.0 s  hook: first photo, headline on screen for its
  *          reading time (2.5-3.2 s)
  *   ~3 s   look around the first room while listing facts pop in (2.4 s)
  *   ~5 s   each next room: walk in with its callout (1.8 s), look around with a
@@ -38,6 +40,7 @@ import {
 import { NATURAL_LOOK } from './look';
 import { VIDEO } from './theme';
 import type {
+  PanDirection,
   PhotoMotion,
   ViralCallout,
   ViralCut,
@@ -126,34 +129,21 @@ export function closerTagFromLabel(label: string): string {
   return parts.sort((a, b) => b.length - a.length)[0] || whole;
 }
 
-function walkMotion(variant: number, isHook: boolean, isCloser: boolean): PhotoMotion {
-  const drift = variant % 2 === 0 ? 6 : -6;
-  return {
-    move: 'walk',
-    fromScale: isHook ? 1 : 1.04,
-    toScale: isCloser ? 1.26 : isHook ? 1.18 : 1.22,
-    fromX: 50,
-    toX: 50 + drift,
-    fromY: 50,
-    toY: 46,
-    bob: isCloser ? 4 : 7,
-    doorway: isHook,
-  };
-}
+/** The four camera moves; each shot moves one way only (no bob, sway or zoom). */
+export const PAN_DIRECTIONS: PanDirection[] = ['right', 'up', 'left', 'down'];
 
-function lookMotion(variant: number): PhotoMotion {
-  const leftToRight = variant % 2 === 0;
-  return {
-    move: 'look',
-    fromScale: 1.16,
-    toScale: 1.2,
-    fromX: leftToRight ? 18 : 82,
-    toX: leftToRight ? 82 : 18,
-    fromY: 50,
-    toY: 50,
-    bob: 3,
-    doorway: false,
-  };
+/**
+ * A straight pan across the photo. The photo is held slightly enlarged so
+ * there is room to travel: sideways moves slide along the wide photo, up/down
+ * moves use the enlarged margin.
+ */
+export function panMotion(direction: PanDirection, move: 'walk' | 'look'): PhotoMotion {
+  const horizontal = direction === 'left' || direction === 'right';
+  const scale = horizontal ? 1.12 : 1.2;
+  const [fromX, toX] = direction === 'right' ? [18, 82] : direction === 'left' ? [82, 18] : [50, 50];
+  // y = 0 shows the top edge, 100 the bottom: going up ends on the top
+  const [fromY, toY] = direction === 'up' ? [100, 0] : direction === 'down' ? [0, 100] : [50, 50];
+  return { move, direction, fromScale: scale, toScale: scale, fromX, toX, fromY, toY, bob: 0, doorway: false };
 }
 
 type Beat = {
@@ -256,7 +246,8 @@ export function buildPhotoTourPlan(input: PhotoTourInput, options: PhotoTourOpti
       row: beat.callouts.length === 3 ? k - 1 : beat.callouts.length === 2 ? k : 0,
     }));
     const p = photos[beat.photo];
-    const motion = beat.move === 'walk' ? walkMotion(variant + beat.photo, beat.role === 'hook', beat.role === 'closer') : lookMotion(variant + beat.photo);
+    // Directions take turns, so neighbouring shots never repeat a move
+    const motion = panMotion(PAN_DIRECTIONS[(variant + i) % PAN_DIRECTIONS.length], beat.move);
     shots.push({
       id: `photo-${beat.photo + 1}-${beat.move}`,
       slotNumber: beat.photo + 1,

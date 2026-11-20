@@ -58,9 +58,9 @@ function gradeEffects(plan: ViralEditPlan, shot: ViralShot, blurRadius: number) 
 
 /**
  * A still photo moved along its camera path (photo tours, photoTour.ts):
- * WALK pushes forward with a slight walking bob, LOOK pans across the room
- * like turning your head. On the opening shot the doorway's edges slide away
- * as you step in. `atFrame` freezes the pose (used by the loop bridge).
+ * The camera pans one way only (up, down, left or right). Sideways pans slide
+ * object-position along the wide photo; up/down pans shift the enlarged photo
+ * within its margin. `atFrame` freezes the pose (used by the loop bridge).
  */
 const PhotoFootage: React.FC<{ shot: ViralShot; blurRadius: number; atFrame?: number }> = ({ shot, blurRadius, atFrame }) => {
   const current = useCurrentFrame();
@@ -68,15 +68,13 @@ const PhotoFootage: React.FC<{ shot: ViralShot; blurRadius: number; atFrame?: nu
   const frame = atFrame ?? current;
   const m = shot.photo!;
   const d = Math.max(1, shot.durationInFrames - 1);
-  const ease = m.move === 'walk' ? Easing.bezier(0.25, 0.1, 0.45, 1) : Easing.bezier(0.45, 0, 0.55, 1);
+  const ease = Easing.bezier(0.45, 0, 0.55, 1);
   const p = interpolate(frame, [0, d], [0, 1], { ...clamp, easing: ease });
   const scale = m.fromScale + (m.toScale - m.fromScale) * p;
   const x = m.fromX + (m.toX - m.fromX) * p;
   const y = m.fromY + (m.toY - m.fromY) * p;
-  const t = frame / fps;
-  // ~1.7 steps per second: a gentle up-down and a smaller sway
-  const bobY = m.bob * Math.sin(2 * Math.PI * 1.7 * t);
-  const sway = m.bob * 0.05 * Math.sin(2 * Math.PI * 0.85 * t);
+  // Up/down: y = 0 shows the top edge of the enlarged photo, 100 the bottom
+  const shiftY = (50 - y) * (scale - 1);
   const door = m.doorway ? interpolate(frame, [0, Math.round(0.8 * fps)], [1, 0], { ...clamp, easing: Easing.bezier(0.5, 0, 0.2, 1) }) : 0;
   return (
     <AbsoluteFill>
@@ -87,10 +85,9 @@ const PhotoFootage: React.FC<{ shot: ViralShot; blurRadius: number; atFrame?: nu
           width: '100%',
           height: '100%',
           objectFit: 'cover',
-          objectPosition: `${x}% ${y}%`,
+          objectPosition: `${x}% 50%`,
           scale: String(scale),
-          translate: `0px ${bobY}px`,
-          rotate: `${sway}deg`,
+          translate: `0px ${shiftY}%`,
           filter: `saturate(1.08) contrast(1.04)${blurRadius >= 0.75 ? ` blur(${(blurRadius * 0.6).toFixed(1)}px)` : ''}`,
         }}
       />
