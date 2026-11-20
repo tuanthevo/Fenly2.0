@@ -48,6 +48,7 @@ export type ApplicantCard = {
   badges: { phone: boolean; id: boolean; idProvider: string | null; rentHistory: boolean; level: number };
   budget: { minCents: number | null; maxCents: number | null };
   moveInWindow: { from: string | null; to: string | null };
+  stayLength: string | null;
   fit: { moveIn: Fit; budget: Fit; strong: boolean };
   votes: { up: number; down: number; mine: number };
   idCheckRequestedAt: string | null;
@@ -89,7 +90,7 @@ async function loadApplicants(admin: SupabaseClient, db: SupabaseClient, listing
   const applicantIds = rows.map((a) => a.applicant_id);
   const [users, passports, votes, links, verifications] = await Promise.all([
     admin.from("users").select("id, first_name, photo_url, bio").in("id", applicantIds),
-    admin.from("passports").select("user_id, level, move_in_from, move_in_to, budget_min_cents, budget_max_cents, lifestyle, phone_verified, id_verified, rent_history_verified").in("user_id", applicantIds),
+    admin.from("passports").select("user_id, level, move_in_from, move_in_to, stay_length, budget_min_cents, budget_max_cents, lifestyle, phone_verified, id_verified, rent_history_verified").in("user_id", applicantIds),
     db.from("applicant_votes").select("application_id, voter_id, vote").in("application_id", rows.map((a) => a.id)),
     admin.from("listing_links").select("id, channel").eq("listing_id", listing.id),
     admin.from("verifications").select("user_id, provider, status, verified_at").in("user_id", applicantIds).eq("kind", "government_id").eq("status", "verified"),
@@ -113,6 +114,7 @@ async function loadApplicants(admin: SupabaseClient, db: SupabaseClient, listing
       moveInDate: a.move_in_date,
       moveInFrom: p.move_in_from,
       moveInTo: p.move_in_to,
+      stayLength: p.stay_length,
       budgetMinCents: p.budget_min_cents,
       budgetMaxCents: p.budget_max_cents,
       lifestyle: p.lifestyle,
@@ -141,6 +143,7 @@ async function loadApplicants(admin: SupabaseClient, db: SupabaseClient, listing
       badges: { phone: facts.phoneVerified, id: facts.idVerified, idProvider: facts.idVerified ? idRow?.provider ?? null : null, rentHistory: facts.rentHistoryVerified, level: facts.passportLevel },
       budget: { minCents: facts.budgetMinCents, maxCents: facts.budgetMaxCents },
       moveInWindow: { from: facts.moveInFrom, to: facts.moveInTo },
+      stayLength: facts.stayLength,
       fit: { moveIn: s.moveIn, budget: s.budget, strong: s.strong },
       votes: {
         up: appVotes.filter((v) => v.vote > 0).length,

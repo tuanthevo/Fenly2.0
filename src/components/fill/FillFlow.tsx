@@ -45,7 +45,7 @@ import {
   type FairHousingIssue,
   type FillStep,
 } from '../../fill/listingRules';
-import { FILL_AMENITIES, LEASE_TERMS, SF_NEIGHBORHOODS, nearestNeighborhood } from '../../fill/neighborhoods';
+import { FILL_AMENITIES, SF_NEIGHBORHOODS, leaseTermOptions, nearestNeighborhood } from '../../fill/neighborhoods';
 import { formatMoveIn, formatRentCents } from '../../fill/publicListing';
 import { todayIn } from '../../fill/fillStatus';
 import type { SharePosts } from '../../fill/sharePosts';
@@ -648,7 +648,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                     <div>
                       <label className={label} htmlFor="fill-lease-term">Lease term</label>
                       <select id="fill-lease-term" className={input} value={leaseTerm} onChange={(e) => setLeaseTerm(e.target.value)}>
-                        {LEASE_TERMS.map((t) => (
+                        {leaseTermOptions(leaseTerm).map((t) => (
                           <option key={t} value={t}>{t}</option>
                         ))}
                       </select>

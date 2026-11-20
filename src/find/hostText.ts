@@ -62,6 +62,7 @@ export function buildApplicantSummaryPrompt(
       `Applicant ${number}:`,
       `phone verified ${facts.phoneVerified ? 'yes' : 'no'}, ID verified ${facts.idVerified ? 'yes' : 'no'}, Passport level ${facts.passportLevel}`,
       `move-in ${facts.moveInDate ?? (facts.moveInFrom ? `${facts.moveInFrom} to ${facts.moveInTo ?? facts.moveInFrom}` : 'not given')}`,
+      `stay ${facts.stayLength ?? 'not given'}`,
       `budget up to ${formatRentCents(facts.budgetMaxCents) ?? 'not given'}`,
       life ? `lifestyle: ${life}` : 'lifestyle: not given',
       `intro video ${facts.hasIntroVideo ? 'yes' : 'no'}, note ${facts.noteLength} characters`,

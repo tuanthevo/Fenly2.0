@@ -39,6 +39,7 @@ export type ApplicantCard = {
   badges: { phone: boolean; id: boolean; idProvider: string | null; rentHistory: boolean; level: number };
   budget: { minCents: number | null; maxCents: number | null };
   moveInWindow: { from: string | null; to: string | null };
+  stayLength: string | null;
   fit: { moveIn: Fit; budget: Fit; strong: boolean };
   votes: { up: number; down: number; mine: number };
   idCheckRequestedAt: string | null;

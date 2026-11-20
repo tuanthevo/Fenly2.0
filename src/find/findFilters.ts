@@ -104,7 +104,9 @@ const LEASE_TERM_MAP: Record<string, RoomListing['leaseTerm']> = {
   'month-to-month': 'Month-to-month',
   '3 months': '3 Months',
   '6 months': '6 Months',
+  '9 months': '9 Months',
   '12 months': '12+ Months',
+  '12+ months': '12+ Months',
 };
 
 const formatDay = (iso: string) =>

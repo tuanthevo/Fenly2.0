@@ -24,6 +24,8 @@ runs as the signed-out demo (Passport says "Sign-in isn't set up").
    existing phone-only Passports drop to Level 0 until they're filled in.
 6. Then `supabase/migrations/0004_listings_owner_select.sql` (a host can read back
    the draft listing they just created; without it, Fill shows "not_allowed").
+7. Then `supabase/migrations/0005_passport_stay_length.sql` (Passport "Length of
+   stay", the same choices as the host's lease term).
 
 Later schema changes go in a new numbered file (`0002_...sql`); never edit one
 that has already been run.

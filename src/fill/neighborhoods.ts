@@ -59,4 +59,4 @@ export const FILL_AMENITIES = [
   'Pets OK',
 ];
 
-export const LEASE_TERMS = ['Month-to-month', '3 months', '6 months', '12 months', 'Until lease ends'];
+export { LEASE_TERMS, leaseTermOptions } from './leaseTerms';
