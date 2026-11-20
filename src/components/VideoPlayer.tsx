@@ -1,6 +1,57 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo, Suspense } from 'react';
 import { Play, Pause, Heart } from 'lucide-react';
 import { RoomListing } from '../types';
+import { photoTourPlanForRoom } from '../utils/photoTourListing';
+import { useFlag } from '../config/FlagsProvider';
+
+// The photo tour pulls in Remotion: load it only when a card is on screen
+const PhotoTourPlayer = React.lazy(() => import('./PhotoTourPlayer'));
+
+/** Loads each photo once; resolves to the set of URLs that loaded (null while loading or when off). */
+const photoLoadCache = new Map<string, Promise<boolean>>();
+function loadPhoto(url: string): Promise<boolean> {
+  let pending = photoLoadCache.get(url);
+  if (!pending) {
+    pending = new Promise<boolean>((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(true);
+      img.onerror = () => resolve(false);
+      img.src = url;
+    });
+    photoLoadCache.set(url, pending);
+  }
+  return pending;
+}
+function useLoadedPhotos(urls: string[] | null): Set<string> | null {
+  const key = urls ? urls.join('|') : '';
+  const [loaded, setLoaded] = useState<{ key: string; set: Set<string> } | null>(null);
+  useEffect(() => {
+    if (!key) return;
+    let cancelled = false;
+    const list = key.split('|');
+    Promise.all(list.map(loadPhoto)).then((ok) => {
+      if (!cancelled) setLoaded({ key, set: new Set(list.filter((_, i) => ok[i])) });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [key]);
+  return loaded && loaded.key === key ? loaded.set : null;
+}
+
+/** If the photo tour can't load or play, the card falls back to the photo slideshow. */
+class PhotoTourBoundary extends React.Component<{ onError: () => void; children: React.ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch() {
+    this.props.onError();
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
 
 interface VideoPlayerProps {
   room: RoomListing;
@@ -30,7 +81,7 @@ const ROOM_TOUR_SCENES: Record<string, TourScene[]> = {
       motionClass: 'scale-110 translate-x-2 -translate-y-1',
     },
     {
-      label: 'Clip 2/4 • Bedroom & Closet Space',
+      label: 'Clip 2/4 • Living Room & Fireplace',
       caption: 'South-facing master bedroom with bay windows & walk-in closet 🌿',
       imageUrl: 'https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&w=1080&q=80',
       motionClass: 'scale-115 -translate-x-2 translate-y-1',
@@ -42,7 +93,7 @@ const ROOM_TOUR_SCENES: Record<string, TourScene[]> = {
       motionClass: 'scale-110 translate-x-1 translate-y-2',
     },
     {
-      label: 'Clip 4/4 • Kitchen & Private Balcony',
+      label: 'Clip 4/4 • Open Kitchen',
       caption: 'Chef kitchen & private balcony for morning coffee ☕',
       imageUrl: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=1080&q=80',
       motionClass: 'scale-115 -translate-x-1 -translate-y-2',
@@ -58,17 +109,17 @@ const ROOM_TOUR_SCENES: Record<string, TourScene[]> = {
     {
       label: 'Clip 2/4 • Skyline Studio Bedroom',
       caption: 'Furnished bedroom with industrial windows & warm afternoon light',
-      imageUrl: 'https://images.unsplash.com/photo-1540518614846-7ede433c4573?auto=format&fit=crop&w=1080&q=80',
+      imageUrl: 'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?auto=format&fit=crop&w=1080&q=80',
       motionClass: 'scale-115 translate-x-2 -translate-y-1',
     },
     {
-      label: 'Clip 3/4 • Designer Kitchen & W/D',
+      label: 'Clip 3/4 • Designer Kitchen',
       caption: 'Open concept kitchen with espresso bar & in-unit laundry',
       imageUrl: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?auto=format&fit=crop&w=1080&q=80',
       motionClass: 'scale-110 translate-x-1 translate-y-2',
     },
     {
-      label: 'Clip 4/4 • 360° Rooftop Deck',
+      label: 'Clip 4/4 • Skyline View',
       caption: 'Direct Manhattan skyline views from the shared rooftop 🌇',
       imageUrl: 'https://images.unsplash.com/photo-1534430480872-3498386e7856?auto=format&fit=crop&w=1080&q=80',
       motionClass: 'scale-115 -translate-x-2 -translate-y-1',
@@ -82,7 +133,7 @@ const ROOM_TOUR_SCENES: Record<string, TourScene[]> = {
       motionClass: 'scale-110 translate-x-2 translate-y-1',
     },
     {
-      label: 'Clip 2/4 • Bedroom & Patio Doors',
+      label: 'Clip 2/4 • Cozy Bedroom',
       caption: 'Queen Casper bed with French doors straight to the garden',
       imageUrl: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1080&q=80',
       motionClass: 'scale-115 -translate-x-2 -translate-y-1',
@@ -108,19 +159,19 @@ const ROOM_TOUR_SCENES: Record<string, TourScene[]> = {
       motionClass: 'scale-110 translate-x-2 -translate-y-1',
     },
     {
-      label: 'Photo 2/4 • Master Suite & Desk',
+      label: 'Photo 2/4 • Primary Suite',
       caption: 'Spacious 260 sq ft bedroom with remote work nook',
       imageUrl: 'https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?auto=format&fit=crop&w=1080&q=80',
       motionClass: 'scale-115 -translate-x-2 translate-y-1',
     },
     {
-      label: 'Photo 3/4 • Heated Tile Bath',
+      label: 'Photo 3/4 • Walk-In Shower',
       caption: 'En-suite bathroom with heated floors & rain shower',
       imageUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1080&q=80',
       motionClass: 'scale-110 translate-x-1 translate-y-2',
     },
     {
-      label: 'Photo 4/4 • Sunset Rooftop View',
+      label: 'Photo 4/4 • Sunny Living Room',
       caption: '3 mins walk to Capitol Hill Light Rail & local cafes 🏔️',
       imageUrl: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1080&q=80',
       motionClass: 'scale-115 -translate-x-1 -translate-y-2',
@@ -136,17 +187,17 @@ const ROOM_TOUR_SCENES: Record<string, TourScene[]> = {
     {
       label: 'Clip 2/4 • Sunlit Private Bedroom',
       caption: 'Cozy furnished room with tall windows & plant shelf',
-      imageUrl: 'https://images.unsplash.com/photo-1540518614846-7ede433c4573?auto=format&fit=crop&w=1080&q=80',
+      imageUrl: 'https://images.unsplash.com/photo-1617325247661-675ab4b64ae2?auto=format&fit=crop&w=1080&q=80',
       motionClass: 'scale-115 translate-x-2 -translate-y-1',
     },
     {
-      label: 'Clip 3/4 • Chef Kitchen & Bakery',
+      label: 'Clip 3/4 • Chef Kitchen',
       caption: 'Fresh sourdough bread baked every weekend morning 🎨',
       imageUrl: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=1080&q=80',
       motionClass: 'scale-110 translate-x-1 translate-y-2',
     },
     {
-      label: 'Clip 4/4 • Clawfoot Tub & Yard',
+      label: 'Clip 4/4 • Bright Bathroom',
       caption: 'Vintage clawfoot tub & shared backyard garden',
       imageUrl: 'https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?auto=format&fit=crop&w=1080&q=80',
       motionClass: 'scale-115 -translate-x-2 -translate-y-1',
@@ -160,7 +211,7 @@ const ROOM_TOUR_SCENES: Record<string, TourScene[]> = {
       motionClass: 'scale-110 translate-x-2 translate-y-1',
     },
     {
-      label: 'Photo 2/4 • Cedar Viewing Deck',
+      label: 'Photo 2/4 • Living Room & Fireplace',
       caption: 'Step out onto your private cedar deck overlooking the hills',
       imageUrl: 'https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&w=1080&q=80',
       motionClass: 'scale-115 -translate-x-2 -translate-y-1',
@@ -172,7 +223,7 @@ const ROOM_TOUR_SCENES: Record<string, TourScene[]> = {
       motionClass: 'scale-110 translate-x-1 -translate-y-2',
     },
     {
-      label: 'Photo 4/4 • Walk to Erewhon & Cafes',
+      label: 'Photo 4/4 • Bright Bedroom',
       caption: '8-minute walk to Intelligentsia Coffee & Silver Lake Reservoir 🥑',
       imageUrl: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1080&q=80',
       motionClass: 'scale-115 -translate-x-1 translate-y-2',
@@ -214,17 +265,17 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     {
       label: 'Clip 2/4 • Private Room Walkthrough',
       caption: `${room.squareFeet} sq ft ${room.roomType} with abundant natural light`,
-      imageUrl: 'https://images.unsplash.com/photo-1540518614846-7ede433c4573?auto=format&fit=crop&w=1080&q=80',
+      imageUrl: 'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?auto=format&fit=crop&w=1080&q=80',
       motionClass: 'scale-115 -translate-x-2 translate-y-1',
     },
     {
-      label: 'Clip 3/4 • Bathroom & Laundry',
+      label: 'Clip 3/4 • Bathroom',
       caption: 'Sparkling clean bathroom & modern fixtures',
       imageUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1080&q=80',
       motionClass: 'scale-110 translate-x-1 translate-y-2',
     },
     {
-      label: 'Clip 4/4 • Kitchen & View',
+      label: 'Clip 4/4 • Kitchen',
       caption: `Located in ${room.location} — ready ${room.availableDate}`,
       imageUrl: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=1080&q=80',
       motionClass: 'scale-115 -translate-x-1 -translate-y-2',
@@ -233,6 +284,24 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const isViralEdit = room.tourFormat === 'viral_edit' && Boolean(room.videoUrl);
   const viralVideoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Listing photos edited into a "walking into the home" short (src/remotion/viral/photoTour.ts).
+  // Photos are loaded first and any that fail are skipped, so a dead link never shows as a black frame.
+  // Off unless the photo_tour flag is on (a demo feature); the slideshow below plays instead
+  const photoTourOn = useFlag('photo_tour');
+  const loadedPhotos = useLoadedPhotos(photoTourOn && isActive && !isViralEdit ? scenes.map((s) => s.imageUrl) : null);
+  const photoTourPlan = useMemo(
+    () => (isViralEdit || !loadedPhotos ? null : photoTourPlanForRoom(room, scenes.filter((s) => loadedPhotos.has(s.imageUrl)))),
+    // scenes is derived from room
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [room, isViralEdit, loadedPhotos]
+  );
+  const [photoTourFailed, setPhotoTourFailed] = useState(false);
+  const showPhotoTour = Boolean(photoTourPlan) && !photoTourFailed;
+  const [tourProgress, setTourProgress] = useState(0);
+  const handleTourProgress = React.useCallback((fraction: number) => {
+    setTourProgress(Math.round(fraction * 200) / 200);
+  }, []);
 
   // Only the card on screen plays its exported edit
   useEffect(() => {
@@ -252,7 +321,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   }, [room.id]);
 
   useEffect(() => {
-    if (!isActive || !isPlaying) return;
+    if (!isActive || !isPlaying || showPhotoTour) return;
 
     const SCENE_DURATION_MS = 3800;
     const TICK_MS = 40;
@@ -269,10 +338,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }, TICK_MS);
 
     return () => clearInterval(timer);
-  }, [isActive, isPlaying, scenes.length]);
+  }, [isActive, isPlaying, scenes.length, showPhotoTour]);
 
   useEffect(() => {
-    if (!isActive || !isPlaying || isMuted) {
+    if (!isActive || !isPlaying || isMuted || showPhotoTour) {
       if (audioCtxRef.current && audioCtxRef.current.state === 'running') {
         audioCtxRef.current.suspend().catch(() => {});
       }
@@ -306,7 +375,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       osc.start();
       osc.stop(ctx.currentTime + 3.5);
     } catch {}
-  }, [sceneIndex, isActive, isPlaying, isMuted]);
+  }, [sceneIndex, isActive, isPlaying, isMuted, showPhotoTour]);
 
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     const now = Date.now();
@@ -414,7 +483,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   };
 
   const currentScene = scenes[sceneIndex] || scenes[0];
-  const overallProgress = ((sceneIndex * 100 + sceneProgress) / (scenes.length * 100)) * 100;
+  const overallProgress = showPhotoTour
+    ? tourProgress * 100
+    : ((sceneIndex * 100 + sceneProgress) / (scenes.length * 100)) * 100;
 
   return (
     <div
@@ -441,6 +512,26 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         />
       )}
 
+      {/* Photo tour: the listing photos as a walk-through video (the slideshow below stays as poster and fallback) */}
+      {showPhotoTour && isActive && photoTourPlan && (
+        <div className="absolute inset-0 z-[15] bg-black">
+          <div
+            className="absolute inset-0 scale-110 blur-2xl brightness-50"
+            style={{ backgroundImage: `url(${scenes[0]?.imageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+          />
+          <PhotoTourBoundary onError={() => setPhotoTourFailed(true)}>
+            <Suspense fallback={null}>
+              <PhotoTourPlayer
+                plan={photoTourPlan}
+                playing={isPlaying}
+                muted={isMuted}
+                onProgress={handleTourProgress}
+              />
+            </Suspense>
+          </PhotoTourBoundary>
+        </div>
+      )}
+
       {/* Multi-Scene Kinematic Video Frames */}
       {!isViralEdit && scenes.map((scene, idx) => {
         const isCurrent = idx === sceneIndex;
@@ -464,8 +555,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         );
       })}
 
-      {/* Segmented Short-Form Story/Reels Progress Bars at Top Edge */}
-      <div className="absolute top-1 left-3 right-3 z-25 flex items-center gap-1.5 pointer-events-none">
+      {/* Segmented Short-Form Story/Reels Progress Bars at Top Edge (the photo tour draws its own) */}
+      <div className={`absolute top-1 left-3 right-3 z-25 flex items-center gap-1.5 pointer-events-none ${showPhotoTour && isActive ? 'hidden' : ''}`}>
         {scenes.map((_, idx) => {
           const widthPct =
             idx < sceneIndex ? 100 : idx === sceneIndex ? sceneProgress : 0;

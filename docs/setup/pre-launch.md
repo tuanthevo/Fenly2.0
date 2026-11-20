@@ -25,7 +25,7 @@ Work top to bottom. Detailed Supabase steps are in [supabase.md](supabase.md).
 | `SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_…` | served to the browser through `/api/config` |
 | `SUPABASE_SECRET_KEY` | `sb_secret_…` | server only, never `VITE_` |
 | `APP_URL` | `https://<your-domain>` | share links and emails use it |
-| `FENLY_FLAGS` | empty, or e.g. `id_check` | `demo_listings` only for demos |
+| `FENLY_FLAGS` | empty, or e.g. `id_check` | `demo_listings` and `photo_tour` only for demos |
 | `RESEND_API_KEY` | `re_…` | |
 | `FENLY_EMAIL_FROM` | `Fenn <hello@<your-domain>>` | the domain must be verified in Resend |
 | `FENLY_ADMIN_EMAILS` | your sign-in email(s) | opens the Review queue and Metrics |

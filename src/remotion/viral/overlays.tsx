@@ -23,6 +23,31 @@ const outlined = (strokePx: number): React.CSSProperties => ({
   textShadow: '0 6px 24px rgba(44, 39, 36, 0.45)',
 });
 
+/** Text size multiplier for the whole tour (plan.textScale; photo tours run smaller). */
+const TextScaleContext = React.createContext(1);
+export const TextScaleProvider = TextScaleContext.Provider;
+const useTextScale = () => React.useContext(TextScaleContext);
+
+/**
+ * Shrinks a text block around its anchor (left edge for callouts, top centre
+ * for headlines) so it keeps its place in SAFE. At scale 1 it adds nothing.
+ */
+const Scaled: React.FC<{ origin: string; column?: boolean; children: React.ReactNode }> = ({ origin, column, children }) => {
+  const s = useTextScale();
+  if (s === 1) return <>{children}</>;
+  return (
+    <div
+      style={{
+        scale: s,
+        transformOrigin: origin,
+        ...(column ? { display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' } : null),
+      }}
+    >
+      {children}
+    </div>
+  );
+};
+
 const pill: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
@@ -56,6 +81,7 @@ export const HookHeadline: React.FC<{
       ...style,
     }}
   >
+    <Scaled origin="center top" column>
     <div
       style={{
         ...pill,
@@ -116,6 +142,7 @@ export const HookHeadline: React.FC<{
         )
       )}
     </div>
+    </Scaled>
   </AbsoluteFill>
 );
 
@@ -198,6 +225,7 @@ export const PriceChip: React.FC<{ plan: ViralEditPlan }> = ({ plan }) => {
         translate: `${interpolate(appear, [0, 1], [-30, 0])}px 0px`,
       }}
     >
+      <Scaled origin="left top">
       <div
         style={{
           ...pill,
@@ -218,6 +246,7 @@ export const PriceChip: React.FC<{ plan: ViralEditPlan }> = ({ plan }) => {
           </span>
         ) : null}
       </div>
+      </Scaled>
     </div>
   );
 };
@@ -253,6 +282,7 @@ export const RoomTag: React.FC<{ text: string; inFrame: number; outFrame: number
         ...popIn(frame, inFrame, outFrame),
       }}
     >
+      <Scaled origin="left center">
       <div
         style={{
           ...pill,
@@ -271,6 +301,7 @@ export const RoomTag: React.FC<{ text: string; inFrame: number; outFrame: number
         <span style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: FENN.terracotta }} />
         {text}
       </div>
+      </Scaled>
     </div>
   );
 };
@@ -288,17 +319,19 @@ export const Callout: React.FC<{
   row: number;
 }> = ({ text, kind, inFrame, outFrame, row }) => {
   const frame = useCurrentFrame();
+  const textScale = useTextScale();
   if (frame < inFrame || frame > outFrame) return null;
   return (
     <div
       style={{
         position: 'absolute',
-        top: CALLOUT_TOP + row * CALLOUT_ROW_GAP,
+        top: CALLOUT_TOP + row * CALLOUT_ROW_GAP * textScale,
         left: SAFE.left,
         transformOrigin: 'left center',
         ...popIn(frame, inFrame, outFrame),
       }}
     >
+      <Scaled origin="left center">
       <div
         style={{
           ...pill,
@@ -324,6 +357,7 @@ export const Callout: React.FC<{
         />
         {text}
       </div>
+      </Scaled>
     </div>
   );
 };
@@ -334,6 +368,7 @@ export const ReHook: React.FC<{ text: string; durationInFrames: number }> = ({ t
   const last = durationInFrames - 1;
   return (
     <AbsoluteFill style={{ alignItems: 'center', paddingTop: 560 }}>
+      <Scaled origin="center top">
       <div
         style={{
           ...pill,
@@ -354,6 +389,7 @@ export const ReHook: React.FC<{ text: string; durationInFrames: number }> = ({ t
         {text}
         <span style={{ marginLeft: 16, color: FENN.terracotta }}>›››</span>
       </div>
+      </Scaled>
     </AbsoluteFill>
   );
 };
@@ -370,6 +406,7 @@ export const CloserReveal: React.FC<{
   const opacity = interpolate(frame, [inFrame, inFrame + 3, outFrame, outFrame + 6], [0, 1, 1, 0], clamp);
   return (
     <AbsoluteFill style={{ alignItems: 'center', paddingTop: 980, paddingLeft: 90, paddingRight: 90, opacity }}>
+      <Scaled origin="center top" column>
       <div
         style={{
           ...pill,
@@ -402,6 +439,7 @@ export const CloserReveal: React.FC<{
       >
         {label}
       </div>
+      </Scaled>
     </AbsoluteFill>
   );
 };
@@ -425,6 +463,7 @@ export const EndCard: React.FC<{ plan: ViralEditPlan }> = ({ plan }) => {
         }}
       />
       <AbsoluteFill style={{ alignItems: 'center', paddingTop: 720, paddingLeft: 90, paddingRight: 90 }}>
+        <Scaled origin="center top" column>
         <div style={{ ...outlined(6), fontSize: 64, fontWeight: 700, textAlign: 'center', ...line(2) }}>
           {card.lead}
         </div>
@@ -482,6 +521,7 @@ export const EndCard: React.FC<{ plan: ViralEditPlan }> = ({ plan }) => {
           <span style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: FENN.sage }} />
           {card.brand}
         </div>
+        </Scaled>
       </AbsoluteFill>
     </AbsoluteFill>
   );

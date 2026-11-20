@@ -323,7 +323,7 @@ export type EndCardCopy = { lead: string; big: string; tail: string; sub: string
 export function endCardCopy(style: ViralStyleId, listing: ViralListingInfo): EndCardCopy {
   const place = placeLabel(listing);
   const sub = [place, specsLine(listing)].filter(Boolean).join(' · ');
-  const brand = 'Tour it on Fenn';
+  const brand = 'Tour it on Fenly';
   switch (style) {
     case 'guess-rent':
       return { lead: 'The rent is', big: priceLabel(listing.monthlyRent), tail: 'Did you guess it?', sub, brand };
@@ -391,6 +391,6 @@ export function buildSocialCaption(
       : `Would you pay ${price} for this ${noun} in ${place}?`;
   const extras = highlights.filter(Boolean).slice(0, 2);
   const line2 = `📍 ${[place, listing.city].filter(Boolean).join(', ')} · ${[specsLine(listing), ...extras].join(' · ')}`;
-  const line3 = `Know someone moving to ${listing.city || place}? Tour it on Fenn.`;
+  const line3 = `Know someone moving to ${listing.city || place}? Tour it on Fenly.`;
   return [line1, line2, line3, hashtagsFor(listing).join(' ')].join('\n');
 }
