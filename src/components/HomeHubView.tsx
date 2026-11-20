@@ -1024,9 +1024,7 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <h1 className="text-base font-extrabold">
-            Active listings <span className="text-[#6E655F] font-bold">{activeLandlordRooms.length}</span>
-          </h1>
+          <h1 className="text-base font-extrabold">Active listings</h1>
         </div>
 
         <div className="space-y-2">
@@ -1971,13 +1969,22 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <h1 className="text-base font-extrabold">
-            Applications <span className="text-[#6E655F] font-bold">{submittedApplications.length}</span>
-          </h1>
+          <h1 className="text-base font-extrabold">Applications</h1>
         </div>
 
+        {(
+          [
+            { key: 'pending', title: 'Pending', empty: 'Nothing waiting for you.', apps: submittedApplications.filter((a) => a.status === 'Under Host Review') },
+            { key: 'reviewed', title: 'Reviewed', empty: 'Applications you approve show up here.', apps: submittedApplications.filter((a) => a.status !== 'Under Host Review') },
+          ] as const
+        ).map((group) => (
+        <section key={group.key} className="space-y-2" data-testid={`landlord-applications-${group.key}`}>
+          <h2 className="text-xs font-extrabold text-[#6E655F] uppercase tracking-wide px-1">{group.title}</h2>
+          {group.apps.length === 0 ? (
+            <p className="text-xs text-[#6E655F] px-1">{group.empty}</p>
+          ) : (
         <div className="rounded-2xl bg-white border border-[#2C2724]/10 divide-y divide-[#2C2724]/10 overflow-hidden">
-          {submittedApplications.map((app) => {
+          {group.apps.map((app) => {
             const approved = app.status.includes('Approved') || app.status.includes('Scheduled');
             return (
               <div key={app.id} data-testid={`landlord-application-card-${app.id}`} className="p-3.5 space-y-2.5">
@@ -2028,6 +2035,9 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
             );
           })}
         </div>
+          )}
+        </section>
+        ))}
       </div>
     );
   }

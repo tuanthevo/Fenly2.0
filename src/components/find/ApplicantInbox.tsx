@@ -332,7 +332,19 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
           <p className="text-xs text-[#6E655F]">{EMPTY_STATE.noApplicants.line}</p>
         </div>
       ) : (
-        <div className="space-y-2.5">{open.map(card)}</div>
+        <>
+          {(
+            [
+              { key: 'pending', title: 'Pending', empty: 'No new applicants waiting.', list: open.filter((x) => x.status === 'submitted') },
+              { key: 'reviewed', title: 'Reviewed', empty: 'Shortlisted and chosen applicants show up here.', list: open.filter((x) => x.status !== 'submitted') },
+            ] as const
+          ).map((group) => (
+            <section key={group.key} className="space-y-2" data-testid={`applicants-${group.key}`}>
+              <h3 className="text-xs font-extrabold text-[#6E655F] uppercase tracking-wide px-1">{group.title}</h3>
+              {group.list.length === 0 ? <p className="text-xs text-[#6E655F] px-1">{group.empty}</p> : <div className="space-y-2.5">{group.list.map(card)}</div>}
+            </section>
+          ))}
+        </>
       )}
       {closed.length > 0 && (
         <div className="space-y-2.5">
