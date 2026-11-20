@@ -74,8 +74,8 @@ export type PhotoTourOptions = {
   variant?: number;
 };
 
-/** Photo tours play in the feed card under the listing overlay, so their text runs 20% smaller. */
-export const PHOTO_TEXT_SCALE = 0.8;
+/** Photo tours play in the feed card under the listing overlay, so their text runs at 64% (0.8 x 0.8). */
+export const PHOTO_TEXT_SCALE = 0.64;
 
 export const PHOTO_TIMING = {
   hook: { baseSec: 1.2, perWordSec: 0.22, minSec: 2.5, maxSec: 3.2 },

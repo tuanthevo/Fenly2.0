@@ -259,7 +259,7 @@ export type ViralEditPlan = {
   length: ViralLength;
   hook: HookCopy;
   hookFontSize: number;
-  /** Shrinks every on-screen text block (photo tours use 0.8); 1 or unset = full size */
+  /** Shrinks every on-screen text block (photo tours use 0.64); 1 or unset = full size */
   textScale?: number;
   /** Absolute frame where the hook headline starts to leave */
   hookExitFrame: number;

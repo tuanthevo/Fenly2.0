@@ -117,5 +117,5 @@ test('photo labels become callouts', () => {
 test('photo tours run their text smaller than video tours', () => {
   const plan = buildPhotoTourPlan({ listing, photos: photos(4) });
   assert.equal(plan.textScale, PHOTO_TEXT_SCALE);
-  assert.ok(PHOTO_TEXT_SCALE < 1 && PHOTO_TEXT_SCALE >= 0.75);
+  assert.ok(PHOTO_TEXT_SCALE < 1 && PHOTO_TEXT_SCALE >= 0.6);
 });
