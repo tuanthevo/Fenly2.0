@@ -17,7 +17,7 @@ import {
   MapPin,
   Sparkles,
   UploadCloud,
-  X,
+  ChevronDown,
   HelpCircle,
 } from 'lucide-react';
 import { GuidedShotCapture } from '../GuidedShotCapture';
@@ -63,13 +63,13 @@ const STEPS: { id: FillStep; label: string }[] = [
   { id: 'publish', label: 'Publish' },
 ];
 
-const card = 'p-4 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm';
+const card = 'p-4 rounded-2xl bg-white border border-[#2C2724]/10';
 const input =
-  'w-full bg-white border border-[#2C2724]/25 rounded-xl px-3 py-2.5 text-sm text-[#2C2724] focus:outline-none focus:border-[#D06C4E]';
+  'w-full bg-white border border-[#2C2724]/15 rounded-xl px-3 py-2.5 text-sm text-[#2C2724] focus:outline-none focus:border-[#A9513A]';
 const primaryBtn =
-  'w-full py-3 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] disabled:opacity-50 text-white text-sm font-extrabold shadow-warm-sm flex items-center justify-center gap-2 active:scale-95 transition-all';
+  'w-full py-3 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] disabled:opacity-50 text-white text-sm font-extrabold flex items-center justify-center gap-2 active:scale-95 transition-all';
 const secondaryBtn =
-  'w-full py-2.5 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/30 text-[#2C2724] text-xs font-extrabold flex items-center justify-center gap-1.5 active:scale-95 transition-all';
+  'w-full min-h-10 py-2.5 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/15 text-[#2C2724] text-xs font-extrabold flex items-center justify-center gap-1.5 active:scale-95 transition-all';
 const label = 'text-[11px] font-bold text-[#6E655F] block mb-1';
 
 const LANDLORD_MESSAGE =
@@ -473,7 +473,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
               type="button"
               onClick={goBack}
               aria-label="Back"
-              className="w-10 h-10 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724] text-[#2C2724] flex items-center justify-center shrink-0 active:scale-90"
+              className="w-10 h-10 rounded-xl hover:bg-[#F2EFE9] text-[#2C2724] flex items-center justify-center shrink-0 active:scale-90"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
@@ -483,9 +483,9 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
               onClick={onClose}
               aria-label={step === 'share' ? 'Done' : 'Save and exit'}
               title="Everything you've done is saved"
-              className="h-9 px-3 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/25 text-[11px] font-extrabold text-[#2C2724] flex items-center gap-1 shrink-0"
+              className="min-h-10 px-3 rounded-xl hover:bg-[#F2EFE9] text-xs font-bold text-[#6E655F] flex items-center gap-1 shrink-0"
             >
-              {step === 'share' ? 'Done' : (<><X className="w-3.5 h-3.5" /> Save & exit</>)}
+              {step === 'share' ? 'Done' : 'Save & exit'}
             </button>
           </div>
           {step !== 'share' && (
@@ -493,7 +493,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
               {STEPS.map((s, i) => (
                 <span
                   key={s.id}
-                  className={`h-1.5 flex-1 rounded-full ${i < stepIndex ? 'bg-[#7A907C]' : i === stepIndex ? 'bg-[#D06C4E]' : 'bg-[#2C2724]/10'}`}
+                  className={`h-1 flex-1 rounded-full ${i <= stepIndex ? 'bg-[#D06C4E]' : 'bg-[#2C2724]/10'}`}
                 />
               ))}
             </div>
@@ -537,7 +537,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
 
               {step === 'lease' && (
                 <div className="space-y-3">
-                  <div className={card}>
+                  <div className="px-1 pt-1">
                     <h3 className="text-base font-extrabold">Can you find your own replacement?</h3>
                     <p className="text-xs text-[#6E655F] mt-1">We ask everyone. It keeps you and your housemates covered.</p>
                   </div>
@@ -555,7 +555,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                       onClick={() => void chooseLease(id)}
                       data-testid={`fill-lease-${id}`}
                       className={`w-full p-3.5 rounded-2xl border text-left flex items-center gap-3 transition-all active:scale-[0.99] ${
-                        leaseChoice === id ? 'bg-[#D06C4E]/10 border-[#D06C4E]' : 'bg-white border-[#2C2724]/15 hover:bg-[#F2EFE9]'
+                        leaseChoice === id ? 'bg-[#D06C4E]/10 border-[#D06C4E]' : 'bg-white border-[#2C2724]/10 hover:bg-[#F2EFE9]'
                       }`}
                     >
                       <Icon className="w-5 h-5 text-[#D06C4E] shrink-0" />
@@ -620,7 +620,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                             <option key={n} value={n}>{n}</option>
                           ))}
                         </select>
-                        <button type="button" onClick={useMyLocation} aria-label="Use my location" className="px-3 rounded-xl bg-white border border-[#2C2724]/30 shrink-0">
+                        <button type="button" onClick={useMyLocation} aria-label="Use my location" className="w-11 rounded-xl bg-white border border-[#2C2724]/15 hover:bg-[#F2EFE9] flex items-center justify-center shrink-0">
                           <MapPin className="w-4 h-4 text-[#D06C4E]" />
                         </button>
                       </div>
@@ -633,6 +633,18 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                         <input type="date" min={today} className={`${input} px-2 text-xs`} value={availableFrom} onChange={(e) => setAvailableFrom(e.target.value)} />
                       </div>
                     </div>
+                    <details className="group" data-testid="fill-more-details">
+                      <summary className="min-h-10 flex items-center justify-between cursor-pointer list-none text-xs font-bold [&::-webkit-details-marker]:hidden">
+                        <span>
+                          More details{' '}
+                          <span className="font-semibold text-[#6E655F]">
+                            · {leaseTerm}
+                            {amenities.length ? ` · ${amenities.length} included` : ''}
+                          </span>
+                        </span>
+                        <ChevronDown className="w-4 h-4 text-[#6E655F] transition-transform group-open:rotate-180" />
+                      </summary>
+                      <div className="space-y-3 pt-2">
                     <div>
                       <label className={label} htmlFor="fill-lease-term">Lease term</label>
                       <select id="fill-lease-term" className={input} value={leaseTerm} onChange={(e) => setLeaseTerm(e.target.value)}>
@@ -662,6 +674,8 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                         })}
                       </div>
                     </div>
+                      </div>
+                    </details>
                   </div>
 
                   <div className={`${card} space-y-3`}>
@@ -671,7 +685,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                         type="button"
                         onClick={() => void writeWithAi()}
                         disabled={aiBusy}
-                        className="px-2.5 py-1.5 rounded-xl bg-[#EBF0EC] text-[#485B4A] border border-[#7A907C]/40 text-[11px] font-extrabold flex items-center gap-1 disabled:opacity-60"
+                        className="min-h-10 px-2.5 rounded-xl hover:bg-[#F2EFE9] text-[#A9513A] text-[11px] font-bold flex items-center gap-1 disabled:opacity-60"
                       >
                         {aiBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                         {title ? 'Rewrite with AI' : 'Write it for me'}
@@ -856,7 +870,7 @@ const Stepper: React.FC<{ label: string; value: number; min: number; max: number
 }) => (
   <div>
     <span className={label}>{text}</span>
-    <div className="flex items-center rounded-xl border border-[#2C2724]/25 bg-white overflow-hidden">
+    <div className="flex items-center rounded-xl border border-[#2C2724]/15 bg-white overflow-hidden">
       <button type="button" aria-label={`Fewer ${text.toLowerCase()}`} className="px-2.5 py-2 font-black" onClick={() => onChange(Math.max(min, value - step))}>
         −
       </button>

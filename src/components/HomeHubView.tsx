@@ -1014,29 +1014,22 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
   if (roleMode === 'landlord' && landlordSubPage === 'activeListings') {
     return (
       <div className="w-full h-full bg-[#F9F7F3] text-[#2C2724] pt-4 pb-8 px-3.5 overflow-y-auto space-y-4 animate-fadeIn">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setLandlordSubPage('none')}
             aria-label="Back to Landlord"
             title="Back to Landlord"
-            className="w-9 h-9 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724] text-[#2C2724] flex items-center justify-center shrink-0 transition-all active:scale-90"
+            className="w-10 h-10 rounded-xl hover:bg-[#F2EFE9] text-[#2C2724] flex items-center justify-center shrink-0 transition-all active:scale-90"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <div>
-            <h1 className="text-sm font-bold text-[#2C2724]">Active Room Listing ({activeLandlordRooms.length})</h1>
-            <p className="text-[11px] text-[#6E655F]">Your published room tours</p>
-          </div>
+          <h1 className="text-base font-extrabold">
+            Active listings <span className="text-[#6E655F] font-bold">{activeLandlordRooms.length}</span>
+          </h1>
         </div>
 
-        {(onEditRoom || onDeleteRoom) && (
-          <p className="text-[10px] text-[#6E655F]" data-testid="active-listings-hint">
-            {canHover ? 'Use Edit to change a listing or its video.' : 'Swipe a listing left to edit or delete it.'}
-          </p>
-        )}
-
-        <div className="space-y-2.5">
+        <div className="space-y-2">
           {activeLandlordRooms.map((room) => (
             <ListingActionsRow
               key={room.id}
@@ -1048,6 +1041,11 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
             />
           ))}
         </div>
+        {(onEditRoom || onDeleteRoom) && !canHover && (
+          <p className="text-[11px] text-[#6E655F] text-center" data-testid="active-listings-hint">
+            Swipe a listing left to edit or delete it.
+          </p>
+        )}
         {pendingDelete && (
           <ConfirmDeleteListing
             room={pendingDelete}
@@ -1963,120 +1961,72 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
         data-testid="landlord-applications-subpage"
         className="w-full h-full bg-[#F9F7F3] text-[#2C2724] pt-4 pb-8 px-3.5 overflow-y-auto space-y-4 animate-fadeIn"
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setLandlordSubPage('none')}
             aria-label="Back to Landlord"
             title="Back to Landlord"
-            className="w-9 h-9 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724] text-[#2C2724] flex items-center justify-center shrink-0 transition-all active:scale-90"
+            className="w-10 h-10 rounded-xl hover:bg-[#F2EFE9] text-[#2C2724] flex items-center justify-center shrink-0 transition-all active:scale-90"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <div>
-            <h1 className="text-sm font-bold text-[#2C2724]">
-              Submitted Applications ({submittedApplications.length})
-            </h1>
-            <p className="text-[11px] text-[#6E655F]">
-              Review verified applicants, screening pass status & approve leases
-            </p>
-          </div>
+          <h1 className="text-base font-extrabold">
+            Applications <span className="text-[#6E655F] font-bold">{submittedApplications.length}</span>
+          </h1>
         </div>
 
-        <div className="space-y-3">
-          {submittedApplications.map((app) => (
-            <div
-              key={app.id}
-              data-testid={`landlord-application-card-${app.id}`}
-              className="p-4 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm space-y-3"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
+        <div className="rounded-2xl bg-white border border-[#2C2724]/10 divide-y divide-[#2C2724]/10 overflow-hidden">
+          {submittedApplications.map((app) => {
+            const approved = app.status.includes('Approved') || app.status.includes('Scheduled');
+            return (
+              <div key={app.id} data-testid={`landlord-application-card-${app.id}`} className="p-3.5 space-y-2.5">
+                <div className="flex items-center gap-3">
                   <img
                     src={app.roomThumbnail}
                     alt={app.roomTitle}
-                    className="w-12 h-12 rounded-xl object-cover shrink-0 border border-[#2C2724]/15"
+                    className="w-10 h-10 rounded-lg object-cover shrink-0"
                   />
-                  <div className="min-w-0">
-                    <h4 className="font-bold text-xs text-[#2C2724] truncate">{app.roomTitle}</h4>
-                    <div className="text-xs font-bold text-[#485B4A]">
-                      ${app.roomPrice}/mo • {app.roomLocation}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-bold truncate">{app.applicantName}</span>
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#7A907C] shrink-0" aria-label="Verified" />
                     </div>
-                    <div className="text-[11px] text-[#6E655F]">
-                      Applicant: <strong className="text-[#2C2724]">{app.applicantName}</strong> ({app.applicantIncome})
-                    </div>
+                    <div className="text-[11px] text-[#6E655F] truncate">{app.roomTitle}</div>
                   </div>
+                  <span className={`text-[11px] font-bold shrink-0 ${approved ? 'text-[#485B4A]' : 'text-[#A9513A]'}`}>
+                    {approved ? 'Approved' : 'New'}
+                  </span>
                 </div>
-                <span
-                  className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 border ${
-                    app.status.includes('Approved') || app.status.includes('Scheduled')
-                      ? 'bg-[#E8EFE9] text-[#485B4A] border-[#7A907C]/40'
-                      : 'bg-[#F9F7F3] text-[#D06C4E] border-[#D06C4E]/40'
-                  }`}
-                >
-                  {app.status}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 text-[10px]">
-                <div className="p-2 rounded-xl bg-[#F9F7F3] border border-[#2C2724]/10">
-                  <span className="text-[#6E655F] block">Move-In Date</span>
-                  <span className="font-bold text-[#2C2724]">{app.moveInDate}</span>
+                <div className="text-[11px] text-[#6E655F]">
+                  Move in {app.moveInDate} · {app.leaseTerm} · ${app.roomPrice}/mo
                 </div>
-                <div className="p-2 rounded-xl bg-[#F9F7F3] border border-[#2C2724]/10">
-                  <span className="text-[#6E655F] block">Lease Term</span>
-                  <span className="font-bold text-[#2C2724]">{app.leaseTerm}</span>
-                </div>
-                <div className="p-2 rounded-xl bg-[#F9F7F3] border border-[#2C2724]/10">
-                  <span className="text-[#6E655F] block">Escrow Deposit</span>
-                  <span className="font-bold text-[#485B4A]">${app.escrowAmount} Held</span>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-1.5 text-[10px] font-bold">
-                <span className="px-2 py-0.5 rounded-full bg-[#E8EFE9] text-[#485B4A] border border-[#7A907C]/40">
-                  ✓ Stripe Identity Verified
-                </span>
-                <span className="px-2 py-0.5 rounded-full bg-[#E8EFE9] text-[#485B4A] border border-[#7A907C]/40">
-                  ✓ MeasureOne Income ({app.applicantIncome})
-                </span>
-                <span className="px-2 py-0.5 rounded-full bg-[#E8EFE9] text-[#485B4A] border border-[#7A907C]/40">
-                  ✓ Certn Background Clear
-                </span>
-              </div>
-
-              <p className="text-[11px] text-[#6E655F] bg-[#F9F7F3] p-2.5 rounded-xl border border-[#2C2724]/10">
-                “{app.note}”
-              </p>
-
-              <div className="flex items-center gap-2 pt-1">
-                {app.status === 'Under Host Review' ? (
+                {app.note && <p className="text-xs text-[#2C2724] line-clamp-2">“{app.note}”</p>}
+                <div className="flex items-center gap-2">
+                  {app.status === 'Under Host Review' && (
+                    <button
+                      type="button"
+                      data-testid={`approve-application-btn-${app.id}`}
+                      onClick={() =>
+                        onUpdateApplicationStatus &&
+                        onUpdateApplicationStatus(app.id, 'Approved • Escrow Active')
+                      }
+                      className="min-h-10 px-4 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white font-bold text-xs transition-colors"
+                    >
+                      Approve
+                    </button>
+                  )}
                   <button
                     type="button"
-                    data-testid={`approve-application-btn-${app.id}`}
-                    onClick={() =>
-                      onUpdateApplicationStatus &&
-                      onUpdateApplicationStatus(app.id, 'Approved • Escrow Active')
-                    }
-                    className="flex-1 py-2 px-3 rounded-xl bg-[#D06C4E] hover:bg-[#b85b3f] text-white font-bold text-xs shadow-warm-sm transition-colors"
+                    onClick={() => onOpenDirectMessages()}
+                    className="min-h-10 px-3 rounded-xl hover:bg-[#F2EFE9] text-[#2C2724] font-bold text-xs transition-colors"
                   >
-                    Approve Application
+                    Message
                   </button>
-                ) : (
-                  <span className="flex-1 py-2 px-3 rounded-xl bg-[#E8EFE9] text-[#485B4A] border border-[#7A907C]/40 font-bold text-xs text-center">
-                    ✓ Application Approved
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => onOpenDirectMessages()}
-                  className="py-2 px-3 rounded-xl bg-[#F9F7F3] hover:bg-[#F2EFE9] text-[#2C2724] border border-[#2C2724] font-bold text-xs transition-colors"
-                >
-                  Message Applicant
-                </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );

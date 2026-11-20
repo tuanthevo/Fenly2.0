@@ -6,7 +6,7 @@
  * the edit screen. Tapping or clicking the card still opens the tour.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Pencil, Play, Trash2 } from 'lucide-react';
+import { ChevronRight, Pencil, Trash2 } from 'lucide-react';
 import type { RoomListing } from '../types';
 
 const ACTIONS_WIDTH = 152;
@@ -130,44 +130,38 @@ export const ListingActionsRow: React.FC<ListingActionsRowProps> = ({ room, canH
           transition: dragging ? 'none' : 'transform 220ms cubic-bezier(0.16, 1, 0.3, 1)',
           touchAction: 'pan-y',
         }}
-        className="relative p-3 rounded-2xl bg-white border border-[#2C2724]/15 hover:border-[#2C2724] shadow-warm-sm cursor-pointer transition-colors"
+        className="relative p-3 rounded-2xl bg-white border border-[#2C2724]/10 hover:bg-[#FCFBF9] cursor-pointer transition-colors"
       >
-        {/* Edit button on top (computers) */}
-        {canHover && (
-          <div className="flex justify-end -mt-1 mb-1.5">
+        <div className="flex items-center gap-3">
+          <img
+            src={room.fallbackThumbnail}
+            alt={room.title}
+            draggable={false}
+            className="w-11 h-11 rounded-lg object-cover shrink-0"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-bold text-[#2C2724] truncate">{room.title}</div>
+            <div className="text-[11px] text-[#6E655F] truncate">
+              ${room.price}/mo · {room.location}
+            </div>
+          </div>
+          {/* Edit (computers); phones swipe instead */}
+          {canHover && (
             <button
               type="button"
               data-testid={`listing-edit-btn-${room.id}`}
+              aria-label={`Edit ${room.title}`}
+              title="Edit"
               onClick={(e) => {
                 e.stopPropagation();
                 onEdit();
               }}
-              className="px-2.5 py-1 bg-[#2C2724] hover:bg-[#3d3631] text-[#F9F7F3] text-[11px] font-extrabold rounded-lg flex items-center gap-1 active:scale-95"
+              className="w-10 h-10 rounded-lg hover:bg-[#F2EFE9] text-[#2C2724] flex items-center justify-center shrink-0"
             >
-              <Pencil className="w-3 h-3" />
-              Edit
+              <Pencil className="w-4 h-4" />
             </button>
-          </div>
-        )}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <img
-              src={room.fallbackThumbnail}
-              alt={room.title}
-              draggable={false}
-              className="w-12 h-12 rounded-xl object-cover shrink-0 border border-[#2C2724]/15"
-            />
-            <div className="min-w-0">
-              <div className="text-xs font-bold text-[#2C2724] truncate">{room.title}</div>
-              <div className="text-xs text-[#485B4A] font-bold">
-                ${room.price}/mo • {room.location}
-              </div>
-            </div>
-          </div>
-          <span className="px-3 py-1.5 bg-[#F9F7F3] text-[#2C2724] border border-[#2C2724] text-xs font-bold rounded-xl shrink-0 flex items-center gap-1">
-            <Play className="w-3 h-3 fill-[#2C2724]" />
-            <span>View</span>
-          </span>
+          )}
+          <ChevronRight className="w-4 h-4 text-[#6E655F] shrink-0" aria-hidden="true" />
         </div>
       </div>
     </div>
