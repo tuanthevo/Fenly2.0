@@ -19,7 +19,7 @@ import {
   Wand2,
 } from 'lucide-react';
 import { FenlyViralTour } from '../remotion/viral/FenlyViralTour';
-import { LENGTH_PRESETS, PACE_PRESETS, buildViralEditPlan } from '../remotion/viral/plan';
+import { LENGTH_PRESETS, PACE_PRESETS, buildViralEditPlan, editableShots, roomDetail } from '../remotion/viral/plan';
 import { STYLE_INFO, violatesFairHousing, MAX_HOOK_CHARS, MAX_TAG_CHARS } from '../remotion/viral/copy';
 import { analyzeClipInBrowser } from '../remotion/viral/analyzeClipInBrowser';
 import { fetchViralAiHints } from '../remotion/viral/aiCopy';
@@ -457,11 +457,11 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
           request: text,
           settings: { ...settings, music: settings.music ? { ...settings.music, src: '' } : null },
           hookText: plan.hook.text,
-          shots: plan.shots.map((shot) => ({
+          shots: editableShots(plan).map((shot) => ({
             slotNumber: shot.slotNumber,
             room: shot.room,
             tag: shot.tag,
-            detail: shot.callouts.find((c) => c.row === 1)?.text ?? '',
+            detail: roomDetail(plan, shot.slotNumber),
           })),
           listing,
         }),
@@ -934,7 +934,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
         <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#6E655F]">
           Shots in order (tap a callout to edit it)
         </span>
-        {plan.shots.map((shot, i) => (
+        {editableShots(plan).map((shot, i) => (
           <div
             key={shot.id}
             data-testid={`viral-shot-row-${shot.slotNumber}`}
@@ -964,7 +964,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
                   {shot.role === 'tour' && length === 'full' && (
                     <input
                       data-testid={`viral-detail-input-${shot.slotNumber}`}
-                      value={detailEdits[shot.slotNumber] ?? shot.callouts.find((c) => c.row === 1)?.text ?? ''}
+                      value={detailEdits[shot.slotNumber] ?? roomDetail(plan, shot.slotNumber)}
                       placeholder="Second callout (optional)"
                       maxLength={MAX_TAG_CHARS}
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) =>

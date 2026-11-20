@@ -37,22 +37,23 @@ that already works.
   ([revid TikTok safe-zone checker](https://www.revid.ai/tiktok-safe-zone),
   [cross-platform guide](https://wildandfreetools.com/blog/vertical-video-safe-zones-guide-2026/))
 
-## Section timing (full tour, balanced pace, 5 guided 7 s shots ≈ 34 s when every shot is clean)
+## Section timing (full tour, balanced pace, 5 guided 7 s shots ≈ 35 s when every shot is clean)
 
-Targets after the November 2026 update: 30-45 s (rooms aim for 7 s, the perk for 5 s, the end card 3.5 s). Rooms still shrink to their clean footage, so real clips with doorways or edges give shorter tours. The table below describes the beats; the exact targets live in `plan.ts` `LENGTH_PRESETS`.
+Targets after the November 2026 updates: 30-45 s (rooms aim for 7 s, the perk for 5 s, the end card 3.5 s). Rooms still shrink to their clean footage, so real clips with doorways or edges give shorter tours. Long clips are no longer thrown away: a room with 10 s+ of clean footage plays as **two moments** of ~5.5 s from different parts of the clip, joined by a zoom cut (whips stay for room changes); the opener's room gets a tour moment after the headline when there's 4 s+ footage left; a closer that isn't the perk gets a moment before its reveal. Extra moments are dropped, last first, past 45 s. Host test (5 phone clips, 7-20 s): 35.4 s → 43.5 s; Quick Tour with 3 of them: 21.5 s → 31.0 s. The table below describes the beats; the exact targets live in `plan.ts` `LENGTH_PRESETS`.
 
 | Section | Length | Speed | What's on screen | Why |
 | --- | --- | --- | --- | --- |
 | Hook | headline reading time: 1.2 s + 0.22 s/word + 0.3 s per number, 2.5-3.2 s (≈3.0 s for "What $1,450/mo gets you in Mission District") | 1.0x, no ramp | best frame of the best shot, price + place headline, slow settle from 1.12x zoom | viewers decide in 0-3 s; frame 0 is also the cover |
 | Answer | ≈3 s, same shot keeps rolling | 1.0x (0.85x if footage is short) | "1 bed · 1 bath", "220 sq ft", best amenity, popping in 0.2 s apart; price chip appears | pays off the hook's question right away |
-| Each room | ≈5 s (shorter when the clip has less clean footage, never under 2.6 s) | 2x ramp for the first ~11 frames (under the whip/zoom cut), then matched to camera movement, 0.95-1.35x | room tag at 0.3 s, a second callout at ~2.3 s | something new every ~2 s; a slow shuffle is sped up, a brisk walk stays near real time |
+| Each room | ≈7 s, or two ≈5.5 s moments for long clips (shorter when the clip has less clean footage, never under 2.6 s) | matched to camera movement, 0.85-1.15x, calm by default (target motion 0.05: a fast camera is slowed down), no ramp | room tag at 0.3 s and a second callout at ~2.3 s; a second moment shows the room's detail right after the zoom cut | the host wants slow, natural motion; the cut and callouts carry the change rate |
 | Re-hook | 1.2 s, on the room nearest 45% of the runtime | | "Wait for the best part" | carries viewers through the mid-video dip |
-| Perk | ≈3.4 s | 2x ramp into 0.85x slow motion | "THE BEST PART" + the perk, big | the payoff gets the slow, readable moment |
+| Perk | ≈3.4 s | 0.85x slow motion, no ramp | "THE BEST PART" + the perk, big | the payoff gets the slow, readable moment |
 | End card | ≈3.2 s | footage keeps rolling (may hold its last frame here only) | price question, place, specs, "Tour it on Fenly" | ~10 words need ~3 s to read |
 | Loop | last ~0.3 s | | the opening shot fades back in | the replay starts seamlessly |
 
-Pace scales the sections: snappy ×0.85 (≈24 s), relaxed ×1.15 (≈31 s). The
-teaser keeps the hook (≈2.3 s) and runs ~2.2 s rooms at 1.1-1.6x (≈13 s).
+Pace scales the sections: snappy ×0.85, relaxed ×1.15. The teaser keeps the
+hook (≈2.3 s) and runs ~2.2 s rooms at 1.0-1.25x with no ramps (≈13 s); it
+never splits rooms.
 Guided shots record 7 s so each room has ~5 s of clean footage after the
 tap-to-record shake.
 
@@ -77,7 +78,9 @@ price) and one 4.5 s stretch with a single callout in the last room.
 | Section lengths and speeds above; full tour (default) or teaser | `plan.ts` `LENGTH_PRESETS`, `PACE_PRESETS`, `hookReadSec` |
 | Sections shrink to the clean footage a clip has instead of slowing to a crawl or showing a wall | `plan.ts` `fitSource`, `clipSignals.ts` `findCleanRange` |
 | Room speed matched to camera movement | `plan.ts` `motionMatchedRate` (uses the analysis' `meanMotion`) |
-| Speed ramp into rooms and the perk | `FenlyViralTour.tsx` `ShotFootage` (two back-to-back segments of the same clip) |
+| Speed ramps (off since Nov 2026; `LengthPreset.ramp` is null, the renderer still supports them) | `FenlyViralTour.tsx` `ShotFootage` (two back-to-back segments of the same clip) |
+| Long clips play as two moments of one room, zoom cut between them, 45 s cap | `plan.ts` `planSegments`, `MOMENT_SEC`, `SPLIT_MIN_CLEAN_SEC`, `MAX_TOUR_TOTAL_SEC`; the editor lists one row per room (`editableShots`, `roomDetail`) |
+| Video text at 80% (photo tours 64%); story bar at 110 px, above the text safe zone | `plan.ts` `VIDEO_TEXT_SCALE`, `overlays.tsx` `STORY_BAR_TOP` |
 | Cleanest stretch of each clip (no wall, no door edge, no whip pan), auto-brightened | `clipSignals.ts` (tuned on real phone clips, see the fixture test) |
 | A room opens only where at least 90% of the frame shows the room (column coverage), never in the hallway or behind a door edge | `clipSignals.ts` `columnCoverage`, `OPENING_COVERAGE_MIN`, `findCleanRange` (tested on the host's 5 guided shots, `fixtures/guided-shots.json`) |
 | A pillar, wall or door edge that stays along one side is cropped with a small zoom (≤ 1.25x) anchored on the other side | `clipSignals.ts` `sideBand`, `plan.ts` `reframeFor`, `FenlyViralTour.tsx` `reframeStyle` |

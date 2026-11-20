@@ -5,7 +5,12 @@ import { analyzeSamples } from './clipSignals';
 import {
   buildViralEditPlan,
   checkPlan,
+  editableShots,
   hookReadSec,
+  roomDetail,
+  MAX_TOUR_TOTAL_SEC,
+  MOMENT_SEC,
+  VIDEO_TEXT_SCALE,
   motionMatchedRate,
   reframeFor,
   LENGTH_PRESETS,
@@ -104,11 +109,13 @@ test('5 clean 7 s guided shots make a ~34 s full tour (30-45 s): hook + facts, 3
   assert.equal(plan.endCard.durationInFrames, Math.round(3.5 * plan.fps));
   assert.equal(plan.shots[0].playbackRate, SPEED.hero);
   assert.equal(plan.shots[0].rampFrames, 0, 'no ramp on frame 0');
-  for (const s of plan.shots.slice(1)) {
-    assert.ok(s.rampFrames >= 10 && s.rampRate === 2, `${s.id} ramps in`);
+  // Calm speed: no 2x ramps, rooms between 0.85x and 1.15x
+  for (const s of plan.shots) assert.equal(s.rampFrames, 0, `${s.id} has no speed ramp`);
+  for (const s of plan.shots.filter((x) => x.role === 'tour')) {
+    assert.ok(s.playbackRate >= 0.85 && s.playbackRate <= 1.15, `${s.id} plays at ${s.playbackRate}x`);
   }
   assert.equal(plan.shots[4].playbackRate, LENGTH_PRESETS.full.closerRate, 'slow-motion perk reveal');
-  assert.deepEqual(plan.cuts.map((c) => c.kind), ['whip-left', 'zoom-through', 'whip-right', 'light-leak']);
+  assert.deepEqual(plan.cuts.map((c) => c.kind), ['whip-left', 'whip-right', 'whip-left', 'light-leak']);
 });
 
 test('the teaser is a ~13 s loop with fast rooms and no extra callouts', () => {
@@ -198,11 +205,11 @@ test('every shot fits inside its clip for every length and pace (only the closer
   }
 });
 
-test('real phone clips: every shot plays clean footage (no opening wall), about 25 s in total', () => {
+test('real phone clips: every shot plays clean footage (no opening wall), about 31 s in total', () => {
   const clips = realClips();
   const plan = buildViralEditPlan({ listing, clips });
   assert.deepEqual(checkPlan(plan), []);
-  assert.ok(sec(plan) >= 23 && sec(plan) <= 28, `duration ${sec(plan)}s`);
+  assert.ok(sec(plan) >= 28 && sec(plan) <= 34, `duration ${sec(plan)}s`);
   for (const shot of plan.shots) {
     const clean = clips.find((c) => c.slotNumber === shot.slotNumber)!.analysis!.clean!;
     const frames = shot.role === 'closer' ? plan.endCard.fromFrame - shot.startFrame : shot.durationInFrames;
@@ -213,8 +220,8 @@ test('real phone clips: every shot plays clean footage (no opening wall), about 
   // The hook opens on a clean frame near the analysis' best moment
   const bedroom = clips[0].analysis!;
   assert.ok(plan.shots[0].srcStartSec >= bedroom.best.startSec - MAX_HOOK_SHIFT_SEC - 1e-3, `hook from ${plan.shots[0].srcStartSec}`);
-  // Long rooms play from where the room comes into view and keep their ramp
-  assert.ok(plan.shots.filter((s) => s.role === 'tour').every((s) => s.rampFrames > 0));
+  // No speed ramps anywhere
+  assert.ok(plan.shots.every((s) => s.rampFrames === 0));
 });
 
 test('a room with little clean footage gets a shorter section instead of crawling', () => {
@@ -442,4 +449,53 @@ test('a late best frame keeps the cover; the facts move to the end card instead 
   assert.ok(!opener.callouts.some((c) => c.kind === 'fact'));
   assert.match(plan.endCard.sub, /1 bd/);
   assert.match(plan.endCard.sub, /220 sq ft/);
+});
+
+test('long clips use a second moment of the same room instead of being thrown away (3 shots: 9 / 20 / 20 s)', () => {
+  const clips = guidedClips([1, 2, 3]).map((c, i) => ({ ...c, durationSec: [9, 20, 20][i] }));
+  const before = buildViralEditPlan({ listing, clips: guidedClips([1, 2, 3]).map((c) => ({ ...c, durationSec: 9 })) });
+  const plan = buildViralEditPlan({ listing, clips });
+  assert.deepEqual(checkPlan(plan), []);
+  assert.ok(sec(plan) >= 30 && sec(plan) <= MAX_TOUR_TOTAL_SEC, `duration ${sec(plan)}s`);
+  assert.ok(sec(plan) > sec(before) + 8, `${sec(plan)}s vs ${sec(before)}s with short clips`);
+  // The 20 s bathroom (a tour room) plays as two moments joined by a zoom cut; the label sits on the first
+  const bath = plan.shots.filter((s) => s.slotNumber === 3);
+  assert.equal(bath.length, 2);
+  assert.ok(bath[0].tag && !bath[1].tag, 'one label per room');
+  assert.equal(bath[1].part, 2);
+  assert.equal(bath[1].id, 'shot-3-2');
+  const cutIntoSecond = plan.cuts[plan.shots.indexOf(bath[1]) - 1];
+  assert.equal(cutIntoSecond.kind, 'zoom-through');
+  // ...and only there: a cut into a different room is a whip
+  plan.cuts.slice(0, -1).forEach((c, k) => {
+    if (plan.shots[k].slotNumber !== plan.shots[k + 1].slotNumber) assert.notEqual(c.kind, 'zoom-through', `cut ${k}`);
+  });
+  // The two moments use different footage, the second one later in the clip
+  const [, aEnd] = sourceRange(plan, bath[0]);
+  const [bStart, bEnd] = sourceRange(plan, bath[1]);
+  assert.ok(bStart >= aEnd - 1e-6 && bEnd <= 20, `${aEnd} -> ${bStart}-${bEnd}`);
+  for (const s of bath) assert.ok(onScreen(plan, plan.shots.indexOf(s)) <= MOMENT_SEC + 0.5, `${s.id} ${onScreen(plan, plan.shots.indexOf(s))}s`);
+  // The kitchen closer (not the perk) gets a calm moment before its slow reveal
+  const kitchen = plan.shots.filter((s) => s.slotNumber === 2);
+  assert.deepEqual(kitchen.map((s) => s.role), ['tour', 'closer']);
+  // The editor still lists one row per room, and finds each room's detail
+  assert.deepEqual(editableShots(plan).map((s) => s.slotNumber), [1, 3, 2]);
+  assert.ok(roomDetail(plan, 3).length > 0);
+});
+
+test('a perk closer is never shown before its reveal, and the teaser never splits rooms', () => {
+  const long = guidedClips().map((c) => ({ ...c, durationSec: 20 }));
+  const full = buildViralEditPlan({ listing, clips: long });
+  assert.equal(full.shots.filter((s) => s.slotNumber === 5).length, 1);
+  assert.ok(sec(full) <= MAX_TOUR_TOTAL_SEC, `${sec(full)}s`);
+  assert.deepEqual(checkPlan(full), []);
+  const teaser = buildViralEditPlan({ listing, clips: long }, { length: 'teaser' });
+  assert.equal(teaser.shots.length, 5);
+  assert.ok(teaser.shots.every((s) => s.rampFrames === 0));
+});
+
+test('video tours use smaller text', () => {
+  const plan = buildViralEditPlan({ listing, clips: guidedClips() });
+  assert.equal(plan.textScale, VIDEO_TEXT_SCALE);
+  assert.ok(VIDEO_TEXT_SCALE < 1);
 });
