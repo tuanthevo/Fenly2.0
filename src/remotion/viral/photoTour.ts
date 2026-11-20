@@ -132,8 +132,8 @@ export function closerTagFromLabel(label: string): string {
 /** The four camera moves; each shot moves one way only (no bob, sway or zoom). */
 export const PAN_DIRECTIONS: PanDirection[] = ['right', 'up', 'left', 'down'];
 
-/** Pan speed: 0.75 = a quarter slower than the original full sweep (less ground covered in the same shot length). */
-export const PAN_SPEED = 0.75;
+/** Pan speed: 0.5 = half the original full sweep (less ground covered in the same shot length). */
+export const PAN_SPEED = 0.5;
 
 /**
  * A straight pan across the photo. The photo is held slightly enlarged so

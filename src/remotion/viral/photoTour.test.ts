@@ -79,8 +79,8 @@ test('every shot pans one way only (up, down, left or right): no bob, no zoom, d
   assert.notEqual(a.shots[0].photo!.direction, b.shots[0].photo!.direction);
 });
 
-test('pans move a quarter slower than a full sweep', () => {
-  assert.equal(PAN_SPEED, 0.75);
+test('pans move at half the speed of a full sweep', () => {
+  assert.equal(PAN_SPEED, 0.5);
   const plan = buildPhotoTourPlan({ listing, photos: photos(4) });
   for (const s of plan.shots) {
     const m = s.photo!;
