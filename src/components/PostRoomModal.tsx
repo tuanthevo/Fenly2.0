@@ -1,14 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, Suspense } from 'react';
-import {
-  ArrowLeft,
-  X,
-  Upload,
-  Check,
-  Sparkles,
-  PenTool,
-  Image as ImageIcon,
-  RefreshCw,
-} from 'lucide-react';
+import { ArrowLeft, ChevronDown, RefreshCw } from 'lucide-react';
 import { RoomListing, UserProfile } from '../types';
 import {
   ViralTourSlotConfig,
@@ -403,6 +394,11 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
     publishListingWithPlan(generatedViralPlan);
   };
 
+  const fieldLabel = 'text-[11px] font-bold text-[#6E655F] block mb-1';
+  const field =
+    'w-full min-h-10 px-3 py-2 bg-[#F9F7F3] border border-[#2C2724]/15 rounded-xl text-[#2C2724] font-semibold text-xs focus:outline-none focus:border-[#A9513A]';
+  const section = 'p-4 rounded-2xl bg-white border border-[#2C2724]/10 space-y-3';
+
   return (
     <div
       data-testid="create-listing-modal"
@@ -413,125 +409,85 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-4 py-3.5 border-b border-[#2C2724]/15 bg-[#F9F7F3] flex items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Back to Landlord"
-              className="w-9 h-9 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724] text-[#2C2724] flex items-center justify-center shrink-0 transition-all active:scale-90"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </button>
-            <div className="min-w-0">
-              <h3 className="font-extrabold text-sm text-[#2C2724] truncate">
-                Create Listing
-              </h3>
-              <p className="text-[11px] text-[#6E655F] truncate">
-                Guided Viral Home Tour Studio &amp; AI Listing Details
-              </p>
-            </div>
-          </div>
+        <div className="px-3.5 py-3 border-b border-[#2C2724]/10 bg-[#F9F7F3] flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close Create Listing"
-            className="w-8 h-8 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/20 text-[#2C2724] flex items-center justify-center shrink-0 transition-colors"
+            aria-label="Back to Landlord"
+            className="w-10 h-10 rounded-xl hover:bg-[#F2EFE9] text-[#2C2724] flex items-center justify-center shrink-0 transition-all active:scale-90"
           >
-            <X className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4" />
           </button>
+          <h3 className="font-extrabold text-base text-[#2C2724] truncate">Create listing</h3>
         </div>
 
         {/* Scrollable Form */}
-        <form
-          onSubmit={handleSubmit}
-          className="flex-1 overflow-y-auto p-3.5 space-y-4 text-xs"
-        >
-          {/* STEP 1: COMPACT LISTING DETAILS & LOCATION */}
-          <div className="p-3.5 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-[#D06C4E]/15 text-[#D06C4E] flex items-center justify-center font-extrabold text-xs">
-                  1
-                </div>
-                <div>
-                  <h4 className="font-extrabold text-xs text-[#2C2724]">
-                    Location, Property Specs &amp; Loaded Pictures
-                  </h4>
-                  <p className="text-[10px] text-[#6E655F]">
-                    Used by AI to auto-fill Title, Description &amp; Viral Tour
-                  </p>
-                </div>
-              </div>
-            </div>
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-3.5 space-y-3 text-xs">
+          {/* The room: the essentials up front, the rest under "More details" */}
+          <div className={section}>
+            <h4 className="font-extrabold text-sm text-[#2C2724]">The room</h4>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[10px] font-bold text-[#6E655F] block mb-1">
-                  Monthly Rent ($)
+                <label className={fieldLabel} htmlFor="create-listing-rent">
+                  Rent per month ($)
                 </label>
                 <input
+                  id="create-listing-rent"
                   type="number"
                   required
                   min={200}
                   max={10000}
                   value={price}
                   onChange={(e) => setPrice(Number(e.target.value))}
-                  className="w-full px-2.5 py-2 bg-[#F9F7F3] border border-[#2C2724]/25 rounded-xl text-[#2C2724] font-bold text-xs focus:outline-none focus:border-[#D06C4E]"
+                  className={field}
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-[#6E655F] block mb-1">
-                  Beds
+                <label className={fieldLabel} htmlFor="create-listing-room-type">
+                  Room type
                 </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={6}
-                  value={beds}
-                  onChange={(e) => setBeds(Number(e.target.value))}
-                  className="w-full px-2.5 py-2 bg-[#F9F7F3] border border-[#2C2724]/25 rounded-xl text-[#2C2724] font-bold text-xs focus:outline-none focus:border-[#D06C4E]"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-[#6E655F] block mb-1">
-                  Baths
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={6}
-                  value={baths}
-                  onChange={(e) => setBaths(Number(e.target.value))}
-                  className="w-full px-2.5 py-2 bg-[#F9F7F3] border border-[#2C2724]/25 rounded-xl text-[#2C2724] font-bold text-xs focus:outline-none focus:border-[#D06C4E]"
-                />
+                <select
+                  id="create-listing-room-type"
+                  value={roomType}
+                  onChange={(e) => setRoomType(e.target.value as RoomListing['roomType'])}
+                  className={field}
+                >
+                  <option>Private Room</option>
+                  <option>Master Suite</option>
+                  <option>Studio Sublet</option>
+                  <option>Shared Room</option>
+                  <option>Entire Place</option>
+                </select>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[10px] font-bold text-[#6E655F] block mb-1">
+                <label className={fieldLabel} htmlFor="create-listing-neighborhood">
                   Neighborhood
                 </label>
                 <input
+                  id="create-listing-neighborhood"
                   data-testid="create-listing-neighborhood-input"
                   type="text"
                   required
                   placeholder="e.g. Mission District"
                   value={neighborhood}
                   onChange={(e) => setNeighborhood(e.target.value)}
-                  className="w-full px-2.5 py-2 bg-[#F9F7F3] border border-[#2C2724]/25 rounded-xl text-[#2C2724] font-semibold text-xs focus:outline-none focus:border-[#D06C4E]"
+                  className={field}
                 />
               </div>
               <div>
-                <label className="text-[10px] font-bold text-[#6E655F] block mb-1">
+                <label className={fieldLabel} htmlFor="create-listing-city">
                   City
                 </label>
                 <select
+                  id="create-listing-city"
                   data-testid="create-listing-city-select"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  className="w-full px-2.5 py-2 bg-[#F9F7F3] border border-[#2C2724]/25 rounded-xl text-[#2C2724] font-semibold text-xs focus:outline-none focus:border-[#D06C4E]"
+                  className={field}
                 >
                   <option>San Francisco</option>
                   <option>New York</option>
@@ -543,164 +499,131 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <label className="text-[10px] font-bold text-[#6E655F] block mb-1">
-                  Room Type
-                </label>
-                <select
-                  value={roomType}
-                  onChange={(e) => setRoomType(e.target.value as RoomListing['roomType'])}
-                  className="w-full px-2 py-2 bg-[#F9F7F3] border border-[#2C2724]/25 rounded-xl text-[#2C2724] font-semibold text-[11px] focus:outline-none"
-                >
-                  <option>Private Room</option>
-                  <option>Master Suite</option>
-                  <option>Studio Sublet</option>
-                  <option>Shared Room</option>
-                  <option>Entire Place</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-[#6E655F] block mb-1">
-                  Lease Term
-                </label>
-                <select
-                  value={leaseTerm}
-                  onChange={(e) => setLeaseTerm(e.target.value as RoomListing['leaseTerm'])}
-                  className="w-full px-2 py-2 bg-[#F9F7F3] border border-[#2C2724]/25 rounded-xl text-[#2C2724] font-semibold text-[11px] focus:outline-none"
-                >
-                  <option>Month-to-month</option>
-                  <option>3 Months</option>
-                  <option>6 Months</option>
-                  <option>12+ Months</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-[#6E655F] block mb-1">
-                  Sq Ft / Deposit
-                </label>
-                <div className="grid grid-cols-2 gap-1">
-                  <input
-                    type="number"
-                    value={squareFeet}
-                    onChange={(e) => setSquareFeet(Number(e.target.value))}
-                    title="Square Feet"
-                    className="w-full px-2 py-2 bg-[#F9F7F3] border border-[#2C2724]/25 rounded-xl text-[#2C2724] font-semibold text-[11px] focus:outline-none"
-                  />
-                  <input
-                    type="number"
-                    value={deposit}
-                    onChange={(e) => setDeposit(Number(e.target.value))}
-                    title="Security Deposit ($)"
-                    className="w-full px-2 py-2 bg-[#F9F7F3] border border-[#2C2724]/25 rounded-xl text-[#2C2724] font-semibold text-[11px] focus:outline-none"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Amenities Pills (Top 2 highlighted for Gemini) */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-[#6E655F]">
-                  Select Amenities (Used by AI Title, Description &amp; Tour)
-                </span>
-                <span className="text-[10px] font-bold text-[#485B4A]">
-                  Top 2: {selectedAmenities.slice(0, 2).join(' • ') || 'None'}
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {allAmenitiesOptions.map((amenity) => {
-                  const isSelected = selectedAmenities.includes(amenity);
-                  return (
-                    <button
-                      key={amenity}
-                      type="button"
-                      onClick={() => toggleAmenity(amenity)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] border flex items-center gap-1 transition-all ${
-                        isSelected
-                          ? 'bg-[#E8EFE9] border-[#7A907C] text-[#485B4A] font-bold'
-                          : 'bg-[#F9F7F3] border-[#2C2724]/15 text-[#6E655F] hover:text-[#2C2724]'
-                      }`}
-                    >
-                      {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                      <span>{amenity}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Loaded Pictures Strip (Analyzed by AI when Manual Option is OFF) */}
-            <div
-              data-testid="loaded-pictures-strip"
-              className="p-2.5 rounded-xl bg-[#F9F7F3] border border-[#2C2724]/15 space-y-2"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5">
-                  <ImageIcon className="w-3.5 h-3.5 text-[#D06C4E]" />
-                  <span className="text-[10px] font-extrabold text-[#2C2724]">
-                    Loaded Pictures ({allLoadedPictures.length} Photos Analyzed by AI)
+            <details className="group" data-testid="create-listing-more-details">
+              <summary className="min-h-10 flex items-center justify-between cursor-pointer list-none text-xs font-bold text-[#2C2724] [&::-webkit-details-marker]:hidden">
+                <span>
+                  More details{' '}
+                  <span className="font-semibold text-[#6E655F]">
+                    · {beds} bed · {baths} bath · {leaseTerm}
+                    {selectedAmenities.length ? ` · ${selectedAmenities.length} amenities` : ''}
+                    {allLoadedPictures.length ? ` · ${allLoadedPictures.length} photos` : ''}
                   </span>
-                </div>
-                <label
-                  data-testid="upload-listing-pictures-btn"
-                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-[#F2EFE9] text-[#2C2724] border border-[#2C2724]/30 text-[10px] font-bold cursor-pointer transition-colors"
-                >
-                  + Load Pictures
-                  <input
-                    data-testid="upload-listing-pictures-input"
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleUploadPictures}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-              <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                {allLoadedPictures.map((pic, idx) => (
-                  <div
-                    key={pic.id || idx}
-                    className="relative w-14 h-14 rounded-lg overflow-hidden border border-[#2C2724]/20 shrink-0 bg-white"
-                    title={pic.label}
-                  >
-                    <img
-                      src={pic.url}
-                      alt={pic.label}
-                      className="w-full h-full object-cover"
-                    />
-                    <span className="absolute bottom-0 inset-x-0 bg-black/65 text-white text-[8px] font-bold px-1 py-0.5 truncate">
-                      {pic.label}
-                    </span>
+                </span>
+                <ChevronDown className="w-4 h-4 text-[#6E655F] transition-transform group-open:rotate-180" />
+              </summary>
+
+              <div className="space-y-3 pt-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className={fieldLabel} htmlFor="create-listing-beds">
+                      Beds
+                    </label>
+                    <input id="create-listing-beds" type="number" min={1} max={6} value={beds} onChange={(e) => setBeds(Number(e.target.value))} className={field} />
                   </div>
-                ))}
+                  <div>
+                    <label className={fieldLabel} htmlFor="create-listing-baths">
+                      Baths
+                    </label>
+                    <input id="create-listing-baths" type="number" min={1} max={6} value={baths} onChange={(e) => setBaths(Number(e.target.value))} className={field} />
+                  </div>
+                  <div>
+                    <label className={fieldLabel} htmlFor="create-listing-lease">
+                      Lease
+                    </label>
+                    <select
+                      id="create-listing-lease"
+                      value={leaseTerm}
+                      onChange={(e) => setLeaseTerm(e.target.value as RoomListing['leaseTerm'])}
+                      className={`${field} px-2`}
+                    >
+                      <option>Month-to-month</option>
+                      <option>3 Months</option>
+                      <option>6 Months</option>
+                      <option>12+ Months</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={fieldLabel} htmlFor="create-listing-sqft">
+                      Size (sq ft)
+                    </label>
+                    <input id="create-listing-sqft" type="number" value={squareFeet} onChange={(e) => setSquareFeet(Number(e.target.value))} className={field} />
+                  </div>
+                  <div>
+                    <label className={fieldLabel} htmlFor="create-listing-deposit">
+                      Deposit ($)
+                    </label>
+                    <input id="create-listing-deposit" type="number" value={deposit} onChange={(e) => setDeposit(Number(e.target.value))} className={field} />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <span className={fieldLabel}>Amenities</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {allAmenitiesOptions.map((amenity) => {
+                      const isSelected = selectedAmenities.includes(amenity);
+                      return (
+                        <button
+                          key={amenity}
+                          type="button"
+                          aria-pressed={isSelected}
+                          onClick={() => toggleAmenity(amenity)}
+                          className={`min-h-8 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all ${
+                            isSelected
+                              ? 'bg-[#2C2724] text-[#F9F7F3] border-[#2C2724]'
+                              : 'bg-white text-[#2C2724] border-[#2C2724]/15 hover:bg-[#F2EFE9]'
+                          }`}
+                        >
+                          {amenity}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Pictures (used by AI for the title and description) */}
+                <div data-testid="loaded-pictures-strip" className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={fieldLabel}>Photos{allLoadedPictures.length ? ` (${allLoadedPictures.length})` : ''}</span>
+                    <label
+                      data-testid="upload-listing-pictures-btn"
+                      className="min-h-10 px-2.5 inline-flex items-center rounded-lg hover:bg-[#F2EFE9] text-[#A9513A] text-[11px] font-bold cursor-pointer transition-colors"
+                    >
+                      Add photos
+                      <input
+                        data-testid="upload-listing-pictures-input"
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleUploadPictures}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                  {allLoadedPictures.length > 0 && (
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                      {allLoadedPictures.map((pic, idx) => (
+                        <img
+                          key={pic.id || idx}
+                          src={pic.url}
+                          alt={pic.label}
+                          title={pic.label}
+                          className="w-14 h-14 rounded-lg object-cover shrink-0"
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            </details>
           </div>
 
-          {/* TITLE & DESCRIPTION SECTION (Manual Option Toggle vs AI Auto-Fill from Location & Loaded Pictures) */}
-          <div
-            data-testid="title-description-section"
-            className="p-3.5 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm space-y-3"
-          >
+          {/* Title and description: AI writes it from the details, or the host types their own */}
+          <div data-testid="title-description-section" className={section}>
             <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <h4 className="font-extrabold text-xs text-[#2C2724] flex items-center gap-1.5">
-                  {isManualCopyEnabled ? (
-                    <PenTool className="w-3.5 h-3.5 text-[#D06C4E] shrink-0" />
-                  ) : (
-                    <Sparkles className="w-3.5 h-3.5 text-[#485B4A] shrink-0" />
-                  )}
-                  <span>Title &amp; Description</span>
-                </h4>
-                <p className="text-[10px] text-[#6E655F]">
-                  {isManualCopyEnabled
-                    ? 'Manual Option ON — Type your custom listing title and description below'
-                    : `Manual Option OFF — AI auto-fills from location (${neighborhood}, ${city}) & ${allLoadedPictures.length} loaded pictures`}
-                </p>
-              </div>
-
-              {/* Manual Option Toggle Switch */}
+              <h4 className="font-extrabold text-sm text-[#2C2724]">Title and description</h4>
               <button
                 type="button"
                 role="switch"
@@ -715,119 +638,68 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
                   }
                   setIsManualCopyEnabled(nextManual);
                 }}
-                className={`px-3 py-1.5 rounded-xl border text-[10px] font-extrabold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
-                  isManualCopyEnabled
-                    ? 'bg-[#2C2724] text-[#F9F7F3] border-[#2C2724]'
-                    : 'bg-[#EBF0EC] text-[#485B4A] border-[#7A907C]/50 hover:bg-[#dfe8e1]'
-                }`}
+                className="min-h-10 px-2.5 rounded-lg hover:bg-[#F2EFE9] text-[11px] font-bold text-[#A9513A] shrink-0"
               >
-                <span>Manual Option: {isManualCopyEnabled ? 'ON' : 'OFF'}</span>
+                {isManualCopyEnabled ? 'Let AI write it' : 'Write my own'}
               </button>
             </div>
 
             {isManualCopyEnabled ? (
-              /* MANUAL OPTION TURNED ON: User can input title and description */
-              <div
-                data-testid="manual-title-description-fields"
-                className="space-y-2.5 animate-fadeIn"
-              >
+              <div data-testid="manual-title-description-fields" className="space-y-2.5 animate-fadeIn">
                 <div>
-                  <label className="text-[11px] font-bold text-[#2C2724] block mb-1">
-                    Listing Title (Manual Input)
+                  <label className={fieldLabel} htmlFor="create-listing-title">
+                    Title
                   </label>
                   <input
+                    id="create-listing-title"
                     data-testid="manual-listing-title-input"
                     type="text"
                     required
-                    placeholder="e.g. Sunny Mission Loft with Chef Kitchen & Balcony"
+                    placeholder="e.g. Sunny Mission room with chef kitchen"
                     value={manualTitle}
                     onChange={(e) => setManualTitle(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#F9F7F3] border border-[#2C2724] rounded-xl text-[#2C2724] font-semibold text-xs focus:outline-none focus:border-[#D06C4E]"
+                    className={field}
                   />
                 </div>
-
                 <div>
-                  <label className="text-[11px] font-bold text-[#2C2724] block mb-1">
-                    Listing Description (Manual Input)
+                  <label className={fieldLabel} htmlFor="create-listing-description">
+                    Description
                   </label>
                   <textarea
+                    id="create-listing-description"
                     data-testid="manual-listing-description-input"
                     rows={3}
                     required
-                    placeholder="Describe your flat, natural light, and ideal housemate vibe..."
+                    placeholder="The room, the home, what's included and the area."
                     value={manualDescription}
                     onChange={(e) => setManualDescription(e.target.value)}
-                    className="w-full p-2.5 bg-[#F9F7F3] border border-[#2C2724] rounded-xl text-[#2C2724] placeholder-[#6E655F] text-xs focus:outline-none focus:border-[#D06C4E]"
+                    className={`${field} leading-relaxed`}
                   />
                 </div>
               </div>
             ) : (
-              /* MANUAL OPTION TURNED OFF: AI leverages location + loaded pictures to auto-fill */
-              <div
-                data-testid="ai-autofill-title-description-fields"
-                className="space-y-2.5 animate-fadeIn"
-              >
-                <div className="p-2.5 rounded-xl bg-[#EBF0EC] border border-[#7A907C]/40 flex items-center justify-between gap-2">
-                  <div className="text-[10px] text-[#2C2724] min-w-0">
-                    <span className="font-extrabold text-[#485B4A] block">
-                      ✓ AI Auto-Fill Active (Location + Loaded Pictures)
-                    </span>
-                    <span className="text-[#6E655F] block truncate">
-                      {activeAiCopy.locationContext} • {activeAiCopy.analyzedPicturesSummary}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    data-testid="regenerate-ai-copy-btn"
-                    onClick={handleTriggerGeminiAutoFill}
-                    disabled={isGeneratingAiCopy}
-                    className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#F2EFE9] text-[#2C2724] border border-[#2C2724]/30 text-[10px] font-bold flex items-center gap-1 shrink-0 transition-all cursor-pointer"
-                  >
-                    <RefreshCw
-                      className={`w-3 h-3 ${isGeneratingAiCopy ? 'animate-spin' : ''}`}
-                    />
-                    <span>{isGeneratingAiCopy ? 'Analyzing...' : 'AI Refresh'}</span>
-                  </button>
+              <div data-testid="ai-autofill-title-description-fields" className="space-y-1.5 animate-fadeIn">
+                <div data-testid="ai-autofilled-title" className="text-sm font-extrabold text-[#2C2724]">
+                  {activeAiCopy.title}
                 </div>
-
-                <div
-                  data-testid="ai-autofilled-title"
-                  className="p-2.5 rounded-xl bg-[#F9F7F3] border border-[#2C2724]/20"
+                <p data-testid="ai-autofilled-description" className="text-xs text-[#2C2724]/85 leading-relaxed">
+                  {activeAiCopy.description}
+                </p>
+                <button
+                  type="button"
+                  data-testid="regenerate-ai-copy-btn"
+                  onClick={handleTriggerGeminiAutoFill}
+                  disabled={isGeneratingAiCopy}
+                  className="min-h-10 -ml-2 px-2 rounded-lg hover:bg-[#F2EFE9] text-[11px] font-bold text-[#6E655F] flex items-center gap-1.5"
                 >
-                  <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-[10px] font-extrabold text-[#6E655F]">
-                      Listing Title (AI Auto-Filled)
-                    </span>
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-[#EBF0EC] text-[#485B4A]">
-                      AI Generated
-                    </span>
-                  </div>
-                  <div className="text-xs font-extrabold text-[#2C2724]">
-                    {activeAiCopy.title}
-                  </div>
-                </div>
-
-                <div
-                  data-testid="ai-autofilled-description"
-                  className="p-2.5 rounded-xl bg-[#F9F7F3] border border-[#2C2724]/20"
-                >
-                  <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-[10px] font-extrabold text-[#6E655F]">
-                      Listing Description (AI Auto-Filled)
-                    </span>
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-[#EBF0EC] text-[#485B4A]">
-                      Location + {allLoadedPictures.length} Pictures
-                    </span>
-                  </div>
-                  <p className="text-xs text-[#2C2724] leading-relaxed">
-                    {activeAiCopy.description}
-                  </p>
-                </div>
+                  <RefreshCw className={`w-3.5 h-3.5 ${isGeneratingAiCopy ? 'animate-spin' : ''}`} />
+                  {isGeneratingAiCopy ? 'Writing…' : 'Rewrite with AI'}
+                </button>
               </div>
             )}
           </div>
 
-          {/* STEP 2: GUIDED 5-SHOT VIDEO CAPTURE */}
+          {/* Guided video shots */}
           <GuidedShotCapture
             recordedMedia={recordedViralMedia}
             onUpdateRecordedMedia={setRecordedViralMedia}
@@ -835,15 +707,12 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
             onCameraRequestHandled={clearRetakeSlot}
           />
 
-          {/* STEP 3: REMOTION VIRAL EDITOR (loaded only once there is a shot to edit) */}
+          {/* Video editor (loaded only once there is a shot to edit) */}
           {Object.keys(recordedViralMedia).length > 0 ? (
             <Suspense
               fallback={
-                <div
-                  data-testid="viral-editor-loading"
-                  className="p-3.5 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm flex items-center gap-2 text-[11px] font-bold text-[#6E655F]"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#D06C4E]" />
+                <div data-testid="viral-editor-loading" className="px-1 flex items-center gap-2 text-[11px] font-bold text-[#6E655F]">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                   Loading editor…
                 </div>
               }
@@ -856,41 +725,29 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
               />
             </Suspense>
           ) : (
-            <div
-              data-testid="viral-video-editor-empty"
-              className="p-3.5 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm flex items-center gap-2"
-            >
-              <div className="w-6 h-6 rounded-lg bg-[#D06C4E]/15 text-[#D06C4E] flex items-center justify-center font-extrabold text-xs shrink-0">
-                3
-              </div>
-              <p className="text-[11px] text-[#6E655F]">
-                Record or choose a shot above and we’ll cut your shots into a vertical video.
-              </p>
-            </div>
+            <p data-testid="viral-video-editor-empty" className="px-1 text-[11px] text-[#6E655F]">
+              Record a shot above and we’ll cut your shots into a vertical video.
+            </p>
           )}
 
-          {/* Publish Action */}
-          <div className="p-3.5 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm">
+          {/* Publish */}
+          <div className="space-y-1.5 pt-1">
             <button
               type="submit"
               data-testid="publish-listing-btn"
               disabled={!hasEnoughShots}
-              className="w-full py-3 bg-[#D06C4E] hover:bg-[#b85b3f] text-white font-extrabold text-xs rounded-xl shadow-warm-sm transition-all flex items-center justify-center gap-2 active:scale-95 disabled:bg-[#2C2724]/15 disabled:text-[#6E655F] disabled:shadow-none disabled:cursor-not-allowed disabled:active:scale-100"
+              className="w-full min-h-11 py-3 bg-[#B85B3F] hover:bg-[#A9513A] text-white font-extrabold text-sm rounded-xl transition-all flex items-center justify-center gap-2 active:scale-95 disabled:bg-[#2C2724]/10 disabled:text-[#6E655F] disabled:cursor-not-allowed disabled:active:scale-100"
             >
-              <Upload className="w-4 h-4" />
-              <span>Publish Listing to Feed</span>
+              Publish listing
             </button>
             {hasEnoughShots && viralVideo && (
-              <p
-                data-testid="publish-with-viral-video-note"
-                className="text-[10px] text-center font-bold text-[#485B4A] mt-1.5"
-              >
+              <p data-testid="publish-with-viral-video-note" className="text-[11px] text-center text-[#485B4A]">
                 Publishing with your edited video.
               </p>
             )}
             {!hasEnoughShots && (
-              <p className="text-[10px] text-center text-[#6E655F] mt-1.5">
-                Capture at least {MIN_SHOTS_TO_PROCEED} guided shots in Step 2 to publish.
+              <p className="text-[11px] text-center text-[#6E655F]">
+                Record at least {MIN_SHOTS_TO_PROCEED} shots to publish.
               </p>
             )}
             {/* Back within thumb reach at the end of the form */}
@@ -898,10 +755,9 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
               type="button"
               data-testid="create-listing-bottom-back"
               onClick={onClose}
-              className="w-full mt-2 py-2.5 bg-white hover:bg-[#F2EFE9] text-[#2C2724] border border-[#2C2724]/30 font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 active:scale-95"
+              className="w-full min-h-10 text-[#6E655F] hover:text-[#2C2724] font-bold text-xs rounded-xl"
             >
-              <ArrowLeft className="w-4 h-4" />
-              Back
+              Cancel
             </button>
           </div>
         </form>
@@ -909,4 +765,3 @@ export const PostRoomModal: React.FC<PostRoomModalProps> = ({
     </div>
   );
 };
-

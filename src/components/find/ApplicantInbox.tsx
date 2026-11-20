@@ -9,14 +9,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ArrowLeft,
-  BadgeCheck,
   Check,
   Copy,
   Flag,
   IdCard,
   Loader2,
   MessageCircle,
-  Phone,
   Sparkles,
   Star,
   ThumbsDown,
@@ -35,10 +33,10 @@ import { ReportSheet } from './ReportSheet';
 import { EMPTY_STATE } from '../../config/launchCopy';
 
 const FIT_STYLE: Record<FitLevel, string> = {
-  great: 'bg-[#EBF0EC] text-[#485B4A] border-[#7A907C]/40',
-  ok: 'bg-[#FBF1DE] text-[#8A5A14] border-[#E3B566]/50',
-  off: 'bg-[#F7E3DC] text-[#9A4A33] border-[#D06C4E]/40',
-  unknown: 'bg-[#F2EFE9] text-[#6E655F] border-[#2C2724]/15',
+  great: 'bg-[#EBF0EC] text-[#485B4A]',
+  ok: 'bg-[#FBF1DE] text-[#8A5A14]',
+  off: 'bg-[#F7E3DC] text-[#9A4A33]',
+  unknown: 'bg-[#F2EFE9] text-[#6E655F]',
 };
 
 const STATUS_TEXT: Record<string, string> = {
@@ -68,6 +66,8 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
   const [invite, setInvite] = useState<{ url: string; copied: boolean } | null>(null);
   const [reporting, setReporting] = useState<ApplicantCard | null>(null);
   const [showClosed, setShowClosed] = useState(false);
+  /** Card whose extra details (intro video, bio, lifestyle, more actions) are open */
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -162,39 +162,34 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
     const aiNote = ai?.applicants[a.applicationId];
     const busy = busyId === a.applicationId;
     const canAct = isHost && (a.status === 'submitted' || a.status === 'shortlisted') && data.listing.status === 'published';
+    const expanded = expandedId === a.applicationId;
+    const statusText = a.status === 'declined' && a.declineReason === 'room_filled' ? 'Room filled' : STATUS_TEXT[a.status] ?? a.status;
+    const facts = [
+      a.badges.phone ? 'Phone verified' : 'No phone',
+      a.badges.id ? `ID${a.badges.idProvider === 'demo' ? ' (demo check)' : ''}` : null,
+      `Passport L${a.badges.level}`,
+      `via ${a.channel}`,
+    ].filter(Boolean);
+    const hasMore = Boolean(a.introUrl || a.bio || Object.keys(a.lifestyle).length > 0 || canAct);
+    const quiet = 'min-h-10 px-2.5 rounded-lg text-xs font-bold hover:bg-[#F2EFE9] flex items-center gap-1 disabled:opacity-60';
     return (
-      <div key={a.applicationId} data-testid={`applicant-${a.applicationId}`} className="p-3.5 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm space-y-2.5">
-        <div className="flex items-start gap-3">
+      <div key={a.applicationId} data-testid={`applicant-${a.applicationId}`} className="p-3.5 rounded-2xl bg-white border border-[#2C2724]/10 space-y-2.5">
+        <div className="flex items-center gap-3">
           {a.photoUrl ? (
-            <img src={a.photoUrl} alt="" className="w-12 h-12 rounded-full object-cover border-2 border-[#7A907C] shrink-0" />
+            <img src={a.photoUrl} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
           ) : (
-            <div className="w-12 h-12 rounded-full bg-[#D06C4E]/15 text-[#A9513A] border-2 border-[#7A907C] flex items-center justify-center font-black shrink-0">
+            <div className="w-10 h-10 rounded-full bg-[#F2EFE9] text-[#A9513A] flex items-center justify-center font-black shrink-0">
               {(a.firstName ?? '?').charAt(0).toUpperCase()}
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="font-extrabold text-sm">{a.firstName ?? 'Applicant'}</span>
-              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${a.status === 'chosen' ? 'bg-[#B85B3F] text-white border-[#D06C4E]' : 'bg-[#F2EFE9] border-[#2C2724]/15'}`}>
-                {a.status === 'declined' && a.declineReason === 'room_filled' ? 'Room filled' : STATUS_TEXT[a.status] ?? a.status}
-              </span>
-              {a.fit.strong && a.status !== 'declined' && (
-                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-[#EBF0EC] text-[#485B4A] border border-[#7A907C]/40 flex items-center gap-0.5">
-                  <Star className="w-3 h-3" /> Strong fit
-                </span>
-              )}
+            <div className="flex items-center gap-1.5">
+              <span className="font-extrabold text-sm truncate">{a.firstName ?? 'Applicant'}</span>
+              {a.fit.strong && a.status !== 'declined' && <Star className="w-3.5 h-3.5 text-[#7A907C] fill-[#7A907C] shrink-0" aria-label="Strong fit" />}
+              <span className={`text-[11px] font-bold shrink-0 ${a.status === 'chosen' ? 'text-[#A9513A]' : 'text-[#6E655F]'}`}>· {statusText}</span>
             </div>
-            <div className="flex items-center gap-1.5 mt-1 flex-wrap text-[10px] font-bold">
-              <span className={`px-1.5 py-0.5 rounded-md flex items-center gap-0.5 ${a.badges.phone ? 'bg-[#EBF0EC] text-[#485B4A]' : 'bg-[#F2EFE9] text-[#6E655F]'}`}>
-                <Phone className="w-3 h-3" /> {a.badges.phone ? 'Phone' : 'No phone'}
-              </span>
-              {a.badges.id && (
-                <span className="px-1.5 py-0.5 rounded-md bg-[#EBF0EC] text-[#485B4A] flex items-center gap-0.5" title={a.badges.idProvider === 'demo' ? 'Demo ID check: not a vendor verification yet' : undefined}>
-                  <BadgeCheck className="w-3 h-3" /> ID{a.badges.idProvider === 'demo' ? ' (demo check)' : ''}
-                </span>
-              )}
-              <span className="px-1.5 py-0.5 rounded-md bg-[#F2EFE9] text-[#6E655F]">Passport L{a.badges.level}</span>
-              <span className="px-1.5 py-0.5 rounded-md bg-[#F2EFE9] text-[#6E655F]">via {a.channel}</span>
+            <div className="text-[11px] text-[#6E655F] truncate" title={a.badges.idProvider === 'demo' ? 'Demo ID check: not a vendor verification yet' : undefined}>
+              {facts.join(' · ')}
             </div>
           </div>
           <button type="button" onClick={() => setReporting(a)} aria-label="Report applicant" className="w-10 h-10 rounded-lg text-[#6E655F] hover:bg-[#F2EFE9] flex items-center justify-center shrink-0">
@@ -203,67 +198,78 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
         </div>
 
         <div className="flex flex-wrap gap-1.5">
-          <span className={`text-[11px] font-bold px-2 py-1 rounded-lg border ${FIT_STYLE[a.fit.moveIn.level]}`}>
+          <span className={`text-[11px] font-bold px-2 py-1 rounded-lg ${FIT_STYLE[a.fit.moveIn.level]}`}>
             {a.moveInDate ? `Move-in ${formatMoveIn(a.moveInDate, today) ?? a.moveInDate}: ` : ''}
             {a.fit.moveIn.text}
           </span>
-          <span className={`text-[11px] font-bold px-2 py-1 rounded-lg border ${FIT_STYLE[a.fit.budget.level]}`}>
+          <span className={`text-[11px] font-bold px-2 py-1 rounded-lg ${FIT_STYLE[a.fit.budget.level]}`}>
             {a.budget.maxCents != null ? `Up to ${formatRentCents(a.budget.maxCents)}: ` : ''}
             {a.fit.budget.text}
           </span>
         </div>
         {aiNote && <p className="text-[11px] text-[#485B4A] font-semibold flex items-start gap-1"><Sparkles className="w-3 h-3 mt-0.5 shrink-0" />{aiNote.reason}</p>}
+        {a.note && <p className={`text-xs leading-relaxed ${expanded ? '' : 'line-clamp-2'}`}>“{a.note}”</p>}
 
-        {a.introUrl && <video src={a.introUrl} controls playsInline preload="metadata" className="w-full max-h-64 rounded-xl bg-black" />}
-        {a.note && <p className="text-xs leading-relaxed bg-[#F9F7F3] rounded-xl p-2.5 border border-[#2C2724]/10">“{a.note}”</p>}
-        {a.bio && <p className="text-[11px] text-[#6E655F]">{a.bio}</p>}
-        {Object.keys(a.lifestyle).length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {LIFESTYLE_QUESTIONS.filter((q) => a.lifestyle[q.key]).map((q) => (
-              <span key={q.key} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F2EFE9] text-[#2C2724]">
-                {q.label}: {a.lifestyle[q.key]}
-              </span>
-            ))}
+        {expanded && (
+          <div className="space-y-2.5" data-testid={`applicant-details-${a.applicationId}`}>
+            {a.introUrl && <video src={a.introUrl} controls playsInline preload="metadata" className="w-full max-h-64 rounded-xl bg-black" />}
+            {a.bio && <p className="text-[11px] text-[#6E655F]">{a.bio}</p>}
+            {Object.keys(a.lifestyle).length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {LIFESTYLE_QUESTIONS.filter((q) => a.lifestyle[q.key]).map((q) => (
+                  <span key={q.key} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F2EFE9] text-[#2C2724]">
+                    {q.label}: {a.lifestyle[q.key]}
+                  </span>
+                ))}
+              </div>
+            )}
+            {canAct && (
+              <div className="flex items-center gap-1 flex-wrap">
+                {a.status === 'shortlisted' && data.idCheckEnabled && !a.badges.id && (
+                  <button type="button" disabled={busy || Boolean(a.idCheckRequestedAt)} onClick={() => void act(a, 'request-id')} className={quiet}>
+                    <IdCard className="w-3.5 h-3.5" /> {a.idCheckRequestedAt ? 'ID check asked' : 'Ask for ID check'}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setDeclining(a);
+                    setDeclineText(declineTemplate(a.firstName, area));
+                  }}
+                  className={quiet}
+                >
+                  <X className="w-3.5 h-3.5" /> Decline
+                </button>
+              </div>
+            )}
           </div>
         )}
 
-        <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-[#2C2724]/10">
-          <button type="button" disabled={busy} onClick={() => void vote(a, 1)} aria-pressed={a.votes.mine === 1} className={`min-h-10 px-2.5 py-1.5 rounded-lg text-xs font-bold border flex items-center gap-1 ${a.votes.mine === 1 ? 'bg-[#EBF0EC] border-[#7A907C]' : 'bg-white border-[#2C2724]/20'}`}>
+        <div className="flex items-center gap-0.5 flex-wrap">
+          <button type="button" disabled={busy} onClick={() => void vote(a, 1)} aria-pressed={a.votes.mine === 1} aria-label={`Vote yes (${a.votes.up})`} className={`${quiet} ${a.votes.mine === 1 ? 'bg-[#EBF0EC] text-[#485B4A]' : ''}`}>
             <ThumbsUp className="w-3.5 h-3.5" /> {a.votes.up}
           </button>
-          <button type="button" disabled={busy} onClick={() => void vote(a, -1)} aria-pressed={a.votes.mine === -1} className={`min-h-10 px-2.5 py-1.5 rounded-lg text-xs font-bold border flex items-center gap-1 ${a.votes.mine === -1 ? 'bg-[#F7E3DC] border-[#D06C4E]' : 'bg-white border-[#2C2724]/20'}`}>
+          <button type="button" disabled={busy} onClick={() => void vote(a, -1)} aria-pressed={a.votes.mine === -1} aria-label={`Vote no (${a.votes.down})`} className={`${quiet} ${a.votes.mine === -1 ? 'bg-[#F7E3DC] text-[#9A4A33]' : ''}`}>
             <ThumbsDown className="w-3.5 h-3.5" /> {a.votes.down}
           </button>
-          <button type="button" onClick={() => onOpenThread(a.applicationId)} className="min-h-10 px-2.5 py-1.5 rounded-lg text-xs font-bold border bg-white border-[#2C2724]/20 flex items-center gap-1">
+          <button type="button" onClick={() => onOpenThread(a.applicationId)} className={quiet}>
             <MessageCircle className="w-3.5 h-3.5" /> Message
           </button>
+          {hasMore && (
+            <button type="button" onClick={() => setExpandedId(expanded ? null : a.applicationId)} aria-expanded={expanded} className={`${quiet} text-[#6E655F]`}>
+              {expanded ? 'Less' : 'More'}
+            </button>
+          )}
           {canAct && a.status === 'submitted' && (
-            <button type="button" disabled={busy} onClick={() => void act(a, 'shortlist')} className="min-h-10 px-2.5 py-1.5 rounded-lg text-xs font-bold border bg-white border-[#2C2724]/20 flex items-center gap-1">
+            <button type="button" disabled={busy} onClick={() => void act(a, 'shortlist')} className={`${quiet} ml-auto`}>
               <Star className="w-3.5 h-3.5" /> Shortlist
             </button>
           )}
-          {canAct && a.status === 'shortlisted' && data.idCheckEnabled && !a.badges.id && (
-            <button type="button" disabled={busy || Boolean(a.idCheckRequestedAt)} onClick={() => void act(a, 'request-id')} className="min-h-10 px-2.5 py-1.5 rounded-lg text-xs font-bold border bg-white border-[#2C2724]/20 flex items-center gap-1 disabled:opacity-60">
-              <IdCard className="w-3.5 h-3.5" /> {a.idCheckRequestedAt ? 'ID check asked' : 'Ask for ID check'}
-            </button>
-          )}
           {canAct && (
-            <>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  setDeclining(a);
-                  setDeclineText(declineTemplate(a.firstName, area));
-                }}
-                className="min-h-10 px-2.5 py-1.5 rounded-lg text-xs font-bold border bg-white border-[#2C2724]/20 flex items-center gap-1"
-              >
-                <X className="w-3.5 h-3.5" /> Decline
-              </button>
-              <button type="button" disabled={busy} onClick={() => setChoosing(a)} className="min-h-10 px-3 py-1.5 rounded-lg text-xs font-extrabold bg-[#B85B3F] text-white flex items-center gap-1 ml-auto">
-                {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Choose
-              </button>
-            </>
+            <button type="button" disabled={busy} onClick={() => setChoosing(a)} className={`min-h-10 px-3.5 rounded-lg text-xs font-extrabold bg-[#B85B3F] hover:bg-[#A9513A] text-white flex items-center gap-1 ${a.status === 'submitted' ? '' : 'ml-auto'}`}>
+              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Choose
+            </button>
           )}
         </div>
       </div>
@@ -273,7 +279,7 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
   return (
     <div className="w-full h-full bg-[#F9F7F3] text-[#2C2724] pt-4 pb-10 px-3.5 overflow-y-auto space-y-3" data-testid="applicant-inbox">
       <div className="flex items-center gap-2">
-        <button type="button" onClick={onBack} aria-label="Back" className="w-10 h-10 rounded-xl bg-white border border-[#2C2724] flex items-center justify-center shrink-0 active:scale-90">
+        <button type="button" onClick={onBack} aria-label="Back" className="w-10 h-10 rounded-xl hover:bg-[#F2EFE9] flex items-center justify-center shrink-0 active:scale-90">
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div className="flex-1 min-w-0">
@@ -285,7 +291,7 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
           </div>
         </div>
         {isHost && (
-          <button type="button" onClick={() => void makeInvite()} className="min-h-10 px-2.5 rounded-xl bg-white border border-[#2C2724]/25 text-xs font-bold flex items-center gap-1 shrink-0">
+          <button type="button" onClick={() => void makeInvite()} className="min-h-10 px-2.5 rounded-xl hover:bg-[#F2EFE9] text-xs font-bold flex items-center gap-1 shrink-0">
             <UserPlus className="w-3.5 h-3.5" /> Housemates
           </button>
         )}
@@ -303,7 +309,7 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
         </div>
       )}
 
-      <div className="p-3 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm space-y-2">
+      <div className="px-1 space-y-1">
         <div className="flex items-start gap-2">
           <Sparkles className="w-4 h-4 text-[#D06C4E] mt-0.5 shrink-0" />
           <p className="text-xs font-bold flex-1" data-testid="applicant-summary">{ai?.headline ?? data.summary}</p>
