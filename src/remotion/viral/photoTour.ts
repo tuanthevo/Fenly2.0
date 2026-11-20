@@ -132,6 +132,9 @@ export function closerTagFromLabel(label: string): string {
 /** The four camera moves; each shot moves one way only (no bob, sway or zoom). */
 export const PAN_DIRECTIONS: PanDirection[] = ['right', 'up', 'left', 'down'];
 
+/** Pan speed: 0.75 = a quarter slower than the original full sweep (less ground covered in the same shot length). */
+export const PAN_SPEED = 0.75;
+
 /**
  * A straight pan across the photo. The photo is held slightly enlarged so
  * there is room to travel: sideways moves slide along the wide photo, up/down
@@ -140,9 +143,15 @@ export const PAN_DIRECTIONS: PanDirection[] = ['right', 'up', 'left', 'down'];
 export function panMotion(direction: PanDirection, move: 'walk' | 'look'): PhotoMotion {
   const horizontal = direction === 'left' || direction === 'right';
   const scale = horizontal ? 1.12 : 1.2;
-  const [fromX, toX] = direction === 'right' ? [18, 82] : direction === 'left' ? [82, 18] : [50, 50];
-  // y = 0 shows the top edge, 100 the bottom: going up ends on the top
-  const [fromY, toY] = direction === 'up' ? [100, 0] : direction === 'down' ? [0, 100] : [50, 50];
+  // Full sweeps (x 18 to 82, y 0 to 100) shortened around the centre by PAN_SPEED
+  const half = (range: number) => (range / 2) * PAN_SPEED;
+  const x0 = 50 - half(64);
+  const x1 = 50 + half(64);
+  const [fromX, toX] = direction === 'right' ? [x0, x1] : direction === 'left' ? [x1, x0] : [50, 50];
+  // y = 0 shows the top edge, 100 the bottom: going up ends near the top
+  const y0 = 50 - half(100);
+  const y1 = 50 + half(100);
+  const [fromY, toY] = direction === 'up' ? [y1, y0] : direction === 'down' ? [y0, y1] : [50, 50];
   return { move, direction, fromScale: scale, toScale: scale, fromX, toX, fromY, toY, bob: 0, doorway: false };
 }
 

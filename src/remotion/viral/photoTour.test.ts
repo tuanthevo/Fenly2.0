@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildPhotoTourPlan, closerTagFromLabel, photoHookSec, tagsFromLabel, PHOTO_TIMING, PHOTO_TEXT_SCALE, PAN_DIRECTIONS } from './photoTour';
+import { buildPhotoTourPlan, closerTagFromLabel, photoHookSec, tagsFromLabel, PHOTO_TIMING, PHOTO_TEXT_SCALE, PAN_DIRECTIONS, PAN_SPEED } from './photoTour';
 import { checkPlan } from './plan';
 import type { ViralListingInfo } from './types';
 
@@ -77,6 +77,17 @@ test('every shot pans one way only (up, down, left or right): no bob, no zoom, d
   for (let i = 1; i < a.shots.length; i++) assert.notEqual(a.shots[i].photo!.direction, a.shots[i - 1].photo!.direction);
   assert.deepEqual(new Set(a.shots.map((s) => s.photo!.direction)), new Set(PAN_DIRECTIONS));
   assert.notEqual(a.shots[0].photo!.direction, b.shots[0].photo!.direction);
+});
+
+test('pans move a quarter slower than a full sweep', () => {
+  assert.equal(PAN_SPEED, 0.75);
+  const plan = buildPhotoTourPlan({ listing, photos: photos(4) });
+  for (const s of plan.shots) {
+    const m = s.photo!;
+    const travel = Math.abs(m.toX - m.fromX) || Math.abs(m.toY - m.fromY);
+    const full = m.fromX !== m.toX ? 64 : 100;
+    assert.ok(Math.abs(travel - full * PAN_SPEED) < 1e-9, `${s.id}: ${travel}`);
+  }
 });
 
 test('re-hook on the middle room, guess-the-rent hides the price, every style is valid', () => {
