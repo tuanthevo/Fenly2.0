@@ -11,6 +11,7 @@ import {
   ArrowLeft,
   UserCircle,
   ChevronRight,
+  X,
   Bell,
   Smartphone,
   HelpCircle,
@@ -111,6 +112,8 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
 }) => {
   const canHover = useCanHover();
   const [pendingDelete, setPendingDelete] = useState<RoomListing | null>(null);
+  /** Applicant profile sheet on the landlord Applications page (demo) */
+  const [profileApp, setProfileApp] = useState<SubmittedApplication | null>(null);
   // The host's own listings; the demo shows three sample listings until they post one
   const ownRooms = allRooms.filter(isHostListing);
   const activeLandlordRooms = ownRooms.length > 0 ? ownRooms : allRooms.slice(0, 3);
@@ -1975,7 +1978,7 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
         {(
           [
             { key: 'pending', title: 'Pending', empty: 'Nothing waiting for you.', apps: submittedApplications.filter((a) => a.status === 'Under Host Review') },
-            { key: 'reviewed', title: 'Reviewed', empty: 'Applications you approve show up here.', apps: submittedApplications.filter((a) => a.status !== 'Under Host Review') },
+            { key: 'reviewed', title: 'Reviewed', empty: 'Applications you approve or decline show up here.', apps: submittedApplications.filter((a) => a.status !== 'Under Host Review') },
           ] as const
         ).map((group) => (
         <section key={group.key} className="space-y-2" data-testid={`landlord-applications-${group.key}`}>
@@ -1985,26 +1988,34 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
           ) : (
         <div className="rounded-2xl bg-white border border-[#2C2724]/10 divide-y divide-[#2C2724]/10 overflow-hidden">
           {group.apps.map((app) => {
+            const declined = app.status === 'Declined';
             const approved = app.status.includes('Approved') || app.status.includes('Scheduled');
             return (
               <div key={app.id} data-testid={`landlord-application-card-${app.id}`} className="p-3.5 space-y-2.5">
-                <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setProfileApp(app)}
+                  data-testid={`application-profile-btn-${app.id}`}
+                  aria-label={`View ${app.applicantName}'s profile`}
+                  className="w-full flex items-center gap-3 text-left -m-1 p-1 rounded-xl hover:bg-[#F9F7F3]"
+                >
                   <img
-                    src={app.roomThumbnail}
-                    alt={app.roomTitle}
-                    className="w-10 h-10 rounded-lg object-cover shrink-0"
+                    src={app.applicantAvatar}
+                    alt=""
+                    className="w-10 h-10 rounded-full object-cover shrink-0"
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className="text-sm font-bold truncate">{app.applicantName}</span>
-                      <CheckCircle2 className="w-3.5 h-3.5 text-[#7A907C] shrink-0" aria-label="Verified" />
+                      {app.idVerified && <CheckCircle2 className="w-3.5 h-3.5 text-[#7A907C] shrink-0" aria-label="Verified" />}
                     </div>
                     <div className="text-[11px] text-[#6E655F] truncate">{app.roomTitle}</div>
                   </div>
-                  <span className={`text-[11px] font-bold shrink-0 ${approved ? 'text-[#485B4A]' : 'text-[#A9513A]'}`}>
-                    {approved ? 'Approved' : 'New'}
+                  <span className={`text-[11px] font-bold shrink-0 ${approved ? 'text-[#485B4A]' : declined ? 'text-[#6E655F]' : 'text-[#A9513A]'}`}>
+                    {approved ? 'Approved' : declined ? 'Declined' : 'New'}
                   </span>
-                </div>
+                  <ChevronRight className="w-4 h-4 text-[#6E655F] shrink-0" aria-hidden="true" />
+                </button>
                 <div className="text-[11px] text-[#6E655F]">
                   Move in {app.moveInDate} · {app.leaseTerm} · ${app.roomPrice}/mo
                 </div>
@@ -2023,10 +2034,20 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
                       Approve
                     </button>
                   )}
+                  {app.status === 'Under Host Review' && (
+                    <button
+                      type="button"
+                      data-testid={`decline-application-btn-${app.id}`}
+                      onClick={() => onUpdateApplicationStatus && onUpdateApplicationStatus(app.id, 'Declined')}
+                      className="min-h-10 px-4 rounded-xl border border-[#2C2724]/15 hover:bg-[#F2EFE9] text-[#2C2724] font-bold text-xs transition-colors"
+                    >
+                      Decline
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => onOpenDirectMessages()}
-                    className="min-h-10 px-3 rounded-xl hover:bg-[#F2EFE9] text-[#2C2724] font-bold text-xs transition-colors"
+                    className="min-h-10 px-3 rounded-xl hover:bg-[#F2EFE9] text-[#2C2724] font-bold text-xs transition-colors ml-auto"
                   >
                     Message
                   </button>
@@ -2038,6 +2059,21 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
           )}
         </section>
         ))}
+
+        {profileApp && (
+          <ApplicantProfileSheet
+            app={submittedApplications.find((a) => a.id === profileApp.id) ?? profileApp}
+            onClose={() => setProfileApp(null)}
+            onDecide={(status) => {
+              onUpdateApplicationStatus?.(profileApp.id, status);
+              setProfileApp(null);
+            }}
+            onMessage={() => {
+              setProfileApp(null);
+              onOpenDirectMessages();
+            }}
+          />
+        )}
       </div>
     );
   }
@@ -2733,6 +2769,116 @@ export const HomeHubView: React.FC<HomeHubViewProps> = ({
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+/**
+ * Demo applicant profile (landlord Applications page): everything the host
+ * needs before deciding, with Approve / Decline / Message at the bottom.
+ * Shows facts the applicant shared; contact goes through Message, so the
+ * email is not shown.
+ */
+const ApplicantProfileSheet: React.FC<{
+  app: SubmittedApplication;
+  onClose: () => void;
+  onDecide: (status: SubmittedApplication['status']) => void;
+  onMessage: () => void;
+}> = ({ app, onClose, onDecide, onMessage }) => {
+  const pending = app.status === 'Under Host Review';
+  const checks = [
+    { ok: app.idVerified, text: 'ID verified' },
+    { ok: app.incomeVerified, text: `Income verified (${app.applicantIncome})` },
+    { ok: app.backgroundCleared, text: 'Background check clear' },
+  ];
+  const rows = [
+    ['Room', app.roomTitle],
+    ['Move-in', app.moveInDate],
+    ['Lease', app.leaseTerm],
+    ['Rent', `$${app.roomPrice}/mo`],
+    ['Applied', app.submittedAt],
+  ];
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-[#2C2724]/60 animate-fadeIn"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="applicant-profile-name"
+        data-testid="applicant-profile-sheet"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-[420px] max-h-[90vh] overflow-y-auto bg-[#F9F7F3] text-[#2C2724] rounded-t-3xl sm:rounded-3xl p-5 space-y-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+      >
+        <div className="flex items-center gap-3">
+          <img src={app.applicantAvatar} alt="" className="w-14 h-14 rounded-full object-cover shrink-0" />
+          <div className="min-w-0 flex-1">
+            <h3 id="applicant-profile-name" className="text-base font-extrabold truncate">{app.applicantName}</h3>
+            <p className="text-[11px] text-[#6E655F]">Applied for {app.roomTitle}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close profile"
+            className="w-10 h-10 rounded-xl hover:bg-[#F2EFE9] flex items-center justify-center shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {app.note && <p className="text-sm leading-relaxed">“{app.note}”</p>}
+
+        <ul className="space-y-1.5">
+          {checks.map((c) => (
+            <li key={c.text} className={`text-xs font-bold flex items-center gap-2 ${c.ok ? 'text-[#485B4A]' : 'text-[#6E655F]'}`}>
+              <CheckCircle2 className={`w-4 h-4 shrink-0 ${c.ok ? 'text-[#7A907C]' : 'text-[#2C2724]/25'}`} />
+              {c.ok ? c.text : `${c.text.split(' (')[0]}: not yet`}
+            </li>
+          ))}
+        </ul>
+
+        <dl className="rounded-2xl bg-white border border-[#2C2724]/10 divide-y divide-[#2C2724]/10">
+          {rows.map(([k, v]) => (
+            <div key={k} className="px-3.5 py-2.5 flex items-center justify-between gap-3 text-xs">
+              <dt className="text-[#6E655F]">{k}</dt>
+              <dd className="font-bold text-right truncate">{v}</dd>
+            </div>
+          ))}
+        </dl>
+
+        {pending ? (
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              data-testid="profile-decline-btn"
+              onClick={() => onDecide('Declined')}
+              className="min-h-11 rounded-xl border border-[#2C2724]/15 bg-white hover:bg-[#F2EFE9] text-sm font-bold"
+            >
+              Decline
+            </button>
+            <button
+              type="button"
+              data-testid="profile-approve-btn"
+              onClick={() => onDecide('Approved • Escrow Active')}
+              className="min-h-11 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-sm font-extrabold"
+            >
+              Approve
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs font-bold text-center text-[#6E655F]">
+            {app.status === 'Declined' ? 'You declined this application.' : 'You approved this application.'}
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={onMessage}
+          className="w-full min-h-10 rounded-xl hover:bg-[#F2EFE9] text-xs font-bold"
+        >
+          Message {app.applicantName.split(' ')[0]}
+        </button>
+      </div>
     </div>
   );
 };
