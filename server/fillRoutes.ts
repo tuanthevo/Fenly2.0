@@ -32,7 +32,7 @@ import { daysUntil, fillNudges, summarizeByChannel, todayIn } from "../src/fill/
 import { SHARE_CHANNELS, isShareChannel, type FillListingInfo, type ShareChannel } from "../src/fill/types.js";
 
 const LISTING_COLUMNS =
-  "id, owner_id, status, title, description, neighborhood, city, rent_cents, deposit_cents, available_from, move_out_date, lease_term, lease_permission, beds, baths, amenities, house_rules, caption, viral_edit, copy_approved_at, published_at, filled_at, created_at, updated_at";
+  "id, owner_id, status, title, description, neighborhood, city, rent_cents, deposit_cents, available_from, move_out_date, lease_term, lease_permission, beds, baths, square_feet, amenities, house_rules, caption, viral_edit, copy_approved_at, published_at, filled_at, created_at, updated_at";
 const PUBLIC_COLUMNS =
   "id, status, title, description, neighborhood, city, rent_cents, available_from, move_out_date, lease_term, beds, baths, amenities, caption";
 

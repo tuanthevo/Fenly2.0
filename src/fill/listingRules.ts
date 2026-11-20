@@ -23,6 +23,7 @@ export type ListingPatch = Partial<{
   lease_term: string | null;
   beds: number | null;
   baths: number | null;
+  square_feet: number | null;
   amenities: string[];
   house_rules: string | null;
   caption: string | null;
@@ -113,6 +114,11 @@ export function sanitizeListingPatch(body: unknown, now: Date = new Date()): Pat
     const v = input[key];
     if (v === null || (typeof v === 'number' && v >= 0 && v <= max && Number.isInteger(v / step))) patch[key] = v as number | null;
     else errors.push(`${key} is invalid`);
+  }
+  if ('square_feet' in input) {
+    const v = input.square_feet;
+    if (v === null || (typeof v === 'number' && Number.isInteger(v) && v >= 50 && v <= 10000)) patch.square_feet = v;
+    else errors.push('square_feet must be a whole number from 50 to 10,000');
   }
   if ('amenities' in input) {
     const v = input.amenities;

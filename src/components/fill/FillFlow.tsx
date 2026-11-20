@@ -8,6 +8,7 @@ import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } fr
 import {
   AlertTriangle,
   ArrowLeft,
+  ArrowRight,
   Check,
   CheckCircle2,
   Copy,
@@ -17,7 +18,6 @@ import {
   MapPin,
   Sparkles,
   UploadCloud,
-  ChevronDown,
   HelpCircle,
 } from 'lucide-react';
 import { GuidedShotCapture } from '../GuidedShotCapture';
@@ -46,6 +46,8 @@ import {
   type FillStep,
 } from '../../fill/listingRules';
 import { FILL_AMENITIES, SF_NEIGHBORHOODS, leaseTermOptions, nearestNeighborhood } from '../../fill/neighborhoods';
+import { neighborhoodFromZip } from '../../fill/zipNeighborhood';
+import { geocodeSfAddress } from '../../lib/geocode';
 import { formatMoveIn, formatRentCents } from '../../fill/publicListing';
 import { todayIn } from '../../fill/fillStatus';
 import type { SharePosts } from '../../fill/sharePosts';
@@ -112,6 +114,10 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
   const [neighborhood, setNeighborhood] = useState('Mission');
   const [beds, setBeds] = useState(1);
   const [baths, setBaths] = useState(1);
+  const [squareFeet, setSquareFeet] = useState('');
+  const [areaQuery, setAreaQuery] = useState(''); // address or ZIP: only used to pick the neighborhood, never saved
+  const [areaNote, setAreaNote] = useState<string | null>(null);
+  const [areaBusy, setAreaBusy] = useState(false);
   const [leaseTerm, setLeaseTerm] = useState('6 months');
   const [availableFrom, setAvailableFrom] = useState('');
   const [amenities, setAmenities] = useState<string[]>([]);
@@ -146,6 +152,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
     setNeighborhood(row.neighborhood || 'Mission');
     setBeds(row.beds ?? 1);
     setBaths(row.baths == null ? 1 : Number(row.baths));
+    setSquareFeet(row.square_feet ? String(row.square_feet) : '');
     setLeaseTerm(row.lease_term || '6 months');
     setAvailableFrom(row.available_from ?? (row.move_out_date ? nextDay(row.move_out_date) : ''));
     setAmenities(row.amenities ?? []);
@@ -296,6 +303,30 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
     );
   };
 
+  /** Address or ZIP -> neighborhood. A ZIP is looked up here; a street address goes to the Maps geocoder. */
+  const findArea = async () => {
+    const text = areaQuery.trim();
+    if (!text || areaBusy) return;
+    setError(null);
+    setAreaNote(null);
+    const pick = (name: string, from: string) => {
+      setNeighborhood(name);
+      setAreaNote(`${name}, from ${from}. Change it below if that's not right.`);
+    };
+    const byZip = neighborhoodFromZip(text);
+    if (byZip.kind === 'found') return pick(byZip.neighborhood, `ZIP ${byZip.zip}`);
+    if (byZip.kind === 'sf_unlisted') return setAreaNote(`ZIP ${byZip.zip} isn't one of our areas yet. Pick the closest one below.`);
+    if (byZip.kind === 'outside_sf') return setAreaNote('Fenn is only in San Francisco for now. Check the ZIP code.');
+    setAreaBusy(true);
+    const point = await geocodeSfAddress(text);
+    setAreaBusy(false);
+    const near = point ? nearestNeighborhood(point.lat, point.lng) : null;
+    if (near) return pick(near, 'your address');
+    const zipHit = point?.zip ? neighborhoodFromZip(point.zip) : null;
+    if (zipHit?.kind === 'found') return pick(zipHit.neighborhood, 'your address');
+    setAreaNote("We couldn't place that address. Try the 5-digit ZIP code, or pick below.");
+  };
+
   const writeWithAi = async () => {
     setAiBusy(true);
     setError(null);
@@ -355,12 +386,16 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
     run('details', async () => {
       setIssues([]);
       if (!title.trim() || !description.trim()) throw new Error('Add a title and a description.');
-      if (!approved) throw new Error('Tick "I checked this text" first.');
+      if (liveIssues.length > 0) throw new Error('Change the highlighted words in your text first.');
+      if (!approved) throw new Error('Tick "I checked this text and it\'s accurate" first.');
+      const sqft = squareFeet ? Number(squareFeet) : null;
+      if (sqft !== null && !(sqft >= 50 && sqft <= 10000)) throw new Error('Room size must be between 50 and 10,000 sq ft, or left blank.');
       const { listing: updated } = await fillApi.patch(listing!.id, {
         neighborhood,
         city: 'San Francisco',
         beds,
         baths,
+        square_feet: sqft,
         lease_term: leaseTerm,
         available_from: availableFrom || null,
         amenities,
@@ -459,6 +494,25 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
     setError(null);
     setStep(STEPS[stepIndex - 1].id);
   };
+  /** The header arrow does what the step's main button does, and says what's missing when it can't. */
+  const goForward = () => {
+    setError(null);
+    if (step === 'start') return void submitStart();
+    if (step === 'lease') {
+      if (!leaseChoice) return setError('Pick one answer to continue.');
+      return setStep('tour');
+    }
+    if (step === 'tour') {
+      if (!enoughShots) return setError('Film 3 shots to continue.');
+      return void submitTour();
+    }
+    if (step === 'details') return void submitDetails();
+    if (step === 'video') {
+      if (!mediaKinds.includes('video_full')) return setError('Make your video first, then tap "Use this video".');
+      return setStep('publish');
+    }
+  };
+  const canGoForward = step !== 'publish' && step !== 'share';
 
   return (
     <div className="fixed inset-0 z-50 flex justify-center bg-[#2C2724]/60 sm:items-center font-['Plus_Jakarta_Sans','Inter',sans-serif]">
@@ -478,6 +532,18 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
               <ArrowLeft className="w-4 h-4" />
             </button>
             <h2 className="flex-1 text-base font-extrabold">{step === 'share' ? 'Share your room' : 'Fill my room'}</h2>
+            {canGoForward && (
+              <button
+                type="button"
+                onClick={goForward}
+                disabled={busy !== null}
+                aria-label="Next"
+                data-testid="fill-forward"
+                className="w-10 h-10 rounded-xl hover:bg-[#F2EFE9] text-[#2C2724] flex items-center justify-center shrink-0 active:scale-90 disabled:opacity-40"
+              >
+                {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}
@@ -613,6 +679,27 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                 <div className="space-y-3">
                   <div className={`${card} space-y-3`}>
                     <div>
+                      <label className={label} htmlFor="fill-area-query">Address or ZIP code (only used to find your neighborhood, never saved)</label>
+                      <form
+                        className="flex gap-2 mb-2"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          void findArea();
+                        }}
+                      >
+                        <input
+                          id="fill-area-query"
+                          className={input}
+                          placeholder="94110 or 123 Valencia St"
+                          autoComplete="off"
+                          value={areaQuery}
+                          onChange={(e) => setAreaQuery(e.target.value.slice(0, 120))}
+                        />
+                        <button type="submit" disabled={areaBusy || !areaQuery.trim()} className="min-h-10 px-3 rounded-xl bg-white border border-[#2C2724]/15 hover:bg-[#F2EFE9] text-xs font-bold shrink-0 disabled:opacity-50">
+                          {areaBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Find'}
+                        </button>
+                      </form>
+                      {areaNote && <p className="text-[11px] text-[#6E655F] font-semibold mb-2" role="status">{areaNote}</p>}
                       <label className={label} htmlFor="fill-neighborhood">Neighborhood (we show the area, never the address)</label>
                       <div className="flex gap-2">
                         <select id="fill-neighborhood" className={input} value={neighborhood} onChange={(e) => setNeighborhood(e.target.value)}>
@@ -633,25 +720,27 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                         <input type="date" min={today} className={`${input} px-2 text-xs`} value={availableFrom} onChange={(e) => setAvailableFrom(e.target.value)} />
                       </div>
                     </div>
-                    <details className="group" data-testid="fill-more-details">
-                      <summary className="min-h-10 flex items-center justify-between cursor-pointer list-none text-xs font-bold [&::-webkit-details-marker]:hidden">
-                        <span>
-                          More details{' '}
-                          <span className="font-semibold text-[#6E655F]">
-                            · {leaseTerm}
-                            {amenities.length ? ` · ${amenities.length} included` : ''}
-                          </span>
-                        </span>
-                        <ChevronDown className="w-4 h-4 text-[#6E655F] transition-transform group-open:rotate-180" />
-                      </summary>
-                      <div className="space-y-3 pt-2">
-                    <div>
-                      <label className={label} htmlFor="fill-lease-term">Lease term</label>
-                      <select id="fill-lease-term" className={input} value={leaseTerm} onChange={(e) => setLeaseTerm(e.target.value)}>
-                        {leaseTermOptions(leaseTerm).map((t) => (
-                          <option key={t} value={t}>{t}</option>
-                        ))}
-                      </select>
+                    <div className="space-y-3" data-testid="fill-more-details">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className={label} htmlFor="fill-lease-term">Lease term</label>
+                        <select id="fill-lease-term" className={input} value={leaseTerm} onChange={(e) => setLeaseTerm(e.target.value)}>
+                          {leaseTermOptions(leaseTerm).map((t) => (
+                            <option key={t} value={t}>{t}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={label} htmlFor="fill-square-feet">Room size (sq ft)</label>
+                        <input
+                          id="fill-square-feet"
+                          inputMode="numeric"
+                          placeholder="150"
+                          className={input}
+                          value={squareFeet}
+                          onChange={(e) => setSquareFeet(e.target.value.replace(/[^\d]/g, '').slice(0, 5))}
+                        />
+                      </div>
                     </div>
                     <div>
                       <span className={label}>What's included</span>
@@ -674,8 +763,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                         })}
                       </div>
                     </div>
-                      </div>
-                    </details>
+                    </div>
                   </div>
 
                   <div className={`${card} space-y-3`}>
@@ -736,7 +824,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                   <button
                     type="button"
                     className={primaryBtn}
-                    disabled={busy !== null || !approved || !title.trim() || !description.trim() || liveIssues.length > 0}
+                    disabled={busy !== null}
                     onClick={() => void submitDetails()}
                     data-testid="fill-details-continue"
                   >
