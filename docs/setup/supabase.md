@@ -22,6 +22,8 @@ runs as the signed-out demo (Passport says "Sign-in isn't set up").
    `applicant-intros`). Running it recomputes every Passport level with the new
    Level 1 rule (phone + photo + bio + move-in + budget + 6 lifestyle answers), so
    existing phone-only Passports drop to Level 0 until they're filled in.
+6. Then `supabase/migrations/0004_listings_owner_select.sql` (a host can read back
+   the draft listing they just created; without it, Fill shows "not_allowed").
 
 Later schema changes go in a new numbered file (`0002_...sql`); never edit one
 that has already been run.
