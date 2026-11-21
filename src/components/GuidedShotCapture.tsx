@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Camera,
@@ -788,6 +788,19 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
   const [checkingShot, setCheckingShot] = useState<number | null>(null);
   const [cardErrors, setCardErrors] = useState<Record<number, string>>({});
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+  // Phones and tablets film in the phone's own camera app (full screen, zoom, lens choice);
+  // computers keep the in-app camera, since a file input there only opens a file picker
+  const cameraInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+  const useNativeCamera = useMemo(
+    () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches,
+    []
+  );
+  /** Record: must run inside the tap (a phone only opens its camera from a user gesture). */
+  const startRecording = (shot: GuidedShot) => {
+    const input = cameraInputRefs.current[shot.slotNumber];
+    if (useNativeCamera && input) input.click();
+    else setCameraShot(shot);
+  };
   const cardRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   useEffect(() => {
@@ -796,7 +809,8 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
     if (shot && mode === 'quick' && EXTRA_SHOT_SLOTS.includes(shot.slotNumber)) setExtrasOpen(true);
     if (shot) {
       cardRefs.current[shot.slotNumber]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setCameraShot(shot);
+      // On a phone the camera app can't be opened from here (no tap): the card is in view, Record opens it
+      if (!useNativeCamera) setCameraShot(shot);
     }
     onCameraRequestHandled?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -833,7 +847,8 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
 
   const handleCameraRollPick = async (
     shot: GuidedShot,
-    e: React.ChangeEvent<HTMLInputElement>
+    e: React.ChangeEvent<HTMLInputElement>,
+    source: 'uploaded' | 'recorded' = 'uploaded'
   ) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -841,7 +856,10 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
     if (file.type && !file.type.startsWith('video/')) {
       setCardErrors((prev) => ({
         ...prev,
-        [shot.slotNumber]: 'That file isn’t a video. Pick a video clip from your Camera Roll.',
+        [shot.slotNumber]:
+          source === 'recorded'
+            ? 'That was a photo. Switch the camera to Video and film the shot.'
+            : 'That file isn’t a video. Pick a video clip from your Camera Roll.',
       }));
       return;
     }
@@ -859,7 +877,7 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
       slotNumber: shot.slotNumber,
       videoUrl: url,
       thumbnailUrl: meta.thumbnailUrl || shot.sampleThumbnailUrl,
-      source: 'uploaded',
+      source,
       fileName: file.name,
       durationSec: Math.round(meta.durationSec * 10) / 10,
       inlineDataBase64: meta.thumbnailBase64,
@@ -1024,7 +1042,7 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
                 <button
                   type="button"
                   data-testid={`guided-record-btn-${shot.slotNumber}`}
-                  onClick={() => setCameraShot(shot)}
+                  onClick={() => startRecording(shot)}
                   className="py-2 px-2 rounded-xl bg-[#D06C4E] hover:bg-[#b85b3f] text-white text-[11px] font-extrabold flex items-center justify-center gap-1.5 shadow-warm-sm transition-all active:scale-95"
                 >
                   {isDone ? (
@@ -1033,7 +1051,9 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
                     <Camera className="w-3.5 h-3.5 shrink-0" />
                   )}
                   <span>
-                    {isDone ? 'Retake' : 'Record'} {mode === 'quick' ? '' : 'Guided '}{seconds}s Clip
+                    {useNativeCamera
+                      ? `${isDone ? 'Retake' : 'Record'} · about ${seconds}s`
+                      : `${isDone ? 'Retake' : 'Record'} ${mode === 'quick' ? '' : 'Guided '}${seconds}s Clip`}
                   </span>
                 </button>
                 <button
@@ -1060,6 +1080,18 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
                   type="file"
                   accept="video/*"
                   onChange={(e) => handleCameraRollPick(shot, e)}
+                  className="hidden"
+                />
+                {/* capture: opens the phone's camera app in video mode, rear camera */}
+                <input
+                  ref={(el) => {
+                    cameraInputRefs.current[shot.slotNumber] = el;
+                  }}
+                  data-testid={`guided-camera-input-${shot.slotNumber}`}
+                  type="file"
+                  accept="video/*"
+                  capture="environment"
+                  onChange={(e) => handleCameraRollPick(shot, e, 'recorded')}
                   className="hidden"
                 />
               </div>
