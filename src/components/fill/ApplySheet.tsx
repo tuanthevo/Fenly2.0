@@ -5,7 +5,7 @@
  * the channel it came through.
  */
 import React, { useEffect, useState } from 'react';
-import { BadgeCheck, CheckCircle2, ChevronRight, Loader2, X } from 'lucide-react';
+import { BadgeCheck, CheckCircle2, ChevronRight, Loader2, RotateCcw, Sparkles, X } from 'lucide-react';
 import { useAuth } from '../../auth/AuthProvider';
 import { fillApi, ApiError, storageVideoType, uploadToStorage } from '../../lib/fillApi';
 import { level1Missing, passportLevel } from '../../find/passportLevel';
@@ -13,6 +13,7 @@ import { IntroVideoPicker } from '../find/IntroVideoPicker';
 import { announceInstallMoment } from '../../pwa/installPrompt';
 import { formatMoveIn, formatRentCents } from '../../fill/publicListing';
 import { todayIn } from '../../fill/fillStatus';
+import { NOTE_REWRITE_MIN_CHARS } from '../../find/noteRewrite';
 
 type PublicListing = {
   id: string;
@@ -41,6 +42,12 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
   const [loadError, setLoadError] = useState<string | null>(null);
   const [moveIn, setMoveIn] = useState('');
   const [note, setNote] = useState('');
+  // "Improve with AI": a suggestion the applicant can use, edit or ignore, and the version to go back to
+  const [suggestion, setSuggestion] = useState<string | null>(null);
+  const [myVersion, setMyVersion] = useState<string | null>(null);
+  const [rewriting, setRewriting] = useState(false);
+  const [rewriteError, setRewriteError] = useState<string | null>(null);
+  const noteRef = React.useRef<HTMLTextAreaElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -131,6 +138,26 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
       setBusy(false);
       setUploadPct(null);
     }
+  };
+
+  const improveNote = async () => {
+    setRewriting(true);
+    setRewriteError(null);
+    try {
+      const { rewrite } = await fillApi.rewriteNote(note);
+      setSuggestion(rewrite);
+    } catch (e) {
+      setRewriteError(e instanceof ApiError ? (e.body?.error as string) || e.message : "AI writing isn't available right now.");
+    } finally {
+      setRewriting(false);
+    }
+  };
+  const useSuggestion = (thenEdit: boolean) => {
+    if (suggestion == null) return;
+    setMyVersion((v) => v ?? note);
+    setNote(suggestion);
+    setSuggestion(null);
+    if (thenEdit) setTimeout(() => noteRef.current?.focus(), 0);
   };
 
   const rent = formatRentCents(listing?.rent_cents);
@@ -224,16 +251,68 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
                     className="w-full bg-white border border-[#2C2724]/25 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#D06C4E]"
                   />
                 </label>
-                <label className="block">
-                  <span className="text-[11px] font-bold text-[#6E655F] block mb-1">A short note to the host (optional)</span>
-                  <textarea
-                    value={note}
-                    maxLength={1000}
-                    onChange={(e) => setNote(e.target.value)}
-                    placeholder="What you do, your schedule, why this room."
-                    className="w-full min-h-[90px] bg-white border border-[#2C2724]/25 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#D06C4E]"
-                  />
-                </label>
+                <div>
+                  <label className="block">
+                    <span className="text-[11px] font-bold text-[#6E655F] block mb-1">A short note to the host (optional)</span>
+                    <textarea
+                      ref={noteRef}
+                      value={note}
+                      maxLength={1000}
+                      onChange={(e) => setNote(e.target.value)}
+                      placeholder="What you do, your schedule, why this room."
+                      className="w-full min-h-[90px] bg-white border border-[#2C2724]/25 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#D06C4E]"
+                    />
+                  </label>
+                  <div className="flex items-center justify-between gap-2 mt-1">
+                    {myVersion != null ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNote(myVersion);
+                          setMyVersion(null);
+                        }}
+                        data-testid="apply-note-revert"
+                        className="min-h-10 text-[11px] font-bold text-[#6E655F] hover:text-[#2C2724] flex items-center gap-1"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" /> Back to my version
+                      </button>
+                    ) : (
+                      <span />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => void improveNote()}
+                      disabled={rewriting || note.trim().length < NOTE_REWRITE_MIN_CHARS}
+                      data-testid="apply-note-improve"
+                      title={note.trim().length < NOTE_REWRITE_MIN_CHARS ? 'Write a sentence or two first' : undefined}
+                      className="min-h-10 px-2.5 rounded-xl hover:bg-[#F2EFE9] text-[#A9513A] text-[11px] font-bold flex items-center gap-1 disabled:opacity-50"
+                    >
+                      {rewriting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                      Improve with AI
+                    </button>
+                  </div>
+                  {rewriteError && <p className="text-[11px] font-bold text-[#A9513A]" role="status">{rewriteError}</p>}
+                  {suggestion != null && (
+                    <div className="mt-1.5 p-3 rounded-xl bg-white border border-[#D06C4E]/50 space-y-2" data-testid="apply-note-suggestion" role="region" aria-label="Suggested rewrite">
+                      <div className="text-[11px] font-extrabold text-[#A9513A] flex items-center gap-1">
+                        <Sparkles className="w-3.5 h-3.5" /> Suggested rewrite
+                      </div>
+                      <p className="text-sm whitespace-pre-wrap">{suggestion}</p>
+                      <p className="text-[11px] text-[#6E655F]">Check it says only what's true. Nothing is sent until you apply.</p>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <button type="button" onClick={() => useSuggestion(false)} data-testid="apply-note-use" className="min-h-10 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-xs font-extrabold">
+                          Use this
+                        </button>
+                        <button type="button" onClick={() => useSuggestion(true)} className="min-h-10 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/20 text-xs font-extrabold">
+                          Use and edit
+                        </button>
+                        <button type="button" onClick={() => setSuggestion(null)} className="min-h-10 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/20 text-xs font-extrabold">
+                          Keep mine
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <IntroVideoPicker value={intro} onChange={setIntro} />
                 {error && <p className="text-xs font-bold text-[#9A4A33]">{error}</p>}
                 <button

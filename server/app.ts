@@ -47,6 +47,8 @@ import type { ViralAiHints } from "../src/remotion/viral/types.js";
 import { createRateLimiter, rateLimit } from "./rateLimit.js";
 import { promptListing } from "./promptInput.js";
 import { requireFlag } from "./flags.js";
+import { requireUser } from "./auth.js";
+import { NOTE_MAX_CHARS, NOTE_REWRITE_MIN_CHARS, buildNoteRewritePrompt, cleanRewrite } from "../src/find/noteRewrite.js";
 import { registerFoundationRoutes } from "./foundationRoutes.js";
 import { registerFillRoutes } from "./fillRoutes.js";
 import { registerFindRoutes } from "./findRoutes.js";
@@ -1273,6 +1275,41 @@ Rules:
   } catch (error) {
     console.error("Viral edit request failed:", error instanceof Error ? error.message : error);
     res.json({ patch: local(), source: "local", latencyMs: Date.now() - startTime });
+  }
+});
+
+// "Improve with AI" for an applicant's note to the host (Apply sheet). Signed-in only, under the AI
+// rate limit (/api/gemini). Text only, lite model, minimal thinking. The model only rewords; cleanRewrite
+// drops answers that add contact details, and the applicant chooses whether to use it.
+app.post("/api/gemini/rewrite-note", requireUser(), async (req, res) => {
+  const note = typeof req.body?.note === "string" ? req.body.note.trim().slice(0, NOTE_MAX_CHARS) : "";
+  if (note.length < NOTE_REWRITE_MIN_CHARS) {
+    res.status(400).json({ error: "Write a sentence or two first." });
+    return;
+  }
+  if (!process.env.GEMINI_API_KEY) {
+    res.status(503).json({ error: "AI writing isn't set up on this server." });
+    return;
+  }
+  try {
+    const response = await ai.models.generateContent({
+      model: GEMINI_FLASH_LITE_MODEL,
+      contents: buildNoteRewritePrompt(note),
+      config: {
+        thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+        responseMimeType: "application/json",
+        responseSchema: { type: Type.OBJECT, properties: { note: { type: Type.STRING } }, required: ["note"] },
+      },
+    });
+    const rewrite = cleanRewrite(JSON.parse(response.text || "{}").note, note);
+    if (!rewrite) {
+      res.status(422).json({ error: "We couldn't improve that note. It's fine to send as is." });
+      return;
+    }
+    res.json({ rewrite });
+  } catch (error) {
+    console.error("Note rewrite failed:", error instanceof Error ? error.message : error);
+    res.status(502).json({ error: "AI writing isn't available right now. Try again in a moment." });
   }
 });
 
