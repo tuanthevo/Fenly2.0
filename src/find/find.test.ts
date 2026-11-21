@@ -10,6 +10,8 @@ import {
   findQueryString,
   matchesFindFilters,
   parseFindQuery,
+  rentInput,
+  rentRangeError,
   toIsoDate,
   toRoomListing,
   type FindListing,
@@ -89,30 +91,57 @@ test('find filters: parse, match, query string', () => {
   const oakland = { label: 'Oakland', lat: 37.8044, lng: -122.2712, miles: 5 };
   assert.deepEqual(parseFindQuery({ place: 'Oakland', lat: '37.8044', lng: '-122.2712', miles: '5', maxRent: '1500', moveInBy: '2026-12-15' }), {
     near: oakland,
+    minRentCents: null,
     maxRentCents: 150000,
     moveInBy: '2026-12-15',
   });
   // Bad values are dropped: outside the Bay Area, an odd radius, junk text
   assert.deepEqual(parseFindQuery({ place: 'Reno', lat: '39.52', lng: '-119.81', miles: '5', maxRent: 'abc', moveInBy: 'soon' }), {
     near: null,
+    minRentCents: null,
     maxRentCents: null,
     moveInBy: null,
   });
   assert.equal(parseFindQuery({ place: 'Oakland', lat: '37.8', lng: '-122.27', miles: '7' }).near?.miles, 5, 'unknown radius -> 5 mi');
   assert.equal(parseFindQuery({ place: '<script>', lat: '37.8', lng: '-122.27', miles: '3' }).near?.label, 'script');
-  assert.equal(findQueryString({ near: oakland, maxRentCents: 150000, moveInBy: null }), 'place=Oakland&lat=37.8044&lng=-122.2712&miles=5&maxRent=1500');
-  assert.deepEqual(parseFindQuery(Object.fromEntries(new URLSearchParams(findQueryString({ near: oakland, maxRentCents: null, moveInBy: null })))).near, oakland);
+  assert.equal(findQueryString({ near: oakland, minRentCents: null, maxRentCents: 150000, moveInBy: null }), 'place=Oakland&lat=37.8044&lng=-122.2712&miles=5&maxRent=1500');
+  assert.deepEqual(parseFindQuery(Object.fromEntries(new URLSearchParams(findQueryString({ near: oakland, minRentCents: null, maxRentCents: null, moveInBy: null })))).near, oakland);
 
   const mission = { city: 'San Francisco', neighborhood: 'Mission', rentCents: 145000, availableFrom: '2026-12-01' };
   const sf = { label: 'San Francisco', lat: 37.7749, lng: -122.4194, miles: 3 };
-  assert.ok(matchesFindFilters(mission, { near: sf, maxRentCents: 150000, moveInBy: '2026-12-01' }));
-  assert.ok(!matchesFindFilters(mission, { near: { ...oakland, miles: 5 }, maxRentCents: null, moveInBy: null }), 'Mission is ~8 mi from Oakland');
-  assert.ok(matchesFindFilters(mission, { near: { ...oakland, miles: 10 }, maxRentCents: null, moveInBy: null }));
-  assert.ok(!matchesFindFilters({ ...mission, city: 'Napa' }, { near: sf, maxRentCents: null, moveInBy: null }), 'unknown place: no match');
-  assert.ok(matchesFindFilters({ ...mission, city: 'Napa' }, { near: null, maxRentCents: null, moveInBy: null }), 'no place filter: shown');
-  assert.ok(!matchesFindFilters(mission, { near: null, maxRentCents: 140000, moveInBy: null }));
-  assert.ok(!matchesFindFilters(mission, { near: null, maxRentCents: null, moveInBy: '2026-11-30' }));
-  assert.equal(activeFilterCount({ near: sf, maxRentCents: null, moveInBy: '2026-12-01' }), 2);
+  assert.ok(matchesFindFilters(mission, { near: sf, minRentCents: null, maxRentCents: 150000, moveInBy: '2026-12-01' }));
+  assert.ok(!matchesFindFilters(mission, { near: { ...oakland, miles: 5 }, minRentCents: null, maxRentCents: null, moveInBy: null }), 'Mission is ~8 mi from Oakland');
+  assert.ok(matchesFindFilters(mission, { near: { ...oakland, miles: 10 }, minRentCents: null, maxRentCents: null, moveInBy: null }));
+  assert.ok(!matchesFindFilters({ ...mission, city: 'Napa' }, { near: sf, minRentCents: null, maxRentCents: null, moveInBy: null }), 'unknown place: no match');
+  assert.ok(matchesFindFilters({ ...mission, city: 'Napa' }, { near: null, minRentCents: null, maxRentCents: null, moveInBy: null }), 'no place filter: shown');
+  assert.ok(!matchesFindFilters(mission, { near: null, minRentCents: null, maxRentCents: 140000, moveInBy: null }));
+  assert.ok(!matchesFindFilters(mission, { near: null, minRentCents: null, maxRentCents: null, moveInBy: '2026-11-30' }));
+  assert.equal(activeFilterCount({ near: sf, minRentCents: null, maxRentCents: null, moveInBy: '2026-12-01' }), 2);
+
+  // Rent range (typed by the renter): min and max, either one alone, swapped when entered backwards
+  assert.deepEqual(
+    (({ minRentCents, maxRentCents }) => ({ minRentCents, maxRentCents }))(parseFindQuery({ minRent: '1200', maxRent: '1800' })),
+    { minRentCents: 120000, maxRentCents: 180000 }
+  );
+  assert.equal(parseFindQuery({ minRent: '1300' }).minRentCents, 130000);
+  assert.deepEqual(
+    (({ minRentCents, maxRentCents }) => ({ minRentCents, maxRentCents }))(parseFindQuery({ minRent: '2000', maxRent: '1500' })),
+    { minRentCents: 150000, maxRentCents: 200000 }
+  );
+  assert.equal(parseFindQuery({ minRent: '50' }).minRentCents, null, 'under $100 is ignored');
+  assert.equal(findQueryString({ near: null, minRentCents: 120000, maxRentCents: 180000, moveInBy: null }), 'minRent=1200&maxRent=1800');
+  assert.ok(!matchesFindFilters(mission, { near: null, minRentCents: 150000, maxRentCents: null, moveInBy: null }), '$1,450 is under a $1,500 min');
+  assert.ok(matchesFindFilters(mission, { near: null, minRentCents: 140000, maxRentCents: 150000, moveInBy: null }));
+  assert.equal(activeFilterCount({ near: null, minRentCents: 140000, maxRentCents: 150000, moveInBy: null }), 1, 'a rent range counts once');
+
+  // What the renter types
+  assert.deepEqual(rentInput(''), { cents: null });
+  assert.deepEqual(rentInput('$1,450'), { cents: 145000 });
+  assert.ok(rentInput('40').error);
+  assert.ok(rentInput('25000').error);
+  assert.equal(rentRangeError(200000, 150000), 'Min rent is higher than max rent.');
+  assert.equal(rentRangeError(150000, 200000), null);
+  assert.equal(rentRangeError(null, 150000), null);
   assert.equal(toIsoDate('Nov 1, 2026', '2026-10-01'), '2026-11-01');
   assert.equal(toIsoDate('Available Now', '2026-10-01'), '2026-10-01');
   assert.equal(toIsoDate('whenever', '2026-10-01'), null);

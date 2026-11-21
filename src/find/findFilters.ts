@@ -14,13 +14,34 @@ export type FindNear = { label: string; lat: number; lng: number; miles: number 
 
 export type FindFilters = {
   near: FindNear | null;
+  /** Rent range the renter typed; either end may be open */
+  minRentCents: number | null;
   maxRentCents: number | null;
   /** YYYY-MM-DD: rooms free on or before this date */
   moveInBy: string | null;
 };
 
-export const FIND_FILTER_KEYS: (keyof FindFilters)[] = ['near', 'maxRentCents', 'moveInBy'];
-export const EMPTY_FIND_FILTERS: FindFilters = { near: null, maxRentCents: null, moveInBy: null };
+export const FIND_FILTER_KEYS: (keyof FindFilters)[] = ['near', 'minRentCents', 'maxRentCents', 'moveInBy'];
+export const EMPTY_FIND_FILTERS: FindFilters = { near: null, minRentCents: null, maxRentCents: null, moveInBy: null };
+
+const MIN_RENT_DOLLARS = 100;
+const MAX_RENT_DOLLARS = 20000;
+
+/** A typed rent ("$1,450", "1450") -> cents; empty means no limit. */
+export function rentInput(text: string): { cents: number | null; error?: string } {
+  const digits = text.replace(/[^\d.]/g, '');
+  if (!digits) return { cents: null };
+  const dollars = Math.round(Number(digits));
+  if (!Number.isFinite(dollars) || dollars < MIN_RENT_DOLLARS || dollars > MAX_RENT_DOLLARS) {
+    return { cents: null, error: 'Enter a rent from $100 to $20,000.' };
+  }
+  return { cents: dollars * 100 };
+}
+
+/** The problem with a min/max pair, or null when it's fine (either end may be empty). */
+export function rentRangeError(minCents: number | null, maxCents: number | null): string | null {
+  return minCents != null && maxCents != null && minCents > maxCents ? 'Min rent is higher than max rent.' : null;
+}
 
 /** A place name safe to show and send: letters, digits, spaces and . , ' - only, at most 60 characters. */
 export function cleanPlaceLabel(text: string): string {
@@ -43,11 +64,17 @@ export function parseFindQuery(query: Record<string, unknown>): FindFilters {
           miles: (RADIUS_MILES as readonly number[]).includes(milesIn) ? milesIn : DEFAULT_RADIUS_MILES,
         }
       : null;
-  const rentDollars = Number(str(query.maxRent));
-  const maxRentCents = Number.isFinite(rentDollars) && rentDollars >= 100 && rentDollars <= 20000 ? Math.round(rentDollars) * 100 : null;
+  const rentCents = (v: unknown) => {
+    const dollars = Number(str(v));
+    return str(v) && Number.isFinite(dollars) && dollars >= MIN_RENT_DOLLARS && dollars <= MAX_RENT_DOLLARS ? Math.round(dollars) * 100 : null;
+  };
+  let minRentCents = rentCents(query.minRent);
+  let maxRentCents = rentCents(query.maxRent);
+  // Entered backwards: swap rather than show nothing
+  if (minRentCents != null && maxRentCents != null && minRentCents > maxRentCents) [minRentCents, maxRentCents] = [maxRentCents, minRentCents];
   const by = str(query.moveInBy);
   const moveInBy = /^\d{4}-\d{2}-\d{2}$/.test(by) && !Number.isNaN(Date.parse(by)) ? by : null;
-  return { near, maxRentCents, moveInBy };
+  return { near, minRentCents, maxRentCents, moveInBy };
 }
 
 export function findQueryString(filters: FindFilters): string {
@@ -58,6 +85,7 @@ export function findQueryString(filters: FindFilters): string {
     params.set('lng', String(filters.near.lng));
     params.set('miles', String(filters.near.miles));
   }
+  if (filters.minRentCents != null) params.set('minRent', String(Math.round(filters.minRentCents / 100)));
   if (filters.maxRentCents != null) params.set('maxRent', String(Math.round(filters.maxRentCents / 100)));
   if (filters.moveInBy) params.set('moveInBy', filters.moveInBy);
   return params.toString();
@@ -86,13 +114,15 @@ export function matchesFindFilters(room: FilterableRoom, filters: FindFilters): 
     const d = roomDistanceMiles(room, filters.near);
     if (d == null || d > filters.near.miles) return false;
   }
+  if (filters.minRentCents != null && (room.rentCents == null || room.rentCents < filters.minRentCents)) return false;
   if (filters.maxRentCents != null && (room.rentCents == null || room.rentCents > filters.maxRentCents)) return false;
   if (filters.moveInBy && room.availableFrom && room.availableFrom > filters.moveInBy) return false;
   return true;
 }
 
+/** Filters in use: the place, the rent range (once, min and/or max) and the move-in date. */
 export function activeFilterCount(filters: FindFilters): number {
-  return FIND_FILTER_KEYS.filter((k) => filters[k] != null).length;
+  return [filters.near, filters.minRentCents ?? filters.maxRentCents, filters.moveInBy].filter((v) => v != null).length;
 }
 
 /** A published listing as GET /api/find returns it. */
