@@ -180,12 +180,13 @@ test('rooms are sped up or slowed down to match how fast the camera moves', () =
   assert.equal(brisk, LENGTH_PRESETS.full.tourRate.min);
   assert.equal(motionMatchedRate(null, 'full', 'balanced'), LENGTH_PRESETS.full.tourRate.fallback);
 
-  const clips = guidedClips();
-  clips[1].analysis = analysis({ motion: 0.03 });
-  clips[2].analysis = analysis({ motion: 0.12 });
+  // Long enough to play a 7 s room faster than real time
+  const clips = guidedClips(undefined, 12);
+  clips[1].analysis = { ...analysis({ motion: 0.03 }), durationSec: 12, clean: { startSec: 0.3, endSec: 12, meanMotion: 0.03 } };
+  clips[2].analysis = { ...analysis({ motion: 0.12 }), durationSec: 12, clean: { startSec: 0.3, endSec: 12, meanMotion: 0.12 } };
   const plan = buildViralEditPlan({ listing, clips });
-  const kitchen = plan.shots.find((s) => s.slotNumber === 2)!;
-  const bath = plan.shots.find((s) => s.slotNumber === 3)!;
+  const kitchen = plan.shots.find((s) => s.slotNumber === 2 && s.role === 'tour')!;
+  const bath = plan.shots.find((s) => s.slotNumber === 3 && s.role === 'tour')!;
   assert.ok(kitchen.playbackRate > bath.playbackRate, `${kitchen.playbackRate} vs ${bath.playbackRate}`);
 });
 

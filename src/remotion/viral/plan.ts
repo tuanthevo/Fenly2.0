@@ -109,8 +109,9 @@ export const LENGTH_PRESETS: Record<ViralLength, LengthPreset> = {
     minTourSec: 2.6,
     closerSec: 5,
     endCardSec: 3.5,
-    // Calm by default: a fast camera is slowed down, a very slow one sped up a little (host feedback, Nov 2026)
-    tourRate: { targetMotion: 0.05, fallback: 1, min: 0.85, max: 1.15 },
+    // Calm: real time, or up to 1.15x for a very slow camera; no ramps (host feedback, Nov 2026).
+    // Never below 1.0x: slowed phone footage repeats frames and stutters, so a short clip gets a shorter room instead.
+    tourRate: { targetMotion: 0.05, fallback: 1, min: 1, max: 1.15 },
     closerRate: 0.85,
     ramp: null,
     details: true,
@@ -142,7 +143,7 @@ export const PACE_PRESETS: Record<
 };
 
 /** Speed limits. The hook plays in real time so its first frame and headline read cleanly. */
-export const SPEED = { hero: 1, minHero: 0.8, minTour: 0.85, minCloser: 0.7, max: 1.6 } as const;
+export const SPEED = { hero: 1, minHero: 0.8, minTour: 1, minCloser: 0.7, max: 1.6 } as const;
 
 /** Room changes alternate whips; the zoom is kept for two moments of the same room. */
 export const CUT_CYCLE: ViralCutKind[] = ['whip-left', 'whip-right'];
