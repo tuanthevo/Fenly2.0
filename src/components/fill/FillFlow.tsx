@@ -35,6 +35,7 @@ import {
   uploadToStorage,
   type LinkRow,
   type ListingRow,
+  type MediaRow,
 } from '../../lib/fillApi';
 import {
   PROBLEM_STEP,
@@ -185,7 +186,57 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
     setApproved(Boolean(row.copy_approved_at));
   };
 
-  // Resume a draft: listing fields, raw clips back into the capture cards, then the right step
+  // Saved raw clips (resume / edit), downloaded only when a step needs them: they are tens of MB,
+  // and the basics and the text don't use them (it used to block the whole screen for ~20 s)
+  const savedClips = useRef<MediaRow[]>([]);
+  const [clipsState, setClipsState] = useState<{ status: 'idle' | 'loading' | 'done'; loaded: number; total: number }>({
+    status: 'idle',
+    loaded: 0,
+    total: 0,
+  });
+  const clipsPromise = useRef<Promise<void> | null>(null);
+
+  /** Downloads the saved clips in parallel, back into the capture cards (once). */
+  const restoreClips = useCallback((): Promise<void> => {
+    if (clipsPromise.current) return clipsPromise.current;
+    const rows = savedClips.current.filter((m) => m.kind === 'raw_clip' && m.signedUrl && slotFromRawPath(m.path));
+    if (rows.length === 0) {
+      setClipsState({ status: 'done', loaded: 0, total: 0 });
+      return (clipsPromise.current = Promise.resolve());
+    }
+    setClipsState({ status: 'loading', loaded: 0, total: rows.length });
+    clipsPromise.current = Promise.all(
+      rows.map(async (m) => {
+        const slot = slotFromRawPath(m.path)!;
+        try {
+          const blob = await fetch(m.signedUrl!).then((r) => (r.ok ? r.blob() : Promise.reject(new Error())));
+          const url = URL.createObjectURL(blob);
+          ownUrls.current.add(url);
+          const frame = await grabVideoFrame(blob, 0.6, 320).catch(() => null);
+          const clip: RecordedViralSlotMedia = {
+            slotNumber: slot,
+            videoUrl: url,
+            thumbnailUrl: frame?.dataUrl ?? GUIDED_SHOTS[slot - 1].sampleThumbnailUrl,
+            source: 'uploaded',
+            durationSec: Math.round(((m.duration_ms ?? (frame?.durationSec ?? 5) * 1000) / 1000) * 10) / 10,
+            isLandscape: Boolean(m.width && m.height && m.width > m.height),
+            inlineDataBase64: frame?.dataUrl.split(',')[1],
+            mimeType: 'image/jpeg',
+          };
+          uploadedClips.current.set(slot, url);
+          // Keep anything filmed meanwhile: a restored clip never replaces a newer take
+          setMedia((prev) => (prev[slot] ? prev : { ...prev, [slot]: clip }));
+        } catch {
+          // a clip that can't be restored is simply recorded again
+        } finally {
+          setClipsState((c) => ({ ...c, loaded: c.loaded + 1 }));
+        }
+      })
+    ).then(() => setClipsState((c) => ({ ...c, status: 'done' })));
+    return clipsPromise.current;
+  }, []);
+
+  // Resume a draft or edit a listing: the fields and the right step first, the clips only when needed
   useEffect(() => {
     if (!listingId) return;
     let alive = true;
@@ -195,37 +246,13 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
         if (!alive) return;
         applyListing(data.listing);
         setMediaKinds(data.media.map((m) => m.kind));
-        const restored: Record<number, RecordedViralSlotMedia> = {};
-        for (const m of data.media.filter((x) => x.kind === 'raw_clip' && x.signedUrl)) {
-          const slot = slotFromRawPath(m.path);
-          if (!slot) continue;
-          try {
-            const blob = await fetch(m.signedUrl!).then((r) => (r.ok ? r.blob() : Promise.reject(new Error())));
-            const url = URL.createObjectURL(blob);
-            ownUrls.current.add(url);
-            const frame = await grabVideoFrame(blob, 0.6, 320).catch(() => null);
-            restored[slot] = {
-              slotNumber: slot,
-              videoUrl: url,
-              thumbnailUrl: frame?.dataUrl ?? GUIDED_SHOTS[slot - 1].sampleThumbnailUrl,
-              source: 'uploaded',
-              durationSec: Math.round(((m.duration_ms ?? (frame?.durationSec ?? 5) * 1000) / 1000) * 10) / 10,
-              isLandscape: Boolean(m.width && m.height && m.width > m.height),
-              inlineDataBase64: frame?.dataUrl.split(',')[1],
-              mimeType: 'image/jpeg',
-            };
-            uploadedClips.current.set(slot, url);
-          } catch {
-            // a clip that can't be restored is simply recorded again
-          }
-        }
-        if (!alive) return;
-        setMedia(restored);
+        savedClips.current = data.media;
         const thumb = data.media.find((m) => m.kind === 'thumbnail')?.signedUrl;
         if (thumb) setCover(thumb);
         if (editing) setStep('start');
         else {
-          const next = resumeStep(data.listing, data.media.map((m) => m.kind), Object.keys(restored).length);
+          const rawClips = data.media.filter((m) => m.kind === 'raw_clip' && m.signedUrl && slotFromRawPath(m.path)).length;
+          const next = resumeStep(data.listing, data.media.map((m) => m.kind), rawClips);
           if (next === 'share') onOpenStatus(listingId);
           else setStep(next);
         }
@@ -240,6 +267,14 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listingId]);
+
+  // Steps that use the clips fetch them: the tour (capture cards), the video, and a new listing's
+  // text (the AI writer looks at a frame from each room). Editing the text keeps working without them.
+  useEffect(() => {
+    if (!listingId || loading) return;
+    if (step === 'tour' || step === 'video' || (step === 'details' && !editing)) void restoreClips();
+  }, [listingId, loading, step, editing, restoreClips]);
+  const clipsLoading = clipsState.status === 'loading';
 
   const run = async (name: string, action: () => Promise<void>) => {
     setBusy(name);
@@ -410,12 +445,12 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
   };
 
   useEffect(() => {
-    if (step === 'details' && !title && !description && !aiTried.current) {
+    if (step === 'details' && !title && !description && !aiTried.current && !clipsLoading) {
       aiTried.current = true;
       void writeWithAi();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
+  }, [step, clipsLoading]);
 
   const liveIssues = useMemo(
     () => [...new Set([...fairHousingIssues(title), ...fairHousingIssues(description)])],
@@ -827,7 +862,19 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                 </div>
               )}
 
-              {step === 'tour' && (
+              {(step === 'tour' || step === 'video') && clipsLoading && (
+                <div className={`${card} flex items-center gap-3`} role="status" data-testid="fill-clips-loading">
+                  <Loader2 className="w-5 h-5 animate-spin text-[#A9513A] shrink-0" />
+                  <div>
+                    <div className="text-sm font-extrabold">Loading your clips</div>
+                    <div className="text-xs text-[#6E655F]">
+                      {clipsState.loaded} of {clipsState.total} ready
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {step === 'tour' && !clipsLoading && (
                 <div className="space-y-3">
                   <GuidedShotCapture
                     mode="quick"
@@ -921,7 +968,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                 </div>
               )}
 
-              {step === 'video' && (
+              {step === 'video' && !clipsLoading && (
                 <div className="space-y-3">
                   <Suspense
                     fallback={
