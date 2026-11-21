@@ -45,7 +45,8 @@ test('a listing is placed by its neighborhood, else its city; unknown places hav
   assert.equal(areaCenter('San Francisco', 'Mission District')?.name, 'Mission');
   assert.equal(areaCenter('Oakland', 'Temescal')?.name, 'Temescal');
   assert.equal(areaCenter('Fremont', 'Somewhere')?.name, 'Fremont');
-  assert.equal(areaCenter('Napa', null), null);
+  assert.equal(areaCenter('Napa', null)?.name, 'Napa', 'any Northern California city has a center');
+  assert.equal(areaCenter('Los Angeles', null), null);
   assert.equal(areaCenter(null, 'Mission'), null);
 });
 

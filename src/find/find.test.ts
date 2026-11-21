@@ -95,8 +95,8 @@ test('find filters: parse, match, query string', () => {
     maxRentCents: 150000,
     moveInBy: '2026-12-15',
   });
-  // Bad values are dropped: outside the Bay Area, an odd radius, junk text
-  assert.deepEqual(parseFindQuery({ place: 'Reno', lat: '39.52', lng: '-119.81', miles: '5', maxRent: 'abc', moveInBy: 'soon' }), {
+  // Bad values are dropped: outside Northern California, an odd radius, junk text
+  assert.deepEqual(parseFindQuery({ place: 'Los Angeles', lat: '34.05', lng: '-118.24', miles: '5', maxRent: 'abc', moveInBy: 'soon' }), {
     near: null,
     minRentCents: null,
     maxRentCents: null,

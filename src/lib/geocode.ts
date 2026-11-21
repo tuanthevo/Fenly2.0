@@ -2,8 +2,9 @@
  * City, ZIP or address -> a Bay Area place, in the browser, with the Google Maps
  * JS Geocoder (the public, referrer-restricted VITE_GOOGLE_MAPS_API_KEY). Used to
  * pick a city/neighborhood in Fill and a search center in Find. What was typed is
- * never saved or sent to our API. Names and SF ZIPs resolve locally first
- * (src/geo/placeLookup.ts), so it works without a key for those.
+ * never saved or sent to our API. City names and every Northern California ZIP
+ * resolve locally first (src/geo/placeLookup.ts, src/geo/norcal.ts), so only
+ * street addresses need the key.
  */
 import { BAY_AREA_BOUNDS } from '../geo/bayArea';
 import { lookupLocally, placeFromGeocode, type PlaceResult } from '../geo/placeLookup';
@@ -59,6 +60,7 @@ export async function lookupBayAreaPlace(text: string): Promise<PlaceResult> {
       lat: top.geometry.location.lat(),
       lng: top.geometry.location.lng(),
       county: part('administrative_area_level_2'),
+      state: part('administrative_area_level_1'),
       locality: part('locality', 'postal_town'),
       neighborhood: part('neighborhood', 'sublocality_level_1', 'sublocality'),
     });

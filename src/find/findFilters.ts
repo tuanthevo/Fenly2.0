@@ -7,7 +7,8 @@
  * checks FIND_FILTER_KEYS for protected traits.
  */
 import type { RoomListing } from '../types.js';
-import { DEFAULT_RADIUS_MILES, RADIUS_MILES, areaCenter, distanceMiles, inBayAreaBounds } from '../geo/bayArea.js';
+import { DEFAULT_RADIUS_MILES, RADIUS_MILES, areaCenter, distanceMiles } from '../geo/bayArea.js';
+import { inNorcalBounds } from '../geo/norcal.js';
 
 /** "Rooms within `miles` of `label`" (the point comes from the Maps lookup or our place list). */
 export type FindNear = { label: string; lat: number; lng: number; miles: number };
@@ -56,7 +57,7 @@ export function parseFindQuery(query: Record<string, unknown>): FindFilters {
   const milesIn = Number(str(query.miles));
   const label = cleanPlaceLabel(str(query.place));
   const near: FindNear | null =
-    str(query.lat) && str(query.lng) && inBayAreaBounds(lat, lng)
+    str(query.lat) && str(query.lng) && inNorcalBounds(lat, lng)
       ? {
           label: label || 'this area',
           lat: Math.round(lat * 1e4) / 1e4,
