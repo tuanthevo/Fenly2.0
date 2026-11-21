@@ -11,6 +11,7 @@ import {
   hookReadSec,
   LABEL_MAX_GAP_SEC,
   PERSON_PAD_SEC,
+  REHOOK_MIN_ROOM_SEC,
   roomDetail,
   MAX_TOUR_TOTAL_SEC,
   MOMENT_SEC,
@@ -25,7 +26,7 @@ import {
   SPEED,
 } from './plan';
 import { PERK_FALLBACK_LABEL } from './copy';
-import type { ClipAnalysis, ClipSample, ViralClipInput, ViralEditPlan, ViralListingInfo, ViralShot } from './types';
+import type { ClipAnalysis, ClipSample, FrameNote, ViralClipInput, ViralEditPlan, ViralListingInfo, ViralShot } from './types';
 
 const listing: ViralListingInfo = {
   monthlyRent: 1450,
@@ -596,7 +597,7 @@ test('without clip analysis the opener skips the first seconds of a long clip (r
 
 /** Frame notes every 1.2 s over 0..12 s: `label(t)` names what's in view, `person(t)` flags people. */
 function scan(label: (t: number) => string | undefined, person: (t: number) => boolean = () => false) {
-  const notes = [];
+  const notes: FrameNote[] = [];
   for (let t = 0.6; t < 12; t += 1.2) notes.push({ t: round(t), label: label(t), person: person(t) || undefined });
   return notes;
 }
@@ -672,4 +673,41 @@ test('footage with a person in it is never played; a room that is all people is 
   // The bathroom keeps its person-free shower footage, named for what's in view
   const bath = plan.shots.filter((s) => s.slotNumber === 3);
   assert.ok(bath.length >= 1 && bath.every((s) => !s.tag || s.tag === 'Glass shower'), bath.map((s) => s.tag).join(','));
+});
+
+test('the re-hook never crowds a short room: it lands on a room with time for its label, then the re-hook', () => {
+  // The bathroom near the middle has only ~2.3 s of clean footage
+  const clips = guidedClips().map((c) =>
+    c.slotNumber === 3 ? { ...c, analysis: { ...analysis({ startSec: 1 }), hookScore: 0.1, clean: { startSec: 1, endSec: 3.4 } } } : c
+  );
+  const plan = buildViralEditPlan({ listing, clips });
+  assert.deepEqual(checkPlan(plan), []);
+  assert.ok(plan.rehook);
+  const k = plan.shots.findIndex((s) => s.startFrame <= plan.rehook!.fromFrame && plan.rehook!.fromFrame < s.startFrame + s.durationInFrames);
+  assert.ok(onScreen(plan, k) >= REHOOK_MIN_ROOM_SEC, `re-hook on ${plan.shots[k].id}, ${onScreen(plan, k).toFixed(1)} s on screen`);
+  assert.equal(plan.rehook!.durationInFrames, Math.round(1.2 * plan.fps));
+});
+
+test('rooms and the opener start on a clear view, not a doorway or a chair in the foreground', () => {
+  // Bedroom: the first scans look through the doorway; kitchen (the opener): a chair blocks the best frame at 9.5 s
+  const frames = {
+    1: scan((t) => (t < 2.5 ? 'Bedroom view' : 'Queen bed'), () => false).map((n) => (n.t < 2.5 ? { ...n, blocked: true } : n)),
+    2: scan(() => 'Kitchen island').map((n) => (n.t > 8.5 && n.t < 9.8 ? { ...n, blocked: true } : n)),
+  };
+  const clips = guidedClips([1, 2, 3]).map((c) =>
+    c.slotNumber === 1
+      ? { ...c, durationSec: 9, analysis: { ...analysis({ startSec: 1.2 }), durationSec: 9, hookScore: 0.1, clean: { startSec: 1, endSec: 8.6 } } }
+      : c.slotNumber === 2
+      ? { ...c, durationSec: 12, analysis: { ...longRoom(9.5, 3), durationSec: 12, clean: { startSec: 5, endSec: 12 } } }
+      : c
+  );
+  const plan = buildViralEditPlan({ listing, clips }, { ai: { frames } });
+  assert.deepEqual(checkPlan(plan), []);
+  // Nothing blocked from just before the first frame through the first second
+  const blocked = (slot: 1 | 2, t: number) => frames[slot].some((n) => n.blocked && n.t >= t - 0.3 && n.t <= t + 1);
+  for (const s of plan.shots) {
+    if (s.slotNumber !== 1 && s.slotNumber !== 2) continue;
+    assert.ok(!blocked(s.slotNumber as 1 | 2, s.srcStartSec), `${s.id} opens at ${s.srcStartSec} s on a blocked view`);
+  }
+  assert.equal(plan.shots[0].slotNumber, 2);
 });

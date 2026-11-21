@@ -157,6 +157,8 @@ export type FrameNote = {
   label?: string;
   /** A person, part of one, or a reflection of one is visible */
   person?: boolean;
+  /** A door frame, wall edge or something in the foreground covers part of the room, or the camera is still in a doorway */
+  blocked?: boolean;
 };
 
 export type HookSegment = { text: string; em?: 'price' | 'place' };

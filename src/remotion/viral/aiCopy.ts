@@ -14,9 +14,9 @@ const FRAME_H = 640;
 const SCAN_W = 216;
 const SCAN_H = 384;
 const FRAME_TIMEOUT_MS = 6000;
-/** Scan spacing and cap: 5 clips x 10 frames x ~12 KB stays well under the body limit */
+/** Scan spacing and cap: 5 clips x 14 frames x ~12 KB stays well under the body limit */
 export const SCAN_STEP_SEC = 1.2;
-export const SCAN_MAX_FRAMES = 10;
+export const SCAN_MAX_FRAMES = 14;
 
 /** Times (source seconds) to scan across the footage the editor may use. */
 export function scanTimes(analysis: Pick<ClipAnalysis, 'durationSec' | 'clean' | 'best'> | null | undefined, durationSec: number): number[] {

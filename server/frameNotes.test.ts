@@ -15,7 +15,7 @@ test("frame notes: kept only for frames that were sent, labels cleaned, people f
   const clean = (s: unknown) => (typeof s === "string" && s.length <= 22 && !/perfect for/i.test(s) ? s : undefined);
   const notes = parseFrameNotes(
     [
-      { slotNumber: 2, t: 1.8, label: "Kitchen island", person: true },
+      { slotNumber: 2, t: 1.8, label: "Kitchen island", person: true, blocked: true },
       { slotNumber: 2, t: 0.61, label: "Sectional sofa" },
       { slotNumber: 2, t: 0.6, label: "Duplicate" },
       { slotNumber: 2, t: 5, label: "Never sent" },
@@ -25,5 +25,5 @@ test("frame notes: kept only for frames that were sent, labels cleaned, people f
     sent,
     clean
   );
-  assert.deepEqual(notes, { 2: [{ t: 0.6, label: "Sectional sofa" }, { t: 1.8, label: "Kitchen island", person: true }] });
+  assert.deepEqual(notes, { 2: [{ t: 0.6, label: "Sectional sofa" }, { t: 1.8, label: "Kitchen island", person: true, blocked: true }] });
 });

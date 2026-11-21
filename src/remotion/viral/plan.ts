@@ -410,6 +410,61 @@ function aiTag(text: string | undefined): string {
  */
 export const LABEL_MAX_GAP_SEC = 1.3;
 
+/** A shot never opens within this window around a blocked scan frame: [t - after, t + before] */
+export const BLOCKED_BEFORE_SEC = 1;
+export const BLOCKED_AFTER_SEC = 0.8;
+
+/**
+ * Moves a shot's start off a blocked view (doorway, door edge, something in the
+ * foreground) when its footage can slide inside the clean range: later first,
+ * else earlier. `needSec` is the source footage the shot plays.
+ */
+export function clearStartSec(startSec: number, needSec: number, clean: ClipRange, notes: FrameNote[] | null): number {
+  const blocks = (notes ?? []).filter((n) => n.blocked).map((n) => n.t);
+  if (blocks.length === 0) return startSec;
+  const hit = (t: number) => blocks.find((b) => b >= t - BLOCKED_AFTER_SEC && b <= t + BLOCKED_BEFORE_SEC);
+  // Inside the clean range, and never running further past its end than the shot already did
+  const fits = (t: number) => t >= clean.startSec - 1e-6 && t + needSec <= Math.max(clean.endSec, startSec + needSec) + 1e-6;
+  if (hit(startSec) === undefined) return startSec;
+  // Later: step past each blocked frame in turn
+  let t = startSec;
+  for (let k = 0; k < blocks.length && hit(t) !== undefined; k++) t = hit(t)! + BLOCKED_AFTER_SEC + 0.05;
+  if (hit(t) === undefined && fits(t)) return t;
+  // Earlier: open before the first blocked frame
+  t = startSec;
+  for (let k = 0; k < blocks.length && hit(t) !== undefined; k++) t = hit(t)! - BLOCKED_BEFORE_SEC - 0.05;
+  if (hit(t) === undefined && fits(t)) return t;
+  return startSec;
+}
+
+/**
+ * Drops the blocked views a clip opens on (still in the doorway, a door edge in
+ * frame): its usable footage starts just past the last of them, so the room is
+ * shorter rather than opening on a doorway. Kept when under 2 s would be left.
+ */
+export function withClearOpening(clip: ViralClipInput, notes: FrameNote[] | null): ViralClipInput {
+  const a = clip.analysis;
+  if (!a || !notes?.some((n) => n.blocked)) return clip;
+  const duration = clip.durationSec > 0 ? clip.durationSec : a.durationSec;
+  const clean = a.clean ?? { startSec: 0, endSec: duration };
+  const end = Math.max(clean.endSec, a.best.endSec);
+  let start = clean.startSec;
+  for (const n of [...notes].sort((x, y) => x.t - y.t)) {
+    if (n.t < start - BLOCKED_AFTER_SEC) continue;
+    if (n.t > start + BLOCKED_BEFORE_SEC) break;
+    if (n.blocked) start = n.t + BLOCKED_AFTER_SEC + 0.05;
+  }
+  if (start <= clean.startSec || end - start < MIN_PERSON_FREE_SEC) return clip;
+  const len = a.best.endSec - a.best.startSec;
+  const bestStart = clamp(a.best.startSec, start, Math.max(start, end - len));
+  return {
+    ...clip,
+    analysis: { ...a, best: { ...a.best, startSec: bestStart, endSec: bestStart + len }, clean: { ...clean, startSec: start } },
+  };
+}
+
+/** The re-hook goes on a room on screen at least this long (label first, then the re-hook) */
+export const REHOOK_MIN_ROOM_SEC = 3;
 /** Footage this far either side of a scanned frame with a person in it is skipped (about half a scan step) */
 export const PERSON_PAD_SEC = 0.7;
 /** A clip with less person-free footage than this is left out of the tour */
@@ -592,7 +647,8 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
   // Skip footage with a person in it; a clip that's people throughout is left out (if others remain)
   const kept = given
     .map((c) => withoutPeople(c, frameNotes(options, c.slotNumber)))
-    .filter((c): c is ViralClipInput => c !== null);
+    .filter((c): c is ViralClipInput => c !== null)
+    .map((c) => withClearOpening(c, frameNotes(options, c.slotNumber)));
   const clips = kept.length > 0 ? kept : given;
 
   const fps = options.fps ?? VIDEO.fps;
@@ -708,6 +764,22 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
       windowOf(i)
     )
   );
+  // Open every shot on a clear view (scan frames flag doorways and things in the foreground)
+  fits.forEach((fit, i) => {
+    const notes = frameNotes(options, ordered[i].slotNumber);
+    if (!notes) return;
+    const needSec = (durationOf(i) / fps) * fit.playbackRate;
+    // The opener may move back into earlier clean footage unless its room's other moment plays there
+    let bounds = sources[i].clean;
+    if (roles[i] === 'hook') {
+      const whole = sourceInfo(ordered[i], options.ai?.windows?.[ordered[i].slotNumber]).clean;
+      const before = segs.filter((sg, k) => k !== i && sg.clip === segs[i].clip && sg.window && sg.window.endSec <= bounds.startSec + 1e-6);
+      const from = before.length > 0 ? Math.max(...before.map((sg) => sg.window!.endSec)) + MOMENT_GAP_SEC : whole.startSec;
+      bounds = { ...bounds, startSec: Math.min(bounds.startSec, Math.max(from, bounds.startSec - MAX_HOOK_SHIFT_SEC)) };
+    }
+    const start = clearStartSec(fit.srcStartSec, Math.min(needSec, (primary[i] / fps) * fit.playbackRate), bounds, notes);
+    fit.srcStartSec = Math.floor(start * fps + 0.01) / fps;
+  });
   /** Source second shown at a local frame of shot i (ramps are off, so the rate is constant) */
   const srcAt = (i: number, localFrame: number) => fits[i].srcStartSec + (localFrame / fps) * fits[i].playbackRate;
   /** Source seconds shot i shows before it starts to leave */
@@ -873,8 +945,11 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
   // Re-hook ("wait for the best part") on the room nearest the middle of the video
   let rehook: ViralEditPlan['rehook'] = null;
   const tourAll = shots.map((s, i) => (s.role === 'tour' ? i : -1)).filter((i) => i >= 0);
+  // A short room can't hold its label and the re-hook without crowding: prefer rooms with time for both
+  const roomy = (i: number) => length !== 'full' || primary[i] >= REHOOK_MIN_ROOM_SEC * fps;
   const tourLabeled = tourAll.filter((i) => shots[i].tag);
-  const tourIdx = tourLabeled.length > 0 ? tourLabeled : tourAll;
+  const pick = [tourLabeled.filter(roomy), tourAll.filter(roomy), tourLabeled, tourAll].find((l) => l.length > 0) ?? [];
+  const tourIdx = pick;
   if (n >= 4 && tourIdx.length > 0) {
     const target = (length === 'full' ? 0.45 : 0.5) * totalFrames;
     const k =
