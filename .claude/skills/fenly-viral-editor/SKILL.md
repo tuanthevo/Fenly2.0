@@ -97,7 +97,7 @@ cheapest energy you have, but it has to look natural.
 | Slow, steady walk | 1.25-1.35x | Reads as "confident walk", not fast-forward. |
 | Brisk walk or a lot of camera motion | 1.0x (Fenly never goes below 1.0x for rooms) | Already energetic; speeding up makes it seasick, and slowing phone footage repeats frames and stutters (host's closet clip, Nov 2026). |
 | Into a new room | Fenly: no ramp (host's call, Nov 2026: "ideally the motion should be slow"). Elsewhere a 2x ramp for ~0.3-0.4 s under the cut is common | Calm, natural walk-throughs over energy tricks. |
-| The perk | Ramp into 0.8-0.9x slow motion | The payoff gets time to land. |
+| The perk | Fenly: 1.0x (no slow motion). Elsewhere a 0.8-0.9x slow-mo reveal is common | Phone footage is 30 fps: anything under 1.0x repeats frames and stutters (the host saw it on a closet clip, Nov 2026). The light leak, big text and a punch-in carry the payoff. |
 | Anything above 1.6x | Avoid | Walls and doorframes strobe, and people notice it. |
 
 Match speed to the measured motion (`motionMatchedRate` uses the analysis'

@@ -44,10 +44,10 @@ Targets after the November 2026 updates: 30-45 s (rooms aim for 7 s, the perk fo
 | Section | Length | Speed | What's on screen | Why |
 | --- | --- | --- | --- | --- |
 | Hook | headline reading time: 1.2 s + 0.22 s/word + 0.3 s per number, 2.5-3.2 s (≈3.0 s for "What $1,450/mo gets you in Mission District") | 1.0x, no ramp | best frame of the best shot, price + place headline, slow settle from 1.12x zoom | viewers decide in 0-3 s; frame 0 is also the cover |
-| Answer | ≈3 s, same shot keeps rolling | 1.0x (0.85x if footage is short) | "1 bed · 1 bath", "220 sq ft", best amenity, popping in 0.2 s apart; price chip appears | pays off the hook's question right away |
+| Answer | ≈3 s, same shot keeps rolling | 1.0x, never slower (short footage gives a shorter opener; the facts then move to the end card) | "1 bed · 1 bath", "220 sq ft", best amenity, popping in 0.2 s apart; price chip appears | pays off the hook's question right away |
 | Each room | ≈7 s, or two ≈5.5 s moments for long clips (shorter when the clip has less clean footage, never under 2.6 s) | matched to camera movement, 1.0-1.15x (target motion 0.05), no ramp. Never below 1.0x: the host's closet clip slowed to 0.85x looked slow and choppy, because phone footage played under real time repeats frames. A short clip gets a shorter room instead | room tag at 0.3 s and a second callout at ~2.3 s; a second moment shows the room's detail right after the zoom cut | the host wants slow, natural motion; the cut and callouts carry the change rate |
 | Re-hook | 1.2 s, on the room nearest 45% of the runtime | | "Wait for the best part" | carries viewers through the mid-video dip |
-| Perk | ≈3.4 s | 0.85x slow motion, no ramp | "THE BEST PART" + the perk, big | the payoff gets the slow, readable moment |
+| Perk | ≈3.4 s | 1.0x, no ramp (no slow motion: 30 fps phone footage under 1.0x repeats frames and stutters, host, Nov 2026) | "THE BEST PART" + the perk, big, light leak + punch-in | the payoff gets the big text, the light leak and a gentle punch-in instead of slow motion |
 | End card | ≈3.2 s | footage keeps rolling (may hold its last frame here only) | price question, place, specs, "Tour it on Fenly" | ~10 words need ~3 s to read |
 | Loop | last ~0.3 s | | the opening shot fades back in | the replay starts seamlessly |
 
@@ -117,3 +117,10 @@ price) and one 4.5 s stretch with a single callout in the last room.
 3. Paste the caption (copied automatically when you tap Share).
 4. Reply to the first comments about the price: real back-and-forth is not
    engagement bait and helps the video travel.
+
+## Audit log
+
+| Date | Tour (real app path: host's clips, saved analysis + Gemini notes) | Length | Score | Lost points |
+| --- | --- | --- | --- | --- |
+| Nov 20, 2026 | 5 clips | 27.6 s | 19/20 | Room openings (1): door edges at the bathroom and closet cuts; scan notes are ~1.3 s apart, too coarse to step off every edge |
+| Nov 20, 2026 | 3 clips (Quick Tour) | 20.5 s | 19/20 | Room openings (1): the second kitchen moment opens on the dining table. Shorter because the living room and bathroom vanity have a person in frame (retakes, not editing, fix that) |
