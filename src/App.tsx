@@ -501,6 +501,13 @@ export default function App() {
     }
     setApplyTarget({ listingId, via: viaForListing(parseStoredVia(stored), listingId, Date.now()) });
   };
+  // Every "Request to Book" button: real (database) rooms open the 2.0 apply sheet;
+  // the 1.0 demo rooms keep the 1.0 application form. Drafting a lease waits until after testing.
+  const requestToBook = (room: RoomListing) => {
+    const dbId = dbListingId(room.id);
+    if (dbId) openDbApply(dbId);
+    else openApplication();
+  };
 
   // Deep links from emails and invites: ?house=<token>, ?inbox=<application id>, ?passport=..., ?applicants=<id>, ?fill=<id>
   const [pendingHouse, setPendingHouse] = useState<string | null>(() => {
@@ -1486,6 +1493,7 @@ export default function App() {
                         isActive={idx === currentRoomIndex}
                         isMuted={isMuted}
                         onToggleMute={() => setIsMuted((prev) => !prev)}
+                        onAutoplayMuted={() => setIsMuted(true)}
                         onDoubleTapLike={() => handleToggleLike(room.id)}
                         onNextRoom={handleNextRoom}
                         onPrevRoom={handlePrevRoom}
@@ -1531,9 +1539,7 @@ export default function App() {
                         }}
                         onRequestToBook={() => {
                           setCurrentRoomIndex(idx);
-                          const dbId = dbListingId(room.id);
-                          if (dbId) openDbApply(dbId);
-                          else openApplication();
+                          requestToBook(room);
                         }}
                         isPinned={pinnedRoomIds.has(room.id)}
                         onTogglePin={() => handleTogglePin(room.id)}
@@ -1734,7 +1740,7 @@ export default function App() {
               onRequestToBookRoom={(room) => {
                 const idx = rooms.findIndex((r) => r.id === room.id);
                 if (idx !== -1) setCurrentRoomIndex(idx);
-                openApplication();
+                requestToBook(room);
               }}
               onOpenRenterLandlordHub={() => setActiveTab('home')}
               onOpenMessages={() => setActiveTab('messages')}
@@ -1829,7 +1835,7 @@ export default function App() {
               onStartApplicationForRoom={(room) => {
                 const idx = rooms.findIndex((r) => r.id === room.id);
                 if (idx !== -1) setCurrentRoomIndex(idx);
-                openApplication();
+                requestToBook(room);
               }}
               onOpenDirectMessages={(convId) => {
                 if (convId) setActiveConversationId(convId);
@@ -1933,7 +1939,7 @@ export default function App() {
         room={currentRoom}
         userProfile={userProfile}
         onOpenDirectMessage={() => handleOpenDirectMessage(currentRoom)}
-        onStartApplication={() => openApplication()}
+        onStartApplication={() => requestToBook(currentRoom)}
         onViewHostProfile={handleViewHostProfile}
       />
 
