@@ -37,6 +37,7 @@ import {
   cleanTag,
   defaultHook,
   defaultTags,
+  PERK_FALLBACK_LABEL,
   endCardCopy,
   heroFacts,
   hookFontSizeFor,
@@ -798,7 +799,7 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
   }
 
   const highlights = [last.role === 'closer' ? last.tag : '', ...shots.filter((s) => s.role === 'tour').map((s) => s.tag)].filter(
-    (t) => t && t !== 'The best part'
+    (t) => t && t !== 'The best part' && t !== PERK_FALLBACK_LABEL
   );
   const aiCaption = (options.ai?.socialCaption || '').trim();
   const caption =

@@ -12,6 +12,7 @@ import {
   hookFontSizeFor,
   hookFromText,
   pickPerk,
+  PERK_FALLBACK_LABEL,
   priceLabel,
   sanitizeHookText,
   violatesFairHousing,
@@ -73,7 +74,9 @@ test('default callouts come from the guided slots and the amenities', () => {
   const tags = defaultTags(listing);
   assert.equal(tags[1], 'Main bedroom');
   assert.equal(tags[3], 'The bathroom');
-  assert.equal(tags[5], 'Private balcony');
+  // The perk shot's default label makes no claim: the footage may not show any one amenity
+  assert.equal(tags[5], PERK_FALLBACK_LABEL);
+  assert.ok(!/balcony/i.test(tags[5]));
   assert.equal(pickPerk([]), 'The best part');
 });
 
