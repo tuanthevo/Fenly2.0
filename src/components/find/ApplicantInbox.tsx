@@ -7,6 +7,7 @@
  * The fit chips and the summary come from factual fields only (server: FactualApplicant).
  */
 import React, { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ArrowLeft,
   Check,
@@ -378,7 +379,8 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
         </div>
       )}
 
-      {declining && (
+      {/* Sheets render on <body>: inside this scrolling screen, iPhone browsers draw them under the bottom tab bar */}
+      {declining && createPortal(
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-[#2C2724]/60" onClick={() => setDeclining(null)}>
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm max-h-[90dvh] overflow-y-auto bg-[#F9F7F3] border border-[#2C2724] rounded-t-3xl sm:rounded-2xl p-5 space-y-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
             <h3 className="font-extrabold text-sm">Decline {declining.firstName ?? 'this applicant'}</h3>
@@ -400,9 +402,9 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
-      {choosing && (
+      {choosing && createPortal(
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-[#2C2724]/60" onClick={() => { setChoosing(null); setActionError(null); }}>
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm max-h-[90dvh] overflow-y-auto bg-[#F9F7F3] border border-[#2C2724] rounded-t-3xl sm:rounded-2xl p-5 space-y-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]" data-testid="choose-confirm">
             <h3 className="font-extrabold text-sm">Choose {choosing.firstName ?? 'this applicant'}?</h3>
@@ -428,7 +430,7 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {reporting && (
         <ReportSheet

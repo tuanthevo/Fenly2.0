@@ -2,6 +2,7 @@
  * Report a listing, a profile or a message, and optionally block the person.
  * Reports go to Fenly's review queue; the reported person is never told who reported them.
  */
+import { createPortal } from 'react-dom';
 import React, { useState } from 'react';
 import { Flag, Loader2, X } from 'lucide-react';
 import { findApi, type ReportReason } from '../../lib/findApi';
@@ -49,7 +50,8 @@ export const ReportSheet: React.FC<ReportSheetProps> = ({ targetType, targetId, 
 
   const close = () => onClose({ reported: done, blocked: done && alsoBlock && Boolean(blockUserId) });
 
-  return (
+  // Rendered on <body>: inside a scrolling screen, iPhone browsers draw it under the bottom tab bar
+  return createPortal(
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-[#2C2724]/60 backdrop-blur-xs" onClick={close}>
       <div
         role="dialog"
@@ -119,6 +121,7 @@ export const ReportSheet: React.FC<ReportSheetProps> = ({ targetType, targetId, 
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
