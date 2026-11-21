@@ -13,6 +13,7 @@ export const NOTIFICATION_KINDS = [
   "room_taken",
   "move_out_reminder",
   "id_check_requested",
+  "new_rooms",
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
@@ -23,6 +24,9 @@ export type EmailPayload = {
   daysLeft?: number;
   applicantCount?: number;
   similar?: { area: string; rent: string; url: string }[];
+  /** new_rooms: the rooms in the digest, and how many matched in all */
+  rooms?: { area: string; rent: string; url: string }[];
+  total?: number;
   /** deep link back into the app */
   path?: string;
 };
@@ -95,6 +99,20 @@ export function buildEmail(kind: NotificationKind, p: EmailPayload, appUrl: stri
       ];
       cta = "Open your share kit";
       break;
+    case "new_rooms": {
+      const total = p.total ?? p.rooms?.length ?? 0;
+      const more = total - (p.rooms?.length ?? 0);
+      subject = `${total} new ${total === 1 ? "room fits" : "rooms fit"} your Passport`;
+      lines = [
+        hi,
+        `New ${total === 1 ? "room" : "rooms"} near ${area} that fit your budget, move-in date and stay:`,
+        ...(p.rooms ?? []).map((r) => `${r.area}, ${r.rent}/mo: ${r.url}`),
+        ...(more > 0 ? [`And ${more} more in Fenly.`] : []),
+        "You get this once a day at most. Turn it off in your Passport.",
+      ];
+      cta = "See rooms in Find";
+      break;
+    }
     case "id_check_requested":
       subject = `The host in ${area} asked for an ID check`;
       lines = [

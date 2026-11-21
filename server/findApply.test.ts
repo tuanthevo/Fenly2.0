@@ -44,6 +44,15 @@ test("emails: every kind builds, values are escaped, settings link included", ()
   assert.ok(evil.html.includes("&lt;script&gt;"));
   const taken = buildEmail("room_taken", { area: "Mission", similar: [{ area: "Noe Valley", rent: "$1,500", url: "https://fenly.app/r/abcd1234" }] }, "https://fenly.app");
   assert.ok(taken.text.includes("Noe Valley, $1,500/mo: https://fenly.app/r/abcd1234"));
+  const rooms = [
+    { area: "Noe Valley", rent: "$1,800", url: "https://fenly.app/r/aaaa1111" },
+    { area: "Castro", rent: "$1,900", url: "https://fenly.app/r/bbbb2222" },
+  ];
+  const digest = buildEmail("new_rooms", { area: "Mission", rooms, total: 7 }, "https://fenly.app");
+  assert.equal(digest.subject, "7 new rooms fit your Passport");
+  assert.ok(digest.text.includes("Castro, $1,900/mo: https://fenly.app/r/bbbb2222"));
+  assert.ok(digest.text.includes("And 5 more in Fenly."));
+  assert.equal(buildEmail("new_rooms", { area: "Mission", rooms: rooms.slice(0, 1), total: 1 }, "https://fenly.app").subject, "1 new room fits your Passport");
 });
 
 test("admin emails and the cron secret gate their routes", async () => {

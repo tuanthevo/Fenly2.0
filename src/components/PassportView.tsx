@@ -15,6 +15,7 @@ import { blobToBase64, findApi, shrinkImage } from '../lib/findApi';
 import { uploadToStorage } from '../lib/fillApi';
 import { TAB_VALUE } from '../config/launchCopy';
 import { LEASE_TERMS } from '../fill/leaseTerms';
+import { RoomAlertsCard } from './find/RoomAlertsCard';
 
 type PassportRow = {
   level: number;
@@ -489,6 +490,8 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
           <span className={`block w-5 h-5 rounded-full bg-white shadow transition-transform ${notifyEmail ? 'translate-x-5' : ''}`} />
         </button>
       </div>
+
+      {supabase && <RoomAlertsCard supabase={supabase} userId={user.id} emailOn={notifyEmail} />}
 
       {isAdmin && onOpenReview && (
         <button
