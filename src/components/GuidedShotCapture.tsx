@@ -23,6 +23,7 @@ import {
   countCompletedShots,
   isLandscape,
   instructionFor,
+  SHOT_GUIDE_SEC,
   recordingMsFor,
   shotsForMode,
   EXTRA_SHOT_SLOTS,
@@ -99,10 +100,17 @@ function readClipMetadata(url: string): Promise<ClipMetadata> {
     const timeout = window.setTimeout(() => finish({}), 10000);
 
     const seekForThumbnail = () => {
-      video.onseeked = () => {
+      let tries = 0;
+      const grab = () => {
         const frame = grabCenterCroppedFrame(video);
-        finish({ thumbnailUrl: frame.dataUrl, thumbnailBase64: frame.base64 });
+        if (frame.dataUrl || tries >= 2) return finish({ thumbnailUrl: frame.dataUrl, thumbnailBase64: frame.base64 });
+        // Phones often have no picture decoded yet right after a seek: nudge the decoder and try again
+        tries++;
+        video.play().then(() => video.pause()).catch(() => {});
+        window.setTimeout(grab, 400);
       };
+      // Drawing right at "seeked" can return the frame before the seek, or nothing: wait a moment
+      video.onseeked = () => window.setTimeout(grab, 200);
       video.currentTime = Math.min(1.2, Math.max(0, durationSec / 2));
     };
 
@@ -391,7 +399,7 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
     onSave({
       slotNumber: shot.slotNumber,
       videoUrl: reviewUrl,
-      thumbnailUrl: thumb.dataUrl || shot.sampleThumbnailUrl,
+      thumbnailUrl: thumb.dataUrl ?? '',
       source: 'recorded',
       fileName: `shot-${shot.slotNumber}-guided.${
         chunksRef.current[0]?.type.includes('mp4') ? 'mp4' : 'webm'
@@ -705,7 +713,7 @@ const ClipPreviewModal: React.FC<{
           {media.videoUrl ? (
             <video disablePictureInPicture
               src={media.videoUrl}
-              poster={media.thumbnailUrl}
+              poster={media.thumbnailUrl || undefined}
               autoPlay
               loop
               muted
@@ -876,7 +884,8 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
     saveMedia({
       slotNumber: shot.slotNumber,
       videoUrl: url,
-      thumbnailUrl: meta.thumbnailUrl || shot.sampleThumbnailUrl,
+      // No frame could be read: leave it empty and the card shows the clip itself, never a stock photo
+      thumbnailUrl: meta.thumbnailUrl ?? '',
       source,
       fileName: file.name,
       durationSec: Math.round(meta.durationSec * 10) / 10,
@@ -974,11 +983,24 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
                 >
                   {isDone ? (
                     <>
-                      <img
-                        src={media.thumbnailUrl}
-                        alt={`Shot ${shot.slotNumber} thumbnail`}
-                        className="w-full h-full object-cover"
-                      />
+                      {media.thumbnailUrl ? (
+                        <img
+                          src={media.thumbnailUrl}
+                          alt={`Shot ${shot.slotNumber} thumbnail`}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        // No still could be read from the clip: show the clip's own first moment
+                        <video
+                          disablePictureInPicture
+                          src={media.videoUrl ? `${media.videoUrl}#t=0.5` : undefined}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          aria-label={`Shot ${shot.slotNumber} thumbnail`}
+                          className="w-full h-full object-cover"
+                        />
+                      )}
                       <span className="absolute inset-0 flex items-center justify-center bg-black/25">
                         <Play className="w-5 h-5 text-white fill-white drop-shadow" />
                       </span>
@@ -1010,7 +1032,7 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
                   <h5 className="text-xs font-extrabold text-[#2C2724] leading-snug">
                     {shot.name}
                   </h5>
-                  <p className="text-[11px] text-[#6E655F] leading-snug">{instructionFor(shot, seconds)}</p>
+                  <p className="text-[11px] text-[#6E655F] leading-snug">{shot.instruction}</p>
                 </div>
               </div>
 
@@ -1052,7 +1074,7 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
                   )}
                   <span>
                     {useNativeCamera
-                      ? `${isDone ? 'Retake' : 'Record'} · about ${seconds}s`
+                      ? `${isDone ? 'Retake' : 'Record'} · ${SHOT_GUIDE_SEC}s or more`
                       : `${isDone ? 'Retake' : 'Record'} ${mode === 'quick' ? '' : 'Guided '}${seconds}s Clip`}
                   </span>
                 </button>

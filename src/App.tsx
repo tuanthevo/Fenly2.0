@@ -453,7 +453,10 @@ export default function App() {
   const fillListingId = fillOverlay && fillOverlay !== 'new' && isListingId(fillOverlay) ? fillOverlay : null;
   // Editing a live listing (from its status page): "edit:<id>"
   const editOverlay = nav.overlay?.startsWith('edit:') ? nav.overlay.slice('edit:'.length) : null;
-  const editListingId = editOverlay && isListingId(editOverlay) ? editOverlay : null;
+  // "edit:<id>" opens at the basics; "edit:<id>:video" opens the video editor directly
+  const [editIdPart, editStartPart] = (editOverlay ?? '').split(':');
+  const editListingId = editIdPart && isListingId(editIdPart) ? editIdPart : null;
+  const editStartAt = editStartPart === 'video' ? 'video' : undefined;
   const statusListingId =
     nav.overlay?.startsWith('status:') && isListingId(nav.overlay.slice('status:'.length))
       ? nav.overlay.slice('status:'.length)
@@ -1798,8 +1801,9 @@ export default function App() {
             {!fillOverlay && !editListingId && !applicantsListingId && !statusListingId && <OnboardingBanner tab="fill" />}
             {editListingId ? (
               <FillFlow
-                key={`edit-${editListingId}`}
+                key={`edit-${editListingId}-${editStartAt ?? 'start'}`}
                 mode="edit"
+                startAt={editStartAt}
                 listingId={editListingId}
                 onClose={() => openFillStatus(editListingId, true)}
                 onOpenStatus={(id) => openFillStatus(id, true)}
@@ -1820,6 +1824,7 @@ export default function App() {
                 listingId={statusListingId}
                 onBack={closeOverlay}
                 onEdit={() => navigate((prev) => ({ ...prev, tab: 'fill', overlay: `edit:${statusListingId}` }))}
+                onEditVideo={() => navigate((prev) => ({ ...prev, tab: 'fill', overlay: `edit:${statusListingId}:video` }))}
               />
             ) : (
               <FillHome

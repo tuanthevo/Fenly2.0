@@ -62,7 +62,12 @@ people), so the floor comes from filming: guided and Quick Tour shots record
 tap-to-record shake and doorways; 3 × 10 s gave ~24 s. Test clips: 3 × 15 s ≈ 36 s,
 4 × 15 s ≈ 47 s, 5 × 15 s ≈ 50 s at 1.05x, 5 × 20 s ≈ 49 s at 1.15x (sped up to
 fit 50 s, every moment kept). A tour under 30 s asks the host to film the rooms
-with the least usable footage again.
+with the least usable footage again. Later the same month: hosts are told "at least
+10 sec" per shot and phones film in the native camera (no auto-stop); rooms with
+14 s+ of clean footage get a third moment (`THIRD_MIN_CLEAN_SEC`), so 3 × 15 s ≈ 41 s
+and 3 × 18 s+ ≈ 48-49 s. `QUIET_MAX_SEC` is 3 s (was 3.2) with up to 3 punch-ins per
+shot, matching the grader's change-rate row. Three clips of exactly 10 s still give
+~24 s, under the 30 s rule.
 
 ### Fenly 2.0 Quick Tour (Fill tab)
 
