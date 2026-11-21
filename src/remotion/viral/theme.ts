@@ -31,6 +31,6 @@ export const SAFE = { top: 230, bottom: 500, left: 72, right: 160 } as const;
 export const TYPE = {
   kicker: 34,
   tag: 60,
-  chip: 46,
+  chip: 50,
   support: 44,
 } as const;
