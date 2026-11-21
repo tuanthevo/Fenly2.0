@@ -217,7 +217,7 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
 
         {expanded && (
           <div className="space-y-2.5" data-testid={`applicant-details-${a.applicationId}`}>
-            {a.introUrl && <video src={a.introUrl} controls playsInline preload="metadata" className="w-full max-h-64 rounded-xl bg-black" />}
+            {a.introUrl && <video disablePictureInPicture src={a.introUrl} controls playsInline preload="metadata" className="w-full max-h-64 rounded-xl bg-black" />}
             {a.bio && <p className="text-[11px] text-[#6E655F]">{a.bio}</p>}
             {Object.keys(a.lifestyle).length > 0 && (
               <div className="flex flex-wrap gap-1">

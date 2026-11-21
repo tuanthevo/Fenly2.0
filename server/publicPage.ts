@@ -87,7 +87,7 @@ export function renderListingPage(input: ListingPageInput): string {
   const filled = input.status === "filled";
 
   const media = input.videoUrl
-    ? `<video src="${escapeHtml(input.videoUrl)}"${input.posterUrl ? ` poster="${escapeHtml(input.posterUrl)}"` : ""} playsinline muted autoplay loop controls preload="none" aria-label="Video tour of the room in ${escapeHtml(area)}"></video>`
+    ? `<video disablepictureinpicture src="${escapeHtml(input.videoUrl)}"${input.posterUrl ? ` poster="${escapeHtml(input.posterUrl)}"` : ""} playsinline muted autoplay loop controls preload="none" aria-label="Video tour of the room in ${escapeHtml(area)}"></video>`
     : input.posterUrl
       ? `<img src="${escapeHtml(input.posterUrl)}" alt="Room in ${escapeHtml(area)}" fetchpriority="high">`
       : "";

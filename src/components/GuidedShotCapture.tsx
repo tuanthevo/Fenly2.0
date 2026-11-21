@@ -463,7 +463,7 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
           className="relative h-full max-h-full aspect-[9/16] max-w-full rounded-[28px] overflow-hidden bg-black border-2 border-white/25"
         >
           {/* Live camera */}
-          <video
+          <video disablePictureInPicture
             ref={liveVideoRef}
             onLoadedMetadata={updateStreamOrientation}
             onResize={updateStreamOrientation}
@@ -477,7 +477,7 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
 
           {/* Recorded take */}
           {phase === 'review' && reviewUrl && (
-            <video
+            <video disablePictureInPicture
               data-testid="guided-camera-review-video"
               src={reviewUrl}
               autoPlay
@@ -703,7 +703,7 @@ const ClipPreviewModal: React.FC<{
         </div>
         <div className="relative w-full aspect-[9/16] max-h-[60vh] mx-auto rounded-2xl overflow-hidden bg-black">
           {media.videoUrl ? (
-            <video
+            <video disablePictureInPicture
               src={media.videoUrl}
               poster={media.thumbnailUrl}
               autoPlay

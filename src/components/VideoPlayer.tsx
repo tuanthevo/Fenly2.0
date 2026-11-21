@@ -501,7 +501,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     >
       {/* Exported viral edit (one MP4) replaces the image slideshow */}
       {isViralEdit && (
-        <video
+        <video disablePictureInPicture
           ref={viralVideoRef}
           src={room.videoUrl}
           autoPlay
