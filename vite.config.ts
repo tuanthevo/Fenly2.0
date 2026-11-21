@@ -59,6 +59,10 @@ export default defineConfig(({mode}) => {
     // App version shown in the UI, from package.json "version".
     define: {
       __APP_VERSION__: JSON.stringify(appVersion),
+      // Which build this is: the commit Vercel built (or "local") and when. Shown at the bottom of the
+      // Passport so a tester can tell whether their phone has the latest deploy.
+      __BUILD_ID__: JSON.stringify((process.env.VERCEL_GIT_COMMIT_SHA || 'local').slice(0, 7)),
+      __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
     },
     plugins: [react(), tailwindcss(), keepSecretsServerSide(env)],
     resolve: {
