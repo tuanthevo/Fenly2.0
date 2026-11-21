@@ -1545,7 +1545,8 @@ export default function App() {
                 </div>
 
                 {/* Top-Right Mobile & Desktop Listing Scroll Controls (Swipe or Tap Up/Down) */}
-                {filteredRooms.length > 1 && (
+                {/* 1.0 only: the 2.0 feed moves by swipe, scroll wheel, drag and arrow keys (no "1/2" pill) */}
+                {!findMode && filteredRooms.length > 1 && (
                   <div
                     data-testid="feed-scroll-controls"
                     className="absolute top-2.5 right-3 sm:right-3.5 z-30 flex items-center gap-1 bg-[#F9F7F3]/95 backdrop-blur-xs border border-[#2C2724] rounded-xl px-1.5 py-1 shadow-warm-sm pointer-events-auto"
