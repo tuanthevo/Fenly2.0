@@ -387,6 +387,11 @@ test('AI copy is used when it is safe, and dropped when it describes who should 
   );
   assert.equal(bad.hook.text, 'What $1,450/mo gets you in Mission District');
   assert.equal(bad.shots[1].tag, 'Full kitchen');
+  // The price hook keeps its one recognizable shape; an AI rewording ("... tour") gets the template
+  for (const hookText of ['$1,450/mo in Mission District tour', '$1,450/mo Mission District private room tour']) {
+    const off = buildViralEditPlan({ listing, clips: guidedClips() }, { ai: { hookText } });
+    assert.equal(off.hook.text, 'What $1,450/mo gets you in Mission District', hookText);
+  }
   assert.ok(bad.shots[1].callouts.every((c) => c.kind === 'fact'));
 });
 

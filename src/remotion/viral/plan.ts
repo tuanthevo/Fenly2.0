@@ -208,6 +208,8 @@ const NO_ANALYSIS_START_MAX_SEC = 2;
 const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
 const round3 = (x: number) => Math.round(x * 1000) / 1000;
 const PRICE_IN_TEXT = /\$\s?\d/;
+/** The proven price-hook shape: "What $X/mo gets you in {place}" */
+const PRICE_HOOK_SHAPE = /^what\s+\$\s?[\d,]+(\/mo)?\s+gets\s+you\s+in\s+\S/i;
 
 function hookScoreOf(clip: ViralClipInput): number {
   return (clip.analysis?.hookScore ?? 0.5) + (SLOT_HOOK_PRIOR[clip.slotNumber] ?? 0);
@@ -389,7 +391,8 @@ function resolveHook(style: ViralStyleId, input: BuildViralPlanInput, options: B
   if (hostText) return hookFromText(hostText, input.listing, fallback.kicker);
   if (style === 'price-hook') {
     const aiText = sanitizeHookText(options.ai?.hookText);
-    if (aiText && PRICE_IN_TEXT.test(aiText) && !violatesFairHousing(aiText)) {
+    // One recognizable format across every listing: the AI may only reword the place
+    if (aiText && PRICE_IN_TEXT.test(aiText) && PRICE_HOOK_SHAPE.test(aiText) && !violatesFairHousing(aiText)) {
       return hookFromText(aiText, input.listing, fallback.kicker);
     }
   }
