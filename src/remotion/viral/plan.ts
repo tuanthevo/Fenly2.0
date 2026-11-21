@@ -186,6 +186,23 @@ export const MAX_TOUR_TOTAL_SEC = 45;
 /** On-screen text size for video tours (photo tours use PHOTO_TEXT_SCALE) */
 export const VIDEO_TEXT_SCALE = 0.8;
 const MIN_START_SEC = 0.25;
+/**
+ * Longest stretch with nothing new on screen (no cut, label, callout or punch-in).
+ * Past ~3 s the retention curve drops; a gentle punch-in fills it without more text.
+ */
+export const QUIET_MAX_SEC = 3.2;
+/** How far a punch-in zooms, and how long it takes */
+export const PUNCH_SCALE = 1.06;
+export const PUNCH_FRAMES = 10;
+/** Shots already zoomed this far to crop a wall get no punch-in (more looks soft) */
+const PUNCH_MAX_REFRAME = 1.15;
+const MAX_PUNCHES = 2;
+/**
+ * Without clip analysis, the opener starts this far into a long clip: phone clips
+ * open on the record tap (floor, feet). Capped so short guided clips still fit.
+ */
+const NO_ANALYSIS_START_SHARE = 0.25;
+const NO_ANALYSIS_START_MAX_SEC = 2;
 const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
 const round3 = (x: number) => Math.round(x * 1000) / 1000;
 const PRICE_IN_TEXT = /\$\s?\d/;
@@ -254,7 +271,8 @@ type SourceInfo = { duration: number; preferred: number; clean: ClipRange; motio
 function sourceInfo(clip: ViralClipInput, aiWindow?: { startSec: number; endSec?: number }): SourceInfo {
   const duration = clip.durationSec > 0 ? clip.durationSec : clip.analysis?.durationSec ?? 4.5;
   const end = Math.max(0, duration - SOURCE_TAIL_SEC);
-  const fallbackStart = duration >= 3 ? 0.6 : Math.min(0.2, end);
+  const fallbackStart =
+    duration >= 3 ? clamp(duration * NO_ANALYSIS_START_SHARE, 0.6, NO_ANALYSIS_START_MAX_SEC) : Math.min(0.2, end);
   const preferred = clamp(aiWindow?.startSec ?? clip.analysis?.best.startSec ?? fallbackStart, 0, end);
   const analysisClean = clip.analysis?.clean;
   let clean: ClipRange;
@@ -452,6 +470,8 @@ function planSegments(
 /** The room's second callout (the one hosts edit as "detail"), wherever the plan placed it. */
 export function roomDetail(plan: Pick<ViralEditPlan, 'shots'>, slotNumber: number): string {
   const shots = plan.shots.filter((s) => s.slotNumber === slotNumber && s.role !== 'hook');
+  const seen = shots.flatMap((s) => s.callouts).find((c) => c.kind === 'room');
+  if (seen) return seen.text;
   const untagged = shots.find((s) => s.role === 'tour' && !s.tag && s.callouts.length > 0);
   return (untagged?.callouts[0] ?? shots.flatMap((s) => s.callouts).find((c) => c.row === 1))?.text ?? '';
 }
@@ -597,6 +617,22 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
   const facts = factsSec > 0 ? heroFacts(listing, saidAlready) : [];
   const factQueue = lp.details ? listingFacts(listing, [...saidAlready, ...facts]) : [];
 
+  /** Host or AI detail for a room (things you can see), or null */
+  const detailFor = (clip: ViralClipInput, i: number): { text: string; kind: 'room' } | null => {
+    const hostDetail = options.detailOverrides?.[clip.slotNumber];
+    if (hostDetail !== undefined) return cleanTag(hostDetail) ? { text: cleanTag(hostDetail), kind: 'room' } : null;
+    const aiDetail = aiTag(options.ai?.details?.[clip.slotNumber]);
+    const roomTag = tourTags[i] || tourTags.find((t, k) => t && segs[k].clip === clip) || '';
+    return aiDetail && aiDetail.toLowerCase() !== roomTag.toLowerCase() ? { text: aiDetail, kind: 'room' } : null;
+  };
+  // A tour room split in two (labeled moment, then unlabeled one): which moment holds the analysis' best frame
+  const detailMomentOf = new Map<ViralClipInput, number>();
+  segs.forEach((sg, b) => {
+    if (b === 0 || roles[b] !== 'tour' || !unlabeled(b) || segs[b - 1].clip !== sg.clip || roles[b - 1] !== 'tour') return;
+    const best = sourceInfo(sg.clip, options.ai?.windows?.[sg.clip.slotNumber]).preferred;
+    detailMomentOf.set(sg.clip, sg.window && best < sg.window.startSec ? b - 1 : b);
+  });
+
   const shots: ViralShot[] = [];
   let cursor = 0;
   for (let i = 0; i < n; i++) {
@@ -638,27 +674,15 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
       const rows = facts.length === 3 ? [-1, 0, 1] : facts.length === 2 ? [0, 1] : [0];
       facts.forEach((text, k) => callouts.push({ text, kind: 'fact', inFrame: from + 6 * k, outFrame: visibleEnd, row: rows[k] }));
     }
-    // A room split in two: the labeled moment gets a listing fact, the other moment the room's detail
-    const hasDetailMoment = role === 'tour' && segs.some((sg, k) => k !== i && sg.clip === clip && unlabeled(k));
-    if (role === 'tour' && lp.details && hasDetailMoment) {
-      const inFrame = tagInFrame + Math.max(Math.round(1.6 * fps), Math.round(0.42 * primary[i]));
-      if (factQueue.length > 0 && inFrame < visibleEnd - Math.round(1.2 * fps)) {
-        callouts.push({ text: factQueue.shift()!, kind: 'fact', inFrame, outFrame: visibleEnd, row: 1 });
-      }
-    } else if (role === 'tour' && lp.details) {
+    // The room's second callout. A room split in two shows its detail (named from the one frame
+    // Gemini saw) on the moment that holds that frame; the other moment gets a listing fact.
+    if (role === 'tour' && lp.details) {
+      const detailHere = !detailMomentOf.has(clip) || detailMomentOf.get(clip) === i;
       const hostDetail = options.detailOverrides?.[clip.slotNumber];
-      const aiDetail = aiTag(options.ai?.details?.[clip.slotNumber]);
-      const detail =
-        hostDetail !== undefined
-          ? cleanTag(hostDetail)
-            ? { text: cleanTag(hostDetail), kind: 'room' as const }
-            : null
-          : aiDetail && aiDetail.toLowerCase() !== (tag || tourTags.find((t, k) => t && segs[k].clip === clip) || '').toLowerCase()
-          ? { text: aiDetail, kind: 'room' as const }
-          : factQueue.length > 0
-          ? { text: factQueue.shift()!, kind: 'fact' as const }
-          : null;
-      // An unlabeled moment shows its detail right after the cut, in the label's place
+      const hostCleared = detailHere && hostDetail !== undefined && !cleanTag(hostDetail);
+      const fact = () => (factQueue.length > 0 ? { text: factQueue.shift()!, kind: 'fact' as const } : null);
+      const detail = hostCleared ? null : detailHere ? detailFor(clip, i) ?? fact() : fact();
+      // An unlabeled moment shows its callout right after the cut, in the label's place
       const inFrame = unlabeled(i) ? tagInFrame + Math.round(0.3 * fps) : tagInFrame + Math.max(Math.round(1.6 * fps), Math.round(0.42 * primary[i]));
       if (detail && inFrame < visibleEnd - Math.round(1.2 * fps)) {
         callouts.push({ ...detail, inFrame, outFrame: visibleEnd, row: unlabeled(i) ? 0 : 1 });
@@ -734,6 +758,8 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
       durationInFrames: Math.min(Math.round(1.2 * fps), Math.max(12, room)),
     };
   }
+
+  addPunchIns(shots, cuts, rehook, endCardFrom, fps);
 
   const sfx: ViralSfxCue[] = [];
   if (options.sfx ?? true) {
@@ -828,6 +854,51 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
   };
 }
 
+type ChangeSource = Pick<ViralEditPlan, 'shots' | 'cuts' | 'rehook' | 'priceChipFromFrame' | 'hookExitFrame' | 'endCard'>;
+
+/** Absolute frames where something new appears: cuts, labels, callouts, punch-ins, the re-hook, the price chip, the end card. */
+export function changeFrames(plan: ChangeSource): number[] {
+  const frames = new Set<number>([0, plan.hookExitFrame, plan.priceChipFromFrame, plan.endCard.fromFrame]);
+  for (const cut of plan.cuts) frames.add(cut.atFrame);
+  for (const s of plan.shots) {
+    if (s.tag && s.role !== 'hook') frames.add(s.startFrame + s.tagInFrame);
+    for (const c of s.callouts) frames.add(s.startFrame + c.inFrame);
+    for (const p of s.punchInFrames ?? []) frames.add(s.startFrame + p);
+  }
+  if (plan.rehook) frames.add(plan.rehook.fromFrame);
+  return [...frames].sort((a, b) => a - b);
+}
+
+/**
+ * Fills quiet stretches (over QUIET_MAX_SEC with nothing new) with a gentle punch-in,
+ * at the middle of the stretch. Never on the opener, whose headline is the thing to read,
+ * and never on photo shots (they have their own camera move) or shots already zoomed to crop a wall.
+ */
+function addPunchIns(shots: ViralShot[], cuts: ViralCut[], rehook: ViralEditPlan['rehook'], endCardFrom: number, fps: number) {
+  const quiet = Math.round(QUIET_MAX_SEC * fps);
+  const base = { shots, cuts, rehook, priceChipFromFrame: 0, hookExitFrame: 0, endCard: { fromFrame: endCardFrom } } as ChangeSource;
+  for (const shot of shots) {
+    if (shot.role === 'hook' || shot.photo || shot.reframe.scale >= PUNCH_MAX_REFRAME) continue;
+    const end = shot.role === 'closer' ? endCardFrom : shot.startFrame + shot.durationInFrames - shot.outOverlapFrames;
+    const earliest = shot.startFrame + shot.tagInFrame + 1;
+    for (let n = 0; n < MAX_PUNCHES; n++) {
+      const marks = [...changeFrames(base).filter((f) => f >= shot.startFrame && f < end), end];
+      let from = 0;
+      let gap = 0;
+      for (let k = 1; k < marks.length; k++) {
+        if (marks[k] - marks[k - 1] > gap) {
+          gap = marks[k] - marks[k - 1];
+          from = marks[k - 1];
+        }
+      }
+      if (gap <= quiet) break;
+      const at = Math.max(earliest, from + Math.round(gap / 2)) - shot.startFrame;
+      if (at >= end - shot.startFrame - PUNCH_FRAMES) break;
+      shot.punchInFrames = [...(shot.punchInFrames ?? []), at].sort((a, b) => a - b);
+    }
+  }
+}
+
 export function getPlanDurationInFrames(plan: ViralEditPlan): number {
   return plan.totalFrames;
 }
@@ -846,6 +917,9 @@ export function checkPlan(plan: ViralEditPlan): string[] {
     if (s.rampFrames > 0 && (s.rampRate < 0.5 || s.rampRate > 2.5)) problems.push(`shot ${i} ramp speed ${s.rampRate}`);
     for (const c of s.callouts) {
       if (c.inFrame < 0 || c.inFrame >= c.outFrame || c.outFrame >= s.durationInFrames) problems.push(`shot ${i} callout "${c.text}"`);
+    }
+    for (const p of s.punchInFrames ?? []) {
+      if (p <= 0 || p + PUNCH_FRAMES >= s.durationInFrames) problems.push(`shot ${i} punch-in at ${p}`);
     }
     if (i > 0) {
       const prev = shots[i - 1];

@@ -52,6 +52,12 @@ Read it first, and keep it in sync with any change you make.
 - **Gemini's copy varies per call.** Compare renders on structure and placement,
   not on the exact words.
 
+- **Dead air hides in long rooms.** Second moments and the perk reveal ran 4.9 s
+  with nothing new. Measure it: `changeFrames(plan)` lists every change; the plan
+  test fails past `QUIET_MAX_SEC`.
+- **Gemini sees one frame per room.** A label names what's in that frame, so put
+  it on the footage that holds that frame, not on a moment from elsewhere in the clip.
+
 ## The non-negotiables
 
 | # | Rule | Why |

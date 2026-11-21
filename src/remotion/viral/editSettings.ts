@@ -51,6 +51,32 @@ export const DEFAULT_EDIT_SETTINGS: ViralEditSettings = {
   music: null,
 };
 
+const oneOf = <T extends string>(value: unknown, options: readonly T[], fallback: T): T =>
+  options.includes(value as T) ? (value as T) : fallback;
+
+/**
+ * Settings sent by the browser, checked before the server puts them in a prompt:
+ * known words only, looks clamped to -1..1, booleans as booleans, short text, no music URL.
+ */
+export function sanitizeEditSettings(raw: unknown): ViralEditSettings {
+  const s = (raw && typeof raw === 'object' ? raw : {}) as Record<string, any>;
+  const d = DEFAULT_EDIT_SETTINGS;
+  const volume = Number(s.music?.volume);
+  return {
+    style: oneOf(s.style, ['price-hook', 'guess-rent', 'pov'] as const, d.style),
+    length: oneOf(s.length, ['full', 'teaser'] as const, d.length),
+    pace: oneOf(s.pace, ['snappy', 'balanced', 'relaxed'] as const, d.pace),
+    hookSlot: Number.isInteger(s.hookSlot) && s.hookSlot >= 1 && s.hookSlot <= 5 ? s.hookSlot : null,
+    hookDraft: typeof s.hookDraft === 'string' ? s.hookDraft.slice(0, 80) : null,
+    tagEdits: {},
+    detailEdits: {},
+    sfxOn: typeof s.sfxOn === 'boolean' ? s.sfxOn : d.sfxOn,
+    roomSound: typeof s.roomSound === 'boolean' ? s.roomSound : d.roomSound,
+    look: normalizeLook(s.look && typeof s.look === 'object' ? s.look : null),
+    music: s.music ? { src: '', name: '', volume: Number.isFinite(volume) ? Math.max(0, Math.min(1, volume)) : 0.55 } : null,
+  };
+}
+
 /** A change to the settings. Look values are absolute (-1..1); `summary` says what changed, in plain words. */
 export type ViralEditPatch = {
   look?: Partial<ViralLook>;

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  sanitizeEditSettings,
   DEFAULT_EDIT_SETTINGS,
   applyEditPatch,
   isEmptyPatch,
@@ -100,4 +101,28 @@ test('automatic lighting: brighter for dim footage, always slightly warm with so
     assert.equal(look.warmth, 0.1);
     assert.ok(look.contrast < 0);
   }
+});
+
+test('settings from the browser are checked before they reach a prompt', () => {
+  const huge = 'x'.repeat(50_000);
+  const out = sanitizeEditSettings({
+    style: huge,
+    pace: 'snappy',
+    length: 'teaser',
+    look: { brightness: 9, warmth: 'hot', contrast: -0.2, saturation: huge },
+    sfxOn: 'yes',
+    roomSound: true,
+    music: { src: 'https://evil.example/x.mp3', volume: 4 },
+    hookDraft: huge,
+  });
+  assert.equal(out.style, 'price-hook');
+  assert.equal(out.pace, 'snappy');
+  assert.equal(out.length, 'teaser');
+  assert.ok(out.look.brightness <= 1 && Number.isFinite(out.look.warmth) && Number.isFinite(out.look.saturation));
+  assert.equal(out.sfxOn, true);
+  assert.equal(out.roomSound, true);
+  assert.deepEqual(out.music, { src: '', name: '', volume: 1 });
+  assert.ok((out.hookDraft ?? '').length <= 80);
+  assert.ok(JSON.stringify(out).length < 600);
+  assert.deepEqual(sanitizeEditSettings(null), DEFAULT_EDIT_SETTINGS);
 });
