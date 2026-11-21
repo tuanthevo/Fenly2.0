@@ -526,6 +526,10 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
         <span aria-hidden="true">·</span>
         <a href="/terms.html" className="inline-flex items-center min-h-10 px-2 underline font-bold">Terms</a>
       </p>
+      <p className="text-center text-[10px] text-[#6E655F]" data-testid="build-stamp">
+        Fenn {__APP_VERSION__} · build {__BUILD_ID__} ·{' '}
+        {new Date(__BUILD_TIME__).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+      </p>
     </div>
   );
 };
