@@ -64,7 +64,7 @@ export const RoomAlertsCard: React.FC<{ supabase: SupabaseClient; userId: string
     setNote(null);
     const place = await lookupBayAreaPlace(text);
     setBusy(false);
-    if (place.kind === 'outside') return setNote({ text: 'Fenn is in the Bay Area for now: SF, the East Bay, the Peninsula and the South Bay.', bad: true });
+    if (place.kind === 'outside') return setNote({ text: 'Fenn is in Northern California for now. Try a Northern California city or ZIP code.', bad: true });
     if (place.kind === 'unknown') return setNote({ text: "We couldn't find that. Try a city name or a 5-digit ZIP code.", bad: true });
     const label = cleanPlaceLabel(place.label) || place.city;
     setQuery(label);

@@ -5,7 +5,8 @@
  * facts and rules as applicant matching (fit.ts). Pure; the daily cron
  * (server/adminRoutes.ts) sends it through notify().
  */
-import { DEFAULT_RADIUS_MILES, RADIUS_MILES, inBayAreaBounds } from '../geo/bayArea.js';
+import { DEFAULT_RADIUS_MILES, RADIUS_MILES } from '../geo/bayArea.js';
+import { inNorcalBounds } from '../geo/norcal.js';
 import { isLeaseTerm } from '../fill/leaseTerms.js';
 import { budgetFit, moveInFit } from './fit.js';
 import { cleanPlaceLabel, roomDistanceMiles, type FindNear } from './findFilters.js';
@@ -82,7 +83,7 @@ export function cleanAlertPrefs(row: Record<string, unknown>): AlertPrefs | null
   const lng = Number(row.alert_lng);
   const miles = Number(row.alert_miles);
   const near: FindNear | null =
-    row.alert_lat != null && row.alert_lng != null && inBayAreaBounds(lat, lng)
+    row.alert_lat != null && row.alert_lng != null && inNorcalBounds(lat, lng)
       ? {
           label: cleanPlaceLabel(String(row.alert_place ?? '')) || 'your area',
           lat,

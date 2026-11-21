@@ -47,7 +47,8 @@ import {
   type FillStep,
 } from '../../fill/listingRules';
 import { FILL_AMENITIES, leaseTermOptions } from '../../fill/neighborhoods';
-import { BAY_AREA_CITIES, BAY_AREA_REGIONS, areaLabel, bayAreaCity, nearestArea } from '../../geo/bayArea';
+import { BAY_AREA_CITIES, BAY_AREA_REGIONS, areaLabel, bayAreaCity, nearestArea, serviceCity } from '../../geo/bayArea';
+import { nearestNorcalCity } from '../../geo/norcal';
 import { lookupBayAreaPlace } from '../../lib/geocode';
 import { chaptersFromPlan } from '../../find/videoChapters';
 import { formatMoveIn, formatRentCents } from '../../fill/publicListing';
@@ -84,7 +85,7 @@ const secondaryBtn =
 const label = 'text-[11px] font-bold text-[#6E655F] block mb-1';
 
 const OUTSIDE_AREA =
-  'Fenn is in the Bay Area for now: San Francisco, the East Bay, the Peninsula and the South Bay. Pick the closest city below.';
+  'Fenn is in Northern California for now. Type a Northern California city or ZIP code.';
 
 const LANDLORD_MESSAGE =
   "Hi, I'm planning to move out on [date]. Would you be OK with me finding a replacement roommate for my room? I'll share applicants with you before anyone signs. Thanks!";
@@ -172,8 +173,8 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
     setMoveOut(row.move_out_date ?? '');
     setRent(row.rent_cents ? String(Math.round(row.rent_cents / 100)) : '');
     setDeposit(row.deposit_cents == null ? '' : String(Math.round(row.deposit_cents / 100)));
-    // A saved city outside the launch area (or none yet) leaves the picker empty
-    const savedCity = bayAreaCity(row.city);
+    // A saved city outside Northern California (or none yet) leaves the picker empty
+    const savedCity = serviceCity(row.city);
     setCity(savedCity?.name ?? '');
     setNeighborhood(savedCity && row.neighborhood ? row.neighborhood : '');
     setBeds(row.beds ?? 1);
@@ -300,7 +301,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
       if (!moveOut) throw new Error('Pick the date you need the room filled.');
       if (!(rentCents >= 10000 && rentCents <= 2000000)) throw new Error('Rent must be between $100 and $20,000.');
       if (depositRule.error) throw new Error(depositRule.error);
-      if (!bayAreaCity(city)) throw new Error('Pick the city the room is in.');
+      if (!serviceCity(city)) throw new Error('Pick the city the room is in, or type its ZIP code.');
       const sqft = squareFeet ? Number(squareFeet) : null;
       if (sqft !== null && !(sqft >= 50 && sqft <= 10000)) throw new Error('Room size must be between 50 and 10,000 sq ft, or left blank.');
       let id = listing?.id;
@@ -373,7 +374,9 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const found = nearestArea(pos.coords.latitude, pos.coords.longitude);
+        // A launch-area city (with its neighborhood) when close to one, else the nearest Northern California city
+        const other = nearestNorcalCity(pos.coords.latitude, pos.coords.longitude);
+        const found = nearestArea(pos.coords.latitude, pos.coords.longitude) ?? (other ? { city: other.name, neighborhood: null } : null);
         if (found) {
           setCity(found.city);
           setNeighborhood(found.neighborhood ?? '');
@@ -730,6 +733,8 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                           <option value="" disabled>
                             Pick a city
                           </option>
+                          {/* A city found by ZIP or address outside the listed ones (Sacramento, Santa Cruz...) */}
+                          {city && !bayAreaCity(city) && <option value={city}>{city}</option>}
                           {BAY_AREA_REGIONS.map((region) => (
                             <optgroup key={region} label={region}>
                               {BAY_AREA_CITIES.filter((c) => c.region === region).map((c) => (

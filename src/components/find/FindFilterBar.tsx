@@ -119,7 +119,7 @@ const FilterSheet: React.FC<{ filters: FindFilters; onClose: () => void; onApply
     const result = await lookupBayAreaPlace(text);
     setBusy(false);
     if (result.kind === 'outside') {
-      setNote({ text: 'Fenn is in the Bay Area for now: San Francisco, the East Bay, the Peninsula and the South Bay.', bad: true });
+      setNote({ text: 'Fenn is in Northern California for now. Try a Northern California city or ZIP code.', bad: true });
       return null;
     }
     if (result.kind === 'unknown') {
