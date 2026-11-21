@@ -49,12 +49,34 @@ test('the reading-time rule: 1.2 s + 0.22 s a word, 0.3 s more per number, never
   assert.equal(readSecFor(''), 0);
 });
 
-test('the real 5-room tour passes 18/20 on every row the rubric checks', () => {
+test('the real 5-room tour scores 18/20 on the rubric, but its 6-9 s clips are too short for the 30 s rule', () => {
   const g = grade(realClips());
   assert.equal(g.rows.length, 10);
   assert.ok(g.total >= PASS_SCORE, g.rows.filter((r) => r.score < 2).map((r) => `${r.label}: ${r.note}`).join(' | '));
-  assert.equal(g.passed, true);
-  assert.equal(g.lengthNote, null);
+  // Filmed before 15 s shots: 5.8-9 s clips with 3-6 s of clean footage each
+  assert.ok(g.lengthSec < 30, `${g.lengthSec}s`);
+  assert.equal(g.lengthOk, false);
+  assert.equal(g.passed, false, 'too short to export');
+  assert.match(g.lengthNote ?? '', /too short/);
+  // The rooms with the least usable footage are the ones to film again (the perk clip has 3 s)
+  assert.equal(g.lengthRetakeSlots.length, 2);
+  assert.ok(g.lengthRetakeSlots.includes(5));
+});
+
+test('15 s shots meet the 30-50 s rule with 3, 4 or 5 rooms', () => {
+  for (const slots of [[1, 2, 3], [1, 2, 3, 4], [1, 2, 3, 4, 5]]) {
+    const clips = slots.map((slot) => ({ slotNumber: slot, room: ROOMS[slot - 1], src: `x${slot}`, durationSec: 15 }));
+    const g = grade(clips);
+    assert.ok(g.lengthSec >= 30 && g.lengthSec <= 50, `${slots.length} rooms: ${g.lengthSec}s`);
+    assert.equal(g.lengthOk, true);
+    assert.equal(g.lengthNote, null);
+  }
+});
+
+test('the length rule starts at 3 rooms, and the teaser is exempt', () => {
+  const two = [1, 2].map((slot) => ({ slotNumber: slot, room: ROOMS[slot - 1], src: `x${slot}`, durationSec: 7 }));
+  assert.equal(grade(two).lengthOk, true);
+  assert.equal(grade(realClips(), { length: 'teaser' }).lengthOk, true);
 });
 
 test('every text in the real tour stays on long enough to read, including the re-hook', () => {
@@ -64,10 +86,11 @@ test('every text in the real tour stays on long enough to read, including the re
   }
 });
 
-test('three rooms still grade, but the length note says the tour is short', () => {
+test('three short rooms fail the length rule and say what to film again', () => {
   const g = grade(realClips().filter((c) => c.slotNumber <= 3));
-  assert.ok(g.lengthSec < 20);
-  assert.match(g.lengthNote ?? '', /short/);
+  assert.ok(g.lengthSec < 30);
+  assert.equal(g.passed, false);
+  assert.match(g.lengthNote ?? '', /30-50 s/);
 });
 
 test('a headline without the rent or the place loses the hook-copy row', () => {

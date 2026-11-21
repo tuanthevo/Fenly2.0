@@ -647,7 +647,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                   <div className={`${card} space-y-4`}>
                     <div>
                       <h3 className="text-lg font-extrabold leading-tight">Let's fill your room</h3>
-                      <p className="text-xs text-[#6E655F] mt-1">The basics, then a 30-second tour. About 10 minutes in all.</p>
+                      <p className="text-xs text-[#6E655F] mt-1">The basics, then three 15-second shots. About 10 minutes in all.</p>
                     </div>
                     <div>
                       <label className={label} htmlFor="fill-move-out">When do you need to fill the room?</label>

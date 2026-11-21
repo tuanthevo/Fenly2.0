@@ -54,17 +54,22 @@ Targets after the November 2026 updates: 30-45 s (rooms aim for 7 s, the perk fo
 Pace scales the sections: snappy ×0.85, relaxed ×1.15. The teaser keeps the
 hook (≈2.3 s) and runs ~2.2 s rooms at 1.0-1.25x with no ramps (≈13 s); it
 never splits rooms.
-Guided and Quick Tour shots record 10 s (was 7 s and 5 s; host's call, Nov
-2026), so each room has ~8 s of clean footage after the tap-to-record shake:
-enough for two moments of the room. Test clips: 3 × 10 s ≈ 24 s, 5 × 10 s ≈ 36 s,
-5 × 20 s ≈ 49 s at 1.15x (sped up to fit 50 s, every moment kept).
+Host's length rule (Nov 2026): with 3+ clips a tour runs **30-50 s**
+(`plan.ts` `MIN_TOUR_TOTAL_SEC`, `MAX_TOUR_TOTAL_SEC`; `grade.ts` blocks export
+outside it). The plan never stretches footage (no slow motion, no walls or
+people), so the floor comes from filming: guided and Quick Tour shots record
+**15 s** (was 7 s and 5 s). Real clips keep ~55-70% clean footage after the
+tap-to-record shake and doorways; 3 × 10 s gave ~24 s. Test clips: 3 × 15 s ≈ 36 s,
+4 × 15 s ≈ 47 s, 5 × 15 s ≈ 50 s at 1.05x, 5 × 20 s ≈ 49 s at 1.15x (sped up to
+fit 50 s, every moment kept). A tour under 30 s asks the host to film the rooms
+with the least usable footage again.
 
 ### Fenly 2.0 Quick Tour (Fill tab)
 
-The Fill flow films 3 shots of 10 s (room, shared space, bathroom; `guidedShots.ts`
+The Fill flow films 3 shots of 15 s (room, shared space, bathroom; `guidedShots.ts`
 `shotsForMode('quick')`; 5 s until Nov 2026), with 2 optional extras (closet,
-perk) for a fuller tour. With 10 s shots each room gets two moments, so 3 shots
-give a ~24 s tour; the extras take it to ~36 s. Fill exports only the full tour
+perk) for a fuller tour. With 15 s shots each room gets two moments, so 3 shots
+give a ~36 s tour; the extras take it to ~47-50 s. Fill exports only the full tour
 (the ~13 s teaser code stays behind `exportTeaserToo`; nothing played it). The
 editor grades every edit on `references/audit.md` (`grade.ts`) and exports only
 at 18/20 or more. Audit (Nov 2026, 3 sample shots via the app export):
