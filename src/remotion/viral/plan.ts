@@ -268,18 +268,23 @@ export function reframeFor(reframe: ClipAnalysis['reframe']): ViralShot['reframe
   return { scale: Math.round(scale * 1000) / 1000, originX: reframe.side === 'right' ? 0 : 100 };
 }
 
-type SourceInfo = { duration: number; preferred: number; clean: ClipRange; motion: number | null };
+type SourceInfo = { duration: number; preferred: number; clean: ClipRange; motion: number | null; hard: boolean };
 
 function sourceInfo(clip: ViralClipInput, aiWindow?: { startSec: number; endSec?: number }): SourceInfo {
   const duration = clip.durationSec > 0 ? clip.durationSec : clip.analysis?.durationSec ?? 4.5;
   const end = Math.max(0, duration - SOURCE_TAIL_SEC);
   const fallbackStart =
     duration >= 3 ? clamp(duration * NO_ANALYSIS_START_SHARE, 0.6, NO_ANALYSIS_START_MAX_SEC) : Math.min(0.2, end);
-  const preferred = clamp(aiWindow?.startSec ?? clip.analysis?.best.startSec ?? fallbackStart, 0, end);
   const analysisClean = clip.analysis?.clean;
+  const hard = Boolean(analysisClean?.hard);
+  const lo = hard ? analysisClean!.startSec : 0;
+  const hi = hard ? Math.min(end, analysisClean!.endSec) : end;
+  const preferred = clamp(aiWindow?.startSec ?? clip.analysis?.best.startSec ?? fallbackStart, lo, hi);
   let clean: ClipRange;
   if (aiWindow) {
-    clean = { startSec: preferred, endSec: clamp(aiWindow.endSec ?? end, preferred, end) };
+    clean = { startSec: preferred, endSec: clamp(aiWindow.endSec ?? end, preferred, hi) };
+  } else if (hard) {
+    clean = { startSec: lo, endSec: hi };
   } else if (analysisClean) {
     clean = {
       startSec: clamp(Math.min(analysisClean.startSec, preferred), 0, end),
@@ -289,7 +294,7 @@ function sourceInfo(clip: ViralClipInput, aiWindow?: { startSec: number; endSec?
     clean = { startSec: Math.min(MIN_START_SEC, preferred), endSec: end };
   }
   const motion = analysisClean?.meanMotion ?? clip.analysis?.best.meanMotion ?? null;
-  return { duration, preferred, clean, motion: motion && motion > 0 ? motion : null };
+  return { duration, preferred, clean, motion: motion && motion > 0 ? motion : null, hard };
 }
 
 /** Room speed matched to camera movement (see LengthPreset.tourRate). */
@@ -361,14 +366,15 @@ export function fitSource(clip: ViralClipInput, req: FitRequest, aiWindow?: { st
   // 3. Slow down further (to minRate) rather than show a wall
   const slowRate = rateFor(cleanLen, null, Math.min(req.minRate, req.rate));
   if (slowRate != null) return done(place(need(slowRate, null), src.clean.endSec, earliest), slowRate, null);
-  // 4. Footage outside the clean range
-  const from = Math.min(MIN_START_SEC, earliest);
-  const wholeLen = end - from;
-  const wholeRate = rateFor(wholeLen, null, keep);
+  // 4. Footage outside the clean range (never when a person is in it)
+  const from = src.hard ? earliest : Math.min(MIN_START_SEC, earliest);
+  const until = src.hard ? src.clean.endSec : end;
+  const wholeLen = until - from;
+  const wholeRate = src.hard ? null : rateFor(wholeLen, null, keep);
   if (wholeRate != null) return done(place(need(wholeRate, null), end, from), wholeRate, null);
   // 5. Slow down to the floor; whatever is still missing holds the last frame
   const floorRate = Math.min(req.rate, Math.max(req.minRate, (wholeLen * fps) / frames));
-  return done(Math.min(earliest, end - need(floorRate, null)), floorRate, null);
+  return done(Math.max(src.hard ? from : 0, Math.min(earliest, until - need(floorRate, null))), floorRate, null);
 }
 
 /** Seconds of clean footage a shot can use, from the earliest allowed start. */
@@ -400,6 +406,45 @@ function aiTag(text: string | undefined): string {
  * it's read, about one scan step: further away, the thing isn't in view yet.
  */
 export const LABEL_MAX_GAP_SEC = 1.3;
+
+/** Footage this far either side of a scanned frame with a person in it is skipped (about half a scan step) */
+export const PERSON_PAD_SEC = 0.7;
+/** A clip with less person-free footage than this is left out of the tour */
+export const MIN_PERSON_FREE_SEC = 2;
+
+/**
+ * Narrows a clip's usable footage to its longest stretch with no person in it
+ * (from the frame notes), marked hard so nothing outside it plays. Returns null
+ * when too little is left to show the room.
+ */
+export function withoutPeople(clip: ViralClipInput, notes: FrameNote[] | null): ViralClipInput | null {
+  const people = (notes ?? []).filter((n) => n.person).map((n) => n.t);
+  if (people.length === 0 || !clip.analysis) return clip;
+  const a = clip.analysis;
+  const duration = clip.durationSec > 0 ? clip.durationSec : a.durationSec;
+  const lo = a.clean?.startSec ?? 0;
+  const hi = Math.min(duration - SOURCE_TAIL_SEC, a.clean ? Math.max(a.clean.endSec, a.best.endSec) : duration);
+  const blocked = people.map((t): [number, number] => [t - PERSON_PAD_SEC, t + PERSON_PAD_SEC]).sort((x, y) => x[0] - y[0]);
+  let best: [number, number] | null = null;
+  let from = lo;
+  for (const [b0, b1] of [...blocked, [hi, hi] as [number, number]]) {
+    const to = Math.min(b0, hi);
+    if (to - from > (best ? best[1] - best[0] : 0)) best = [from, to];
+    from = Math.max(from, b1);
+  }
+  if (!best || best[1] - best[0] < MIN_PERSON_FREE_SEC) return null;
+  const [s, e] = best;
+  const len = a.best.endSec - a.best.startSec;
+  const bestStart = clamp(a.best.startSec, s, Math.max(s, e - len));
+  return {
+    ...clip,
+    analysis: {
+      ...a,
+      best: { ...a.best, startSec: bestStart, endSec: Math.min(e, bestStart + len) },
+      clean: { startSec: s, endSec: e, meanMotion: a.clean?.meanMotion, hard: true },
+    },
+  };
+}
 
 /** Frame notes for a slot (what Gemini saw across the clip), or null when it wasn't scanned. */
 function frameNotes(options: BuildViralPlanOptions, slotNumber: number): FrameNote[] | null {
@@ -539,8 +584,13 @@ export function buildViralEditPlan(input: BuildViralPlanInput, options: BuildVir
 }
 
 function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOptions, maxExtras: number): ViralEditPlan {
-  const clips = input.clips.filter((c) => Boolean(c.src));
-  if (clips.length === 0) throw new Error('buildViralEditPlan needs at least one clip');
+  const given = input.clips.filter((c) => Boolean(c.src));
+  if (given.length === 0) throw new Error('buildViralEditPlan needs at least one clip');
+  // Skip footage with a person in it; a clip that's people throughout is left out (if others remain)
+  const kept = given
+    .map((c) => withoutPeople(c, frameNotes(options, c.slotNumber)))
+    .filter((c): c is ViralClipInput => c !== null);
+  const clips = kept.length > 0 ? kept : given;
 
   const fps = options.fps ?? VIDEO.fps;
   const style: ViralStyleId = options.style ?? 'price-hook';
@@ -609,7 +659,11 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
   const heroMax = cleanSeconds(sources[0], 'hook') / HERO_KEEP_RATE - spareSec(0);
   /** The most a clip can fill at the slowest allowed speed: section minimums never exceed it */
   const hardMax = (i: number, minRate: number) =>
-    (sources[i].duration - SOURCE_TAIL_SEC - Math.min(MIN_START_SEC, sources[i].clean.startSec)) / minRate - spareSec(i);
+    (sources[i].hard
+      ? sources[i].clean.endSec - sources[i].clean.startSec
+      : sources[i].duration - SOURCE_TAIL_SEC - Math.min(MIN_START_SEC, sources[i].clean.startSec)) /
+      minRate -
+    spareSec(i);
   const hookSec = Math.min(hookTarget, Math.max(Math.min(MIN_HOOK_SEC, hardMax(0, SPEED.minHero)), heroMax));
   let factsSec = n > 0 ? clamp(heroMax - hookSec, 0, lp.heroFactsSec * preset.scale) : 0;
   if (factsSec < MIN_FACTS_SEC) factsSec = 0;
@@ -640,7 +694,8 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
       {
         role: roles[i],
         durationInFrames: durationOf(i),
-        cleanFrames: i === n - 1 ? primary[i] : durationOf(i),
+        // The closer's end card plays on past the clean footage, unless a person is waiting there
+        cleanFrames: i === n - 1 && !sources[i].hard ? primary[i] : durationOf(i),
         fps,
         rate: rates[i],
         keepRate: keepRates[i],

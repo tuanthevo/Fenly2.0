@@ -10,6 +10,7 @@ import {
   editableShots,
   hookReadSec,
   LABEL_MAX_GAP_SEC,
+  PERSON_PAD_SEC,
   roomDetail,
   MAX_TOUR_TOTAL_SEC,
   MOMENT_SEC,
@@ -639,4 +640,31 @@ test('the best-part reveal pops in only after the light leak has passed, so the 
     // ...and still has its full reading time before the end card
     assert.ok(plan.endCard.fromFrame - (closer.startFrame + closer.tagInFrame) >= 1.2 * plan.fps);
   }
+});
+
+test('footage with a person in it is never played; a room that is all people is left out', () => {
+  // Bathroom: someone in the mirror from 1.8 to 6.6 s, then the shower; living room: someone on the sofa 3-5.6 s
+  const frames = {
+    2: scan((t) => (t < 6 ? 'Sectional sofa' : 'Kitchen island'), (t) => t > 3 && t < 5.7),
+    3: scan((t) => (t < 7 ? 'Double vanity' : 'Glass shower'), (t) => t > 1.7 && t < 6.7),
+    4: scan(() => 'Walk-in closet', () => true),
+  };
+  const clips = guidedClips([1, 2, 3, 4, 5]).map((c) =>
+    c.slotNumber === 1 ? { ...c, analysis: analysis({ startSec: 1, hookScore: 2 }) } : { ...c, durationSec: 20, analysis: longRoom(c.slotNumber === 2 ? 10 : 2) }
+  );
+  const plan = buildViralEditPlan({ listing, clips }, { ai: { frames } });
+  assert.deepEqual(checkPlan(plan), []);
+  for (const s of plan.shots) {
+    const notes = frames[s.slotNumber as 2 | 3 | 4];
+    if (!notes) continue;
+    const [a, b] = sourceRange(plan, s);
+    for (const n of notes.filter((x) => x.person)) {
+      assert.ok(n.t + PERSON_PAD_SEC <= a + 1e-6 || n.t - PERSON_PAD_SEC >= b - 1e-6, `${s.id} plays ${a.toFixed(2)}-${b.toFixed(2)} s, person at ${n.t} s`);
+    }
+  }
+  // The closet has a person in every frame: it's left out rather than shown
+  assert.ok(!plan.shots.some((s) => s.slotNumber === 4), 'closet with people throughout is dropped');
+  // The bathroom keeps its person-free shower footage, named for what's in view
+  const bath = plan.shots.filter((s) => s.slotNumber === 3);
+  assert.ok(bath.length >= 1 && bath.every((s) => !s.tag || s.tag === 'Glass shower'), bath.map((s) => s.tag).join(','));
 });

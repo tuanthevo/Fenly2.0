@@ -83,6 +83,8 @@ export type ClipRange = {
   endSec: number;
   /** Mean frame-to-frame change across the range (camera movement) */
   meanMotion?: number;
+  /** Footage outside this range must never play (a person is in it), not even to fill time */
+  hard?: boolean;
 };
 
 export type ClipAnalysis = {
