@@ -140,6 +140,21 @@ export type ViralAiHints = {
   windows?: Record<number, { startSec: number; endSec?: number; speed?: number }>;
   warnings?: { slotNumber: number; tip: string }[];
   socialCaption?: string;
+  /**
+   * What Gemini saw across each clip (a frame every ~1.2 s), per slot. Labels go
+   * only on footage where the thing is in view, and footage with a person in it
+   * is skipped. Missing = the single-frame tags above are used as before.
+   */
+  frames?: Record<number, FrameNote[]>;
+};
+
+/** One scanned frame of a clip: what's in view at `t` (source seconds). */
+export type FrameNote = {
+  t: number;
+  /** 2-3 words naming the main thing in view ("Kitchen island"), if anything stands out */
+  label?: string;
+  /** A person, part of one, or a reflection of one is visible */
+  person?: boolean;
 };
 
 export type HookSegment = { text: string; em?: 'price' | 'place' };

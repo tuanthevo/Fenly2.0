@@ -9,6 +9,7 @@ import {
   QUIET_MAX_SEC,
   editableShots,
   hookReadSec,
+  LABEL_MAX_GAP_SEC,
   roomDetail,
   MAX_TOUR_TOTAL_SEC,
   MOMENT_SEC,
@@ -585,4 +586,44 @@ test('without clip analysis the opener skips the first seconds of a long clip (r
   // A 7 s guided clip still fits its opener
   const short = buildViralEditPlan({ listing, clips: guidedClips() });
   assert.deepEqual(checkPlan(short), []);
+});
+
+/** Frame notes every 1.2 s over 0..12 s: `label(t)` names what's in view, `person(t)` flags people. */
+function scan(label: (t: number) => string | undefined, person: (t: number) => boolean = () => false) {
+  const notes = [];
+  for (let t = 0.6; t < 12; t += 1.2) notes.push({ t: round(t), label: label(t), person: person(t) || undefined });
+  return notes;
+}
+const round = (x: number) => Math.round(x * 1000) / 1000;
+const longRoom = (bestSec: number, hookScore = 0.2): ClipAnalysis => ({
+  ...analysis({ startSec: bestSec }),
+  durationSec: 20,
+  hookScore,
+  clean: { startSec: 0.3, endSec: 12 },
+});
+
+test('with frame notes, every label names something in view on the footage it sits on', () => {
+  // The living room plays first, the kitchen later; Gemini's single best frame (10 s) was the kitchen
+  const frames = { 2: scan((t) => (t < 6 ? 'Sectional sofa' : 'Kitchen island')) };
+  const ai = { tags: { 2: 'Modern kitchen' }, details: { 2: 'Gas range' }, frames };
+  const clips = guidedClips([1, 2, 3]).map((c) => (c.slotNumber === 2 ? { ...c, durationSec: 20, analysis: longRoom(10) } : c));
+  const plan = buildViralEditPlan({ listing, clips }, { ai });
+  assert.deepEqual(checkPlan(plan), []);
+  const kitchen = plan.shots.filter((s) => s.slotNumber === 2 && s.role === 'tour');
+  assert.ok(kitchen.length >= 1);
+  for (const s of kitchen) {
+    const [a, b] = sourceRange(plan, s, s.durationInFrames - s.outOverlapFrames);
+    const seen = new Set(frames[2].filter((n) => n.t >= a && n.t <= b).map((n) => n.label));
+    const shown = [s.tag, ...s.callouts.filter((c) => c.kind === 'room').map((c) => c.text)].filter(Boolean);
+    assert.ok(shown.length > 0, `${s.id} has no label`);
+    for (const text of shown) assert.ok(seen.has(text), `${s.id} (${a.toFixed(1)}-${b.toFixed(1)} s) says "${text}", in view: ${[...seen].join(', ')}`);
+    // ...and it's in view when it's read, about a second after it pops in
+    const pops = [s.tag ? [s.tag, s.tagInFrame] : null, ...s.callouts.filter((c) => c.kind === 'room').map((c) => [c.text, c.inFrame])].filter(Boolean) as [string, number][];
+    for (const [text, at] of pops) {
+      const readSec = s.srcStartSec + (at / plan.fps + 1) * s.playbackRate;
+      assert.ok(frames[2].some((n) => n.label === text && Math.abs(n.t - readSec) <= LABEL_MAX_GAP_SEC), `"${text}" read at ${readSec.toFixed(1)} s is not in view then`);
+    }
+  }
+  // Nothing claims a kitchen over the sofa
+  assert.ok(!plan.shots.some((s) => s.tag === 'Modern kitchen' || s.tag === 'Full kitchen'));
 });

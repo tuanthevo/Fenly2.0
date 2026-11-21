@@ -59,6 +59,7 @@ import type {
   ClipAnalysis,
   ClipRange,
   ClipWarning,
+  FrameNote,
   HookCopy,
   ViralCallout,
   ViralClipInput,
@@ -394,6 +395,47 @@ function aiTag(text: string | undefined): string {
   return cleanTag(text);
 }
 
+/**
+ * A label names a scanned frame at most this far (source seconds) from the moment
+ * it's read, about one scan step: further away, the thing isn't in view yet.
+ */
+export const LABEL_MAX_GAP_SEC = 1.3;
+
+/** Frame notes for a slot (what Gemini saw across the clip), or null when it wasn't scanned. */
+function frameNotes(options: BuildViralPlanOptions, slotNumber: number): FrameNote[] | null {
+  const notes = options.ai?.frames?.[slotNumber];
+  return notes && notes.length > 0 ? notes : null;
+}
+
+/**
+ * The label of the scanned frame nearest `atSec` inside [fromSec, toSec] (source
+ * seconds), so a callout only names something that's in view on its footage.
+ * Labels in `skip` (already said on this shot) are passed over.
+ */
+export function labelInView(
+  notes: FrameNote[],
+  fromSec: number,
+  toSec: number,
+  atSec: number,
+  skip: string[] = [],
+  maxGapSec = LABEL_MAX_GAP_SEC
+): string {
+  const said = new Set(skip.map((s) => s.toLowerCase()));
+  let best = '';
+  let bestDist = Infinity;
+  for (const n of notes) {
+    if (n.t < fromSec || n.t > toSec || n.person || Math.abs(n.t - atSec) > maxGapSec) continue;
+    const label = aiTag(n.label);
+    if (!label || said.has(label.toLowerCase())) continue;
+    const d = Math.abs(n.t - atSec);
+    if (d < bestDist) {
+      best = label;
+      bestDist = d;
+    }
+  }
+  return best;
+}
+
 /** Snaps section boundaries to music beats when a BPM is known. */
 function snapToBeats(seconds: number[], endCardSec: number, fps: number, bpm: number | null) {
   if (!bpm) {
@@ -589,6 +631,32 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
   });
   const { primary, endCard: endCardFrames } = snapToBeats(seconds, lp.endCardSec * preset.scale, fps, bpm);
 
+  // Where each shot plays inside its clip
+  const outOverlapOf = (i: number) => (i < n - 1 ? overlapOf(cutKinds[i]) : 0);
+  const durationOf = (i: number) => primary[i] + (i === n - 1 ? endCardFrames : outOverlapOf(i));
+  const fits = segs.map((_, i) =>
+    fitSource(
+      ordered[i],
+      {
+        role: roles[i],
+        durationInFrames: durationOf(i),
+        cleanFrames: i === n - 1 ? primary[i] : durationOf(i),
+        fps,
+        rate: rates[i],
+        keepRate: keepRates[i],
+        minRate: roles[i] === 'hook' ? SPEED.minHero : roles[i] === 'closer' ? SPEED.minCloser : SPEED.minTour,
+        ramp: rampFor(i),
+      },
+      windowOf(i)
+    )
+  );
+  /** Source second shown at a local frame of shot i (ramps are off, so the rate is constant) */
+  const srcAt = (i: number, localFrame: number) => fits[i].srcStartSec + (localFrame / fps) * fits[i].playbackRate;
+  /** Source seconds shot i shows before it starts to leave */
+  const visibleSpan = (i: number): [number, number] => [fits[i].srcStartSec, srcAt(i, primary[i])];
+  /** A label is read about a second after it pops in: name what's in view then */
+  const READ_AT_SEC = 1;
+
   // Callouts
   const tags = defaultTags(listing);
   const closerIdx = n - 1;
@@ -606,14 +674,19 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
   const unlabeled = (i: number) =>
     roles[i] === 'tour' &&
     ((i > 0 && segs[i - 1].clip === segs[i].clip && roles[i - 1] === 'tour') || (i < n - 1 && segs[i + 1].clip === segs[i].clip && roles[i + 1] === 'closer'));
-  const tourTags = ordered.map((clip, i) =>
-    roles[i] === 'tour' && !unlabeled(i)
-      ? cleanTag(options.tagOverrides?.[clip.slotNumber]) ||
-        aiTag(options.ai?.tags?.[clip.slotNumber]) ||
-        tags[clip.slotNumber] ||
-        cleanTag(clip.room)
-      : ''
-  );
+  const tagInFrameOf = (i: number) => inOverlapOf(i) + 3;
+  const tourTags = ordered.map((clip, i) => {
+    if (roles[i] !== 'tour' || unlabeled(i)) return '';
+    const host = cleanTag(options.tagOverrides?.[clip.slotNumber]);
+    if (host) return host;
+    // Scanned clip: name what's in view on this footage (nothing rather than something that isn't)
+    const notes = frameNotes(options, clip.slotNumber);
+    if (notes) {
+      const [from, to] = visibleSpan(i);
+      return labelInView(notes, from, to, srcAt(i, tagInFrameOf(i) + READ_AT_SEC * fps));
+    }
+    return aiTag(options.ai?.tags?.[clip.slotNumber]) || tags[clip.slotNumber] || cleanTag(clip.room);
+  });
   const saidAlready = [closerTag, ...tourTags].filter(Boolean);
   const facts = factsSec > 0 ? heroFacts(listing, saidAlready) : [];
   const factQueue = lp.details ? listingFacts(listing, [...saidAlready, ...facts]) : [];
@@ -642,21 +715,8 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
     const inOverlap = inOverlapOf(i);
     const outOverlap = i < n - 1 ? overlapOf(cutKinds[i]) : 0;
     const isLast = i === n - 1;
-    const durationInFrames = primary[i] + (isLast ? endCardFrames : outOverlap);
-    const fit = fitSource(
-      clip,
-      {
-        role,
-        durationInFrames,
-        cleanFrames: isLast ? primary[i] : durationInFrames,
-        fps,
-        rate: rates[i],
-        keepRate: keepRates[i],
-        minRate: role === 'hook' ? SPEED.minHero : role === 'closer' ? SPEED.minCloser : SPEED.minTour,
-        ramp: rampFor(i),
-      },
-      windowOf(i)
-    );
+    const durationInFrames = durationOf(i);
+    const fit = fits[i];
 
     let tag = '';
     let kicker = '';
@@ -666,7 +726,7 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
     } else if (role === 'tour') {
       tag = tourTags[i];
     }
-    const tagInFrame = inOverlap + 3;
+    const tagInFrame = tagInFrameOf(i);
     const visibleEnd = durationInFrames - outOverlap - 1;
 
     const callouts: ViralCallout[] = [];
@@ -682,9 +742,19 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
       const hostDetail = options.detailOverrides?.[clip.slotNumber];
       const hostCleared = detailHere && hostDetail !== undefined && !cleanTag(hostDetail);
       const fact = () => (factQueue.length > 0 ? { text: factQueue.shift()!, kind: 'fact' as const } : null);
-      const detail = hostCleared ? null : detailHere ? detailFor(clip, i) ?? fact() : fact();
       // An unlabeled moment shows its callout right after the cut, in the label's place
       const inFrame = unlabeled(i) ? tagInFrame + Math.round(0.3 * fps) : tagInFrame + Math.max(Math.round(1.6 * fps), Math.round(0.42 * primary[i]));
+      const notes = frameNotes(options, clip.slotNumber);
+      const hostHere = detailHere && hostDetail !== undefined;
+      let detail: { text: string; kind: 'room' | 'fact' } | null;
+      if (hostCleared) detail = null;
+      else if (notes && !hostHere) {
+        // Scanned clip: each moment names what's in view on its own footage
+        const [from, to] = visibleSpan(i);
+        const roomTag = tourTags.find((t, k) => t && segs[k].clip === clip) || '';
+        const seen = labelInView(notes, from, to, srcAt(i, inFrame + READ_AT_SEC * fps), [roomTag]);
+        detail = seen ? { text: seen, kind: 'room' } : fact();
+      } else detail = detailHere ? detailFor(clip, i) ?? fact() : fact();
       if (detail && inFrame < visibleEnd - Math.round(1.2 * fps)) {
         callouts.push({ ...detail, inFrame, outFrame: visibleEnd, row: unlabeled(i) ? 0 : 1 });
       }

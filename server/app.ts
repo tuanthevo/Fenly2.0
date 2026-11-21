@@ -33,6 +33,7 @@ import {
   generateAiListingTitleAndDescription,
 } from "../src/utils/trustSafety.js";
 import { violatesFairHousing } from "../src/remotion/viral/copy.js";
+import { parseFrameNotes, scanFramesFrom, type ScanFrame } from "./frameNotes.js";
 import {
   DEFAULT_EDIT_SETTINGS,
   isEmptyPatch,
@@ -1002,6 +1003,11 @@ app.post("/api/viral/copy", async (req, res) => {
   const { neighborhood, city } = listing;
   const amenities = listing.amenities.join(", ");
   const slotNumbers = shots.map((s) => s.slotNumber);
+  const scans: Record<number, ScanFrame[]> = {};
+  for (const shot of shots as any[]) {
+    const frames = scanFramesFrom(shot.scan);
+    if (frames.length > 0) scans[shot.slotNumber] = frames;
+  }
 
   try {
     const parts: any[] = [];
@@ -1009,6 +1015,16 @@ app.post("/api/viral/copy", async (req, res) => {
       parts.push({ text: `Shot ${shot.slotNumber} (${String(shot.room || "").slice(0, 40)}):` });
       if (typeof shot.jpegBase64 === "string" && shot.jpegBase64.length > 0 && shot.jpegBase64.length < 600_000 && /^[A-Za-z0-9+/=]+$/.test(shot.jpegBase64)) {
         parts.push({ inlineData: { mimeType: "image/jpeg", data: shot.jpegBase64 } });
+      }
+    }
+    const scanned = Object.keys(scans).length > 0;
+    if (scanned) {
+      parts.push({ text: "Scan frames: smaller frames from across each shot, in time order." });
+      for (const [slot, frames] of Object.entries(scans)) {
+        for (const f of frames) {
+          parts.push({ text: `Shot ${slot} scan frame at t=${f.t}:` });
+          parts.push({ inlineData: { mimeType: "image/jpeg", data: f.jpegBase64 } });
+        }
       }
     }
     parts.push({
@@ -1026,7 +1042,10 @@ Each image above is the best frame of one guided shot. Return JSON:
 4. details: for each shot, a second 2-3 word callout naming a different specific thing you can see in that frame ("Gas range", "Rain shower", "Big window"). Max 22 characters. Leave a shot out if nothing else clearly stands out; never guess at things you cannot see.
 5. perkLabel: a 2-3 word name for the standout perk in the last shot, if you can see it.
 6. warnings: only problems you can see in a frame: a person or the camera operator in a mirror, heavy clutter, a countertop or wall close-up with no room visible, a sideways frame, or very dark footage. Give a short, kind tip to fix it. Return an empty list if the frames look fine.
-Rules: no emoji; plain words; never describe who should or should not live there (no age, gender, family status, religion, nationality, disability, or "perfect for students / professionals / couples").`,
+${scanned ? `7. frames: for EVERY scan frame, one entry with its slotNumber and t exactly as given, plus:
+   - label: 2-3 words naming the main thing clearly in view in that frame ("Kitchen island", "Sectional sofa", "Glass shower"). Name only what that frame shows; leave it empty for a wall, floor, door edge or blur. Max 22 characters.
+   - person: true if any person, part of a person (hand, leg, head), or a person's reflection in a mirror or window is visible; otherwise false.
+` : ""}Rules: no emoji; plain words; never describe who should or should not live there (no age, gender, family status, religion, nationality, disability, or "perfect for students / professionals / couples").`,
     });
 
     const response = await ai.models.generateContent({
@@ -1063,6 +1082,19 @@ Rules: no emoji; plain words; never describe who should or should not live there
               },
             },
             perkLabel: { type: Type.STRING },
+            frames: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  slotNumber: { type: Type.INTEGER },
+                  t: { type: Type.NUMBER },
+                  label: { type: Type.STRING },
+                  person: { type: Type.BOOLEAN },
+                },
+                required: ["slotNumber", "t", "person"],
+              },
+            },
             warnings: {
               type: Type.ARRAY,
               items: {
@@ -1115,6 +1147,8 @@ Rules: no emoji; plain words; never describe who should or should not live there
       if (tip && slotNumbers.includes(w.slotNumber)) warnings.push({ slotNumber: w.slotNumber, tip });
     }
     if (warnings.length > 0) hints.warnings = warnings.slice(0, 5);
+    const frames = parseFrameNotes(raw.frames, scans, (text) => clean(text, 22));
+    if (Object.keys(frames).length > 0) hints.frames = frames;
 
     res.json({ hints, model_used: GEMINI_FLASH_MODEL, latencyMs: Date.now() - startTime });
   } catch (error) {
