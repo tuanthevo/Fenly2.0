@@ -193,6 +193,13 @@ const MOMENT_GAP_SEC = 0.5;
  * dropped, last first.
  */
 export const MAX_TOUR_TOTAL_SEC = 50;
+/**
+ * Shortest tour once there are MIN_TOUR_CLIPS clips (host's rule, Nov 2026). The plan can't
+ * stretch footage (no slow motion, no walls or people), so grade.ts blocks export below it
+ * and asks for longer shots; 15 s recordings reach it (guidedShots.ts).
+ */
+export const MIN_TOUR_TOTAL_SEC = 30;
+export const MIN_TOUR_CLIPS = 3;
 /** Fastest a room or the closer may play to fit MAX_TOUR_TOTAL_SEC: still a natural, confident walk (skill: 1.25-1.35x) */
 export const MAX_FIT_RATE = 1.35;
 /** Speed-up steps tried to fit MAX_TOUR_TOTAL_SEC */

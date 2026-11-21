@@ -1281,7 +1281,7 @@ const VideoScoreCard: React.FC<{
 }> = ({ grade, checking, fix, onApplyFix, onRetakeShot }) => {
   const [open, setOpen] = useState(false);
   const weak = grade.rows.filter((r) => r.score < 2);
-  const retakes = [...new Set(weak.flatMap((r) => r.retakeSlots))];
+  const retakes = [...new Set([...grade.lengthRetakeSlots, ...weak.flatMap((r) => r.retakeSlots)])];
   return (
     <div
       data-testid="viral-score"
@@ -1290,14 +1290,16 @@ const VideoScoreCard: React.FC<{
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <p className={`text-xs font-extrabold ${grade.passed ? 'text-[#485B4A]' : 'text-[#2C2724]'}`}>
-            {checking ? 'Checking your clips…' : `Video score ${grade.total}/${grade.max}`}
+            {checking ? 'Checking your clips…' : `Video score ${grade.total}/${grade.max} · ${Math.round(grade.lengthSec)} s`}
           </p>
           <p className="text-[10px] font-semibold text-[#6E655F]">
             {checking
               ? 'The score is ready once every clip is checked.'
               : grade.passed
               ? 'Ready to post.'
-              : `It needs ${PASS_SCORE}/${grade.max} to go out.`}
+              : grade.total < PASS_SCORE
+              ? `It needs ${PASS_SCORE}/${grade.max} to go out.`
+              : 'The length needs fixing before it goes out.'}
           </p>
         </div>
         {weak.length > 0 && !checking && (
@@ -1348,7 +1350,9 @@ const VideoScoreCard: React.FC<{
           ))}
         </div>
       )}
-      {!checking && grade.lengthNote && <p className="text-[10px] font-semibold text-[#6E655F]">{grade.lengthNote}</p>}
+      {!checking && grade.lengthNote && (
+        <p className={`text-[10px] font-semibold ${grade.lengthOk ? 'text-[#6E655F]' : 'text-[#9A4A33]'}`}>{grade.lengthNote}</p>
+      )}
     </div>
   );
 };

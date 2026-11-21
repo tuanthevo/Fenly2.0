@@ -10,7 +10,7 @@
  *
  * Pure and unit tested (grade.test.ts).
  */
-import { changeFrames, MAX_FIT_RATE, readSecFor } from './plan';
+import { changeFrames, MAX_FIT_RATE, MAX_TOUR_TOTAL_SEC, MIN_TOUR_CLIPS, MIN_TOUR_TOTAL_SEC, readSecFor } from './plan';
 import { MAX_HOOK_CHARS } from './copy';
 import { TYPE } from './theme';
 import type { ClipAnalysis, ViralClipInput, ViralEditPlan, ViralShot } from './types';
@@ -48,8 +48,15 @@ export type PlanGrade = {
   passed: boolean;
   rows: GradeRow[];
   lengthSec: number;
-  /** Not scored by the rubric, but shown: full tours do best at ~20-35 s */
+  /**
+   * The host's length rule (Nov 2026): with MIN_TOUR_CLIPS+ clips a tour runs
+   * MIN_TOUR_TOTAL_SEC-MAX_TOUR_TOTAL_SEC. Not a rubric row, but `passed` needs it.
+   */
+  lengthOk: boolean;
+  /** Why the length is off, in plain words (null when it's fine) */
   lengthNote: string | null;
+  /** The rooms with the least usable footage: filming them longer lengthens the tour */
+  lengthRetakeSlots: number[];
 };
 
 /** Reading-time rule from the audit (lives in plan.ts, which also times the re-hook with it). */
@@ -65,8 +72,6 @@ export const LOOK_SPREAD = { good: 0.14, ok: 0.22 } as const;
 export const LOOK_RANGE = { min: 0.33, max: 0.85 } as const;
 /** A hook clip whose hook score is within this of the best clip counts as the best room */
 export const HOOK_SCORE_SLACK = 0.05;
-/** Full tours shorter than this give little watch time */
-export const SHORT_TOUR_SEC = 20;
 
 type TextSpan = { what: string; text: string; from: number; to: number };
 
@@ -369,11 +374,26 @@ export function gradePlan(
 
   const total = rows.reduce((a, r) => a + r.score, 0);
   const lengthSec = sec(plan, plan.totalFrames);
-  const lengthNote =
-    plan.length === 'full' && lengthSec < SHORT_TOUR_SEC
-      ? `${lengthSec} s is short for a full tour (20-35 s does best). Add the missing room shots or film each room a little longer.`
-      : null;
-  return { total, max: MAX_SCORE, passed: total >= PASS_SCORE, rows, lengthSec, lengthNote };
+  // Length rule: 30-50 s once there are 3+ clips (the teaser is short on purpose)
+  const roomCount = new Set(plan.shots.map((s) => s.slotNumber)).size;
+  const ruled = plan.length === 'full' && roomCount >= MIN_TOUR_CLIPS;
+  const tooShort = ruled && lengthSec < MIN_TOUR_TOTAL_SEC;
+  const tooLong = ruled && lengthSec > MAX_TOUR_TOTAL_SEC + 0.05;
+  const usable = (slot: number) => {
+    const c = clipOf(slot);
+    const clean = c?.analysis?.clean;
+    return clean ? clean.endSec - clean.startSec : c?.durationSec ?? 0;
+  };
+  const lengthRetakeSlots = tooShort
+    ? [...new Set(plan.shots.map((s) => s.slotNumber))].sort((a, b) => usable(a) - usable(b)).slice(0, 2)
+    : [];
+  const lengthNote = tooShort
+    ? `${lengthSec} s is too short: with ${roomCount} rooms a tour needs ${MIN_TOUR_TOTAL_SEC}-${MAX_TOUR_TOTAL_SEC} s. Film the shortest rooms again for the full 15 s, walking slowly, or add another room.`
+    : tooLong
+    ? `${lengthSec} s is over the ${MAX_TOUR_TOTAL_SEC} s limit.`
+    : null;
+  const lengthOk = !tooShort && !tooLong;
+  return { total, max: MAX_SCORE, passed: total >= PASS_SCORE && lengthOk, rows, lengthSec, lengthOk, lengthNote, lengthRetakeSlots };
 }
 
 /**
