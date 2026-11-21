@@ -153,7 +153,7 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
   }
 
   const isHost = data.role === 'host';
-  const area = data.listing.neighborhood || 'San Francisco';
+  const area = data.listing.neighborhood || 'your area';
   const open = data.applicants.filter((a) => a.status === 'submitted' || a.status === 'shortlisted' || a.status === 'chosen');
   const closed = data.applicants.filter((a) => !open.includes(a));
   const today = todayIn(new Date());

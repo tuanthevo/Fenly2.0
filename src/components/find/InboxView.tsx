@@ -96,7 +96,7 @@ export const InboxView: React.FC<InboxViewProps> = ({ signedIn, onRequestSignIn,
       ) : (
         <div className="rounded-2xl bg-white border border-[#2C2724]/15 divide-y divide-[#2C2724]/10 shadow-warm-sm overflow-hidden">
           {threads?.map((t) => {
-            const area = t.listing?.neighborhood || 'San Francisco';
+            const area = t.listing?.neighborhood || 'the Bay Area';
             const taken = t.role === 'applicant' && t.declineReason === 'room_filled';
             return (
               <button key={t.applicationId} type="button" onClick={() => setOpenId(t.applicationId)} data-testid={`thread-${t.applicationId}`} className="w-full px-3.5 py-3 flex items-center gap-3 hover:bg-[#F9F7F3] text-left">
@@ -137,7 +137,7 @@ const ThreadView: React.FC<{ thread: InboxThread; onBack: () => void; onOpenAppl
   const [menu, setMenu] = useState(false);
   const [report, setReport] = useState<{ type: 'user' | 'message' | 'listing'; id: string; label: string } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
-  const area = thread.listing?.neighborhood || 'San Francisco';
+  const area = thread.listing?.neighborhood || 'the Bay Area';
   const otherName = thread.other?.firstName ?? (thread.role === 'applicant' ? 'the host' : 'the applicant');
 
   const load = useCallback(async () => {

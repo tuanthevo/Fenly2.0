@@ -107,7 +107,7 @@ export const FillHome: React.FC<FillHomeProps> = ({ signedIn, onStartFill, onRes
                 className="w-full px-4 py-3.5 flex items-center gap-3 hover:bg-[#F9F7F3] transition-colors text-left"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-bold truncate">{h.title || `Room in ${h.neighborhood || 'San Francisco'}`}</div>
+                  <div className="text-xs font-bold truncate">{h.title || `Room in ${h.neighborhood || 'the Bay Area'}`}</div>
                   <div className="text-[11px] text-[#6E655F]">
                     {h.applicants === 0 ? 'No applicants yet' : `${h.applicants} applicant${h.applicants === 1 ? '' : 's'}${h.open ? ` · ${h.open} open` : ''}`}
                     {h.status === 'filled' ? ' · Filled' : ''}
@@ -148,7 +148,7 @@ export const FillHome: React.FC<FillHomeProps> = ({ signedIn, onStartFill, onRes
                     className="w-full px-4 py-3.5 flex items-center gap-3 hover:bg-[#F9F7F3] transition-colors text-left"
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-bold truncate">{row.title || `Room in ${row.neighborhood || 'San Francisco'}`}</div>
+                      <div className="text-sm font-bold truncate">{row.title || `Room in ${row.neighborhood || 'the Bay Area'}`}</div>
                       <div className="text-[11px] text-[#6E655F] mt-0.5">
                         <span className={`font-bold ${chip.className}`}>{chip.text}</span>
                         {[

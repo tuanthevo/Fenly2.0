@@ -8,7 +8,6 @@ import {
   activeFilterCount,
   dbListingId,
   findQueryString,
-  launchAreaOf,
   matchesFindFilters,
   parseFindQuery,
   toIsoDate,
@@ -87,21 +86,33 @@ test('summary and ordering of applicants', () => {
 });
 
 test('find filters: parse, match, query string', () => {
-  assert.deepEqual(parseFindQuery({ area: 'noe valley', maxRent: '1500', moveInBy: '2026-12-15' }), {
-    area: 'Noe Valley',
+  const oakland = { label: 'Oakland', lat: 37.8044, lng: -122.2712, miles: 5 };
+  assert.deepEqual(parseFindQuery({ place: 'Oakland', lat: '37.8044', lng: '-122.2712', miles: '5', maxRent: '1500', moveInBy: '2026-12-15' }), {
+    near: oakland,
     maxRentCents: 150000,
     moveInBy: '2026-12-15',
   });
-  assert.deepEqual(parseFindQuery({ area: 'Marina', maxRent: 'abc', moveInBy: 'soon' }), { area: null, maxRentCents: null, moveInBy: null });
-  assert.equal(findQueryString({ area: 'Mission', maxRentCents: 150000, moveInBy: null }), 'area=Mission&maxRent=1500');
-  assert.equal(launchAreaOf('Mission District'), 'Mission');
-  assert.equal(launchAreaOf('Missionary Ridge'), null);
-  const room = { neighborhood: 'Mission', rentCents: 145000, availableFrom: '2026-12-01' };
-  assert.ok(matchesFindFilters(room, { area: 'Mission', maxRentCents: 150000, moveInBy: '2026-12-01' }));
-  assert.ok(!matchesFindFilters(room, { area: 'Noe Valley', maxRentCents: null, moveInBy: null }));
-  assert.ok(!matchesFindFilters(room, { area: null, maxRentCents: 140000, moveInBy: null }));
-  assert.ok(!matchesFindFilters(room, { area: null, maxRentCents: null, moveInBy: '2026-11-30' }));
-  assert.equal(activeFilterCount({ area: 'Mission', maxRentCents: null, moveInBy: '2026-12-01' }), 2);
+  // Bad values are dropped: outside the Bay Area, an odd radius, junk text
+  assert.deepEqual(parseFindQuery({ place: 'Reno', lat: '39.52', lng: '-119.81', miles: '5', maxRent: 'abc', moveInBy: 'soon' }), {
+    near: null,
+    maxRentCents: null,
+    moveInBy: null,
+  });
+  assert.equal(parseFindQuery({ place: 'Oakland', lat: '37.8', lng: '-122.27', miles: '7' }).near?.miles, 5, 'unknown radius -> 5 mi');
+  assert.equal(parseFindQuery({ place: '<script>', lat: '37.8', lng: '-122.27', miles: '3' }).near?.label, 'script');
+  assert.equal(findQueryString({ near: oakland, maxRentCents: 150000, moveInBy: null }), 'place=Oakland&lat=37.8044&lng=-122.2712&miles=5&maxRent=1500');
+  assert.deepEqual(parseFindQuery(Object.fromEntries(new URLSearchParams(findQueryString({ near: oakland, maxRentCents: null, moveInBy: null })))).near, oakland);
+
+  const mission = { city: 'San Francisco', neighborhood: 'Mission', rentCents: 145000, availableFrom: '2026-12-01' };
+  const sf = { label: 'San Francisco', lat: 37.7749, lng: -122.4194, miles: 3 };
+  assert.ok(matchesFindFilters(mission, { near: sf, maxRentCents: 150000, moveInBy: '2026-12-01' }));
+  assert.ok(!matchesFindFilters(mission, { near: { ...oakland, miles: 5 }, maxRentCents: null, moveInBy: null }), 'Mission is ~8 mi from Oakland');
+  assert.ok(matchesFindFilters(mission, { near: { ...oakland, miles: 10 }, maxRentCents: null, moveInBy: null }));
+  assert.ok(!matchesFindFilters({ ...mission, city: 'Napa' }, { near: sf, maxRentCents: null, moveInBy: null }), 'unknown place: no match');
+  assert.ok(matchesFindFilters({ ...mission, city: 'Napa' }, { near: null, maxRentCents: null, moveInBy: null }), 'no place filter: shown');
+  assert.ok(!matchesFindFilters(mission, { near: null, maxRentCents: 140000, moveInBy: null }));
+  assert.ok(!matchesFindFilters(mission, { near: null, maxRentCents: null, moveInBy: '2026-11-30' }));
+  assert.equal(activeFilterCount({ near: sf, maxRentCents: null, moveInBy: '2026-12-01' }), 2);
   assert.equal(toIsoDate('Nov 1, 2026', '2026-10-01'), '2026-11-01');
   assert.equal(toIsoDate('Available Now', '2026-10-01'), '2026-10-01');
   assert.equal(toIsoDate('whenever', '2026-10-01'), null);
@@ -143,18 +154,23 @@ test('toRoomListing adapts a database room for the 1.0 feed, without ages', () =
   assert.equal(toRoomListing({ ...l, availableFrom: '2026-11-01' }, '2026-11-18').availableDate, 'Available Now');
 });
 
-test('similar rooms: nearby area, rent ±20%, within 30 days, same area first', () => {
-  const taken = { id: 't', neighborhood: 'Mission', rentCents: 150000, availableFrom: '2026-12-01' };
+test('similar rooms: within ~2 miles, rent ±20%, within 30 days, same area first, then closest', () => {
+  const sf = 'San Francisco';
+  const taken = { id: 't', city: sf, neighborhood: 'Mission', rentCents: 150000, availableFrom: '2026-12-01' };
   const rooms = [
-    { id: 't', neighborhood: 'Mission', rentCents: 150000, availableFrom: '2026-12-01' },
-    { id: 'near', neighborhood: 'Noe Valley', rentCents: 152000, availableFrom: '2026-12-05' },
-    { id: 'same', neighborhood: 'Mission', rentCents: 170000, availableFrom: '2026-12-10' },
-    { id: 'pricey', neighborhood: 'Mission', rentCents: 200000, availableFrom: '2026-12-01' },
-    { id: 'far', neighborhood: 'Marina', rentCents: 150000, availableFrom: '2026-12-01' },
-    { id: 'late', neighborhood: 'Mission', rentCents: 150000, availableFrom: '2027-03-01' },
-    { id: 'castro', neighborhood: 'Castro', rentCents: 140000, availableFrom: '2026-11-20' },
+    { id: 't', city: sf, neighborhood: 'Mission', rentCents: 150000, availableFrom: '2026-12-01' },
+    { id: 'near', city: sf, neighborhood: 'Noe Valley', rentCents: 152000, availableFrom: '2026-12-05' },
+    { id: 'same', city: sf, neighborhood: 'Mission', rentCents: 170000, availableFrom: '2026-12-10' },
+    { id: 'pricey', city: sf, neighborhood: 'Mission', rentCents: 200000, availableFrom: '2026-12-01' },
+    { id: 'far', city: sf, neighborhood: 'Marina', rentCents: 150000, availableFrom: '2026-12-01' },
+    { id: 'late', city: sf, neighborhood: 'Mission', rentCents: 150000, availableFrom: '2027-03-01' },
+    { id: 'castro', city: sf, neighborhood: 'Castro', rentCents: 140000, availableFrom: '2026-11-20' },
+    { id: 'oakland', city: 'Oakland', neighborhood: 'Temescal', rentCents: 150000, availableFrom: '2026-12-01' },
   ];
-  assert.deepEqual(similarRooms(taken, rooms).map((r) => r.id), ['same', 'near', 'castro']);
+  assert.deepEqual(similarRooms(taken, rooms).map((r) => r.id), ['same', 'castro', 'near']);
+  // Works the same in the East Bay
+  const temescal = { id: 'x', city: 'Oakland', neighborhood: 'Temescal', rentCents: 150000, availableFrom: '2026-12-01' };
+  assert.deepEqual(similarRooms(temescal, rooms).map((r) => r.id), ['oakland']);
   assert.deepEqual(similarRooms(taken, rooms, 1).map((r) => r.id), ['same']);
 });
 

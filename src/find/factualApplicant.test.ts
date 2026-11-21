@@ -7,7 +7,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FACTUAL_FIELDS, PROTECTED_TRAIT_TERMS, protectedTermsIn, toFactualApplicant, toWords } from './factualApplicant';
 import { LIFESTYLE_QUESTIONS } from './lifestyle';
-import { FIND_FILTER_KEYS, LAUNCH_AREAS, parseFindQuery } from './findFilters';
+import { FIND_FILTER_KEYS, parseFindQuery } from './findFilters';
+import { BAY_AREA_CITIES } from '../geo/bayArea';
 import { APPLICANT_SUMMARY_INSTRUCTION, APPLICANT_SUMMARY_SCHEMA, buildApplicantSummaryPrompt } from './hostText';
 import { moveInFit, budgetFit, scoreApplicant, summarizeApplicants } from './fit';
 
@@ -75,9 +76,9 @@ test('lifestyle questions (keys, labels, options) have no protected traits', () 
 
 test('Find filters have no protected traits', () => {
   for (const key of FIND_FILTER_KEYS) assert.deepEqual(protectedTermsIn(key), [], `filter "${key}"`);
-  for (const area of LAUNCH_AREAS) assert.deepEqual(protectedTermsIn(area), []);
+  for (const c of BAY_AREA_CITIES) for (const area of [c.name, ...(c.neighborhoods ?? []).map((h) => h.name)]) assert.deepEqual(protectedTermsIn(area), [], area);
   // Unknown query params are dropped, never passed through
-  const parsed = parseFindQuery({ area: 'Mission', religion: 'x', age: '30', gender: 'y' });
+  const parsed = parseFindQuery({ place: 'Mission', lat: '37.76', lng: '-122.41', miles: '3', religion: 'x', age: '30', gender: 'y' });
   assert.deepEqual(Object.keys(parsed).sort(), [...FIND_FILTER_KEYS].sort());
 });
 
