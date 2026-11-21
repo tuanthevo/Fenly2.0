@@ -406,7 +406,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     } else {
       video.pause();
     }
-  }, [isActive, isPlaying, isViralEdit]);
+    // room.videoUrl: a new source resets the element to paused, so start it again
+  }, [isActive, isPlaying, isViralEdit, room.videoUrl]);
 
   useEffect(() => {
     setSceneIndex(0);

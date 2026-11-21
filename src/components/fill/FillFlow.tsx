@@ -445,12 +445,15 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
   };
 
   useEffect(() => {
-    if (step === 'details' && !title && !description && !aiTried.current && !clipsLoading) {
+    // The writer looks at a frame from each room: wait until the clips are here (just filmed, or
+    // downloaded again for a resumed draft) so it never writes blind
+    const clipsReady = Object.keys(media).length > 0 || clipsState.status === 'done';
+    if (step === 'details' && !loading && !title && !description && !aiTried.current && clipsReady) {
       aiTried.current = true;
       void writeWithAi();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, clipsLoading]);
+  }, [step, loading, clipsState.status]);
 
   const liveIssues = useMemo(
     () => [...new Set([...fairHousingIssues(title), ...fairHousingIssues(description)])],
@@ -991,7 +994,12 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                   </Suspense>
                   {uploadProgress !== null && <Progress value={uploadProgress} text="Uploading your video" />}
                   {mediaKinds.includes('video_full') && busy !== 'video' && (
-                    <button type="button" className={secondaryBtn} onClick={() => setStep('publish')}>
+                    <button
+                      type="button"
+                      className={secondaryBtn}
+                      // A live listing has nothing to publish again: back to its status page
+                      onClick={() => (editing && listing ? onOpenStatus(listing.id) : setStep('publish'))}
+                    >
                       Keep the video I already made
                     </button>
                   )}

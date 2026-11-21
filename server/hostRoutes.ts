@@ -196,7 +196,7 @@ export function registerHostRoutes(app: Express): void {
     const memberIds = (memberships ?? []).map((m) => m.listing_id);
     const { data: listings, error } = await admin
       .from("listings")
-      .select("id, owner_id, status, title, neighborhood, rent_cents, move_out_date, published_at")
+      .select("id, owner_id, status, title, neighborhood, city, rent_cents, move_out_date, published_at")
       .or([`owner_id.eq.${user.id}`, ...(memberIds.length ? [`id.in.(${memberIds.join(",")})`] : [])].join(","))
       .in("status", ["published", "filled"]);
     if (error) return dbError(res, error, "hosting");
@@ -208,7 +208,7 @@ export function registerHostRoutes(app: Express): void {
         return {
           id: l.id,
           title: l.title,
-          neighborhood: l.neighborhood,
+          neighborhood: l.neighborhood || l.city, // the city where there's no neighborhood list
           status: l.status,
           rentCents: l.rent_cents,
           moveOutDate: l.move_out_date,
@@ -233,7 +233,7 @@ export function registerHostRoutes(app: Express): void {
         listing: {
           id: ctx.listing.id,
           title: ctx.listing.title,
-          neighborhood: ctx.listing.neighborhood,
+          neighborhood: ctx.listing.neighborhood || ctx.listing.city,
           status: ctx.listing.status,
           rentCents: ctx.listing.rent_cents,
           availableFrom: ctx.listing.available_from,
@@ -428,7 +428,7 @@ export function registerHostRoutes(app: Express): void {
     const token = req.body?.token;
     if (!isInviteToken(token)) return res.status(404).json({ error: "not_found" });
     const { data: invite } = await admin.from("house_invites").select("id, listing_id, expires_at, used_by").eq("token_hash", hashInviteToken(token)).maybeSingle();
-    const { data: listing } = invite ? await admin.from("listings").select("id, owner_id, title, neighborhood").eq("id", invite.listing_id).maybeSingle() : { data: null };
+    const { data: listing } = invite ? await admin.from("listings").select("id, owner_id, title, neighborhood, city").eq("id", invite.listing_id).maybeSingle() : { data: null };
     if (invite && listing && (invite.used_by === user.id || listing.owner_id === user.id)) {
       return res.json({ listingId: listing.id, alreadyMember: true });
     }
@@ -442,6 +442,6 @@ export function registerHostRoutes(app: Express): void {
     const { error } = await admin.from("house_members").upsert({ listing_id: listing.id, user_id: user.id, role: "housemate" }, { onConflict: "listing_id,user_id" });
     if (error) return dbError(res, error, "join house");
     await track("housemate_joined", {}, { userId: user.id, listingId: listing.id });
-    res.json({ listingId: listing.id, title: listing.title, neighborhood: listing.neighborhood });
+    res.json({ listingId: listing.id, title: listing.title, neighborhood: listing.neighborhood || listing.city });
   });
 }

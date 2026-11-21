@@ -31,7 +31,9 @@ export type EmailPayload = {
   path?: string;
 };
 
-export type Email = { subject: string; text: string; html: string };
+export type Email = { subject: string; text: string; html: string; unsubscribeUrl?: string | null };
+/** Footer details for commercial-email rules (CAN-SPAM): a one-click unsubscribe link and a postal address */
+export type EmailFooter = { unsubscribeUrl?: string | null; postalAddress?: string | null };
 
 /** Days-before-move-out reminders. */
 export const MOVE_OUT_REMINDER_DAYS = [14, 7, 3] as const;
@@ -52,7 +54,7 @@ function link(appUrl: string, path = "/"): string {
   return `${appUrl.replace(/\/+$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-export function buildEmail(kind: NotificationKind, p: EmailPayload, appUrl: string): Email {
+export function buildEmail(kind: NotificationKind, p: EmailPayload, appUrl: string, footer: EmailFooter = {}): Email {
   const area = p.area || "your area";
   const hi = p.firstName?.trim() ? `Hi ${p.firstName.trim()},` : "Hi,";
   const open = link(appUrl, p.path ?? "/");
@@ -124,13 +126,25 @@ export function buildEmail(kind: NotificationKind, p: EmailPayload, appUrl: stri
       break;
   }
   const manage = link(appUrl, "/?passport=settings");
-  const text = [...lines, "", `${cta}: ${open}`, "", `Email settings: ${manage}`].join("\n");
+  const unsubscribe = footer.unsubscribeUrl?.trim() || null;
+  const postal = footer.postalAddress?.trim() || null;
+  const text = [
+    ...lines,
+    "",
+    `${cta}: ${open}`,
+    "",
+    `Email settings: ${manage}`,
+    ...(unsubscribe ? [`Unsubscribe from all Fenly emails: ${unsubscribe}`] : []),
+    ...(postal ? [`Fenly, ${postal}`] : []),
+  ].join("\n");
   const html = `<!doctype html><html><body style="margin:0;background:#F9F7F3;font-family:Helvetica,Arial,sans-serif;color:#2C2724">
 <div style="max-width:520px;margin:0 auto;padding:28px 20px">
 <div style="font-weight:800;font-size:20px;color:#D06C4E;margin-bottom:18px">Fenly</div>
 ${lines.map((l) => `<p style="font-size:15px;line-height:1.5;margin:0 0 12px">${escapeHtml(l)}</p>`).join("\n")}
 <p style="margin:22px 0"><a href="${escapeHtml(open)}" style="background:#D06C4E;color:#fff;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:12px;display:inline-block">${escapeHtml(cta)}</a></p>
-<p style="font-size:12px;color:#6E655F;margin-top:28px"><a href="${escapeHtml(manage)}" style="color:#6E655F">Email settings</a></p>
+<p style="font-size:12px;color:#6E655F;margin-top:28px"><a href="${escapeHtml(manage)}" style="color:#6E655F">Email settings</a>${
+    unsubscribe ? ` · <a href="${escapeHtml(unsubscribe)}" style="color:#6E655F">Unsubscribe</a>` : ""
+  }</p>${postal ? `\n<p style="font-size:12px;color:#6E655F;margin:6px 0 0">Fenly, ${escapeHtml(postal)}</p>` : ""}
 </div></body></html>`;
-  return { subject, text, html };
+  return { subject, text, html, unsubscribeUrl: unsubscribe };
 }

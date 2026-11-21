@@ -24,6 +24,7 @@ import {
   publishProblems,
   sanitizeListingPatch,
   validRentCents,
+  depositCheck,
 } from "../src/fill/listingRules.js";
 import { allPostTexts, buildSharePosts } from "../src/fill/sharePosts.js";
 import { buildListingMeta, isLinkPreviewBot, shouldCountVisit } from "../src/fill/publicListing.js";
@@ -204,13 +205,14 @@ export function registerFillRoutes(app: Express): void {
     if (!db) return;
     const { data, error } = await db
       .from("listings")
-      .select("id, status, title, neighborhood, rent_cents, move_out_date, lease_permission, published_at, created_at, updated_at")
+      .select("id, status, title, neighborhood, city, rent_cents, move_out_date, lease_permission, published_at, created_at, updated_at")
       .eq("owner_id", user.id)
       .neq("status", "archived")
       .order("updated_at", { ascending: false })
       .limit(50);
     if (error) return dbError(res, error, "list listings");
-    res.json({ listings: data });
+    // The list shows an area: the city where there's no neighborhood list
+    res.json({ listings: (data ?? []).map((l) => ({ ...l, neighborhood: l.neighborhood || l.city })) });
   });
 
   // One listing with its media (signed URLs, for resuming a draft) and links.
@@ -258,10 +260,18 @@ export function registerFillRoutes(app: Express): void {
     const listing = await ownListing(db, res, req.params.id, user.id);
     if (!listing) return;
     if (Object.keys(patch).length === 0) return res.json({ listing });
+    // The deposit limit is enforced here too, not only in the form: the deposit is shown on the public page
+    if ("deposit_cents" in patch || "rent_cents" in patch) {
+      const rent = patch.rent_cents ?? listing.rent_cents ?? 0;
+      const deposit = "deposit_cents" in patch ? patch.deposit_cents ?? null : listing.deposit_cents ?? null;
+      const check = depositCheck(rent, deposit);
+      if (check.error) return res.status(400).json({ error: "invalid", message: check.error });
+    }
     const { data, error } = await db.from("listings").update(patch).eq("id", listing.id).select(LISTING_COLUMNS).single();
     if (error) return dbError(res, error, "update listing");
-    // A live listing whose text changed gets the same scam check as at publish
-    const textChanged = "title" in patch || "description" in patch || "house_rules" in patch;
+    // A live listing whose text really changed gets the same scam check as at publish
+    // (saving the same text again must not run the AI check or refill the review queue)
+    const textChanged = (["title", "description", "house_rules"] as const).some((k) => k in patch && (patch[k] ?? null) !== (listing[k] ?? null));
     const underReview = (data as ListingRow).status === "published" && textChanged ? await moderateListing(data as ListingRow) : false;
     res.json({ listing: data, underReview });
   });

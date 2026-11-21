@@ -41,7 +41,7 @@ export function registerInboxRoutes(app: Express): void {
     if (rows.length === 0) return res.json({ threads: [] });
     const listingIds = [...new Set(rows.map((a) => a.listing_id))];
     const [listings, messages, taken] = await Promise.all([
-      admin.from("listings").select("id, owner_id, title, neighborhood, status, rent_cents").in("id", listingIds),
+      admin.from("listings").select("id, owner_id, title, neighborhood, city, status, rent_cents").in("id", listingIds),
       db.from("messages").select("application_id, sender_id, recipient_id, body, read_at, flagged, created_at").in("application_id", rows.map((a) => a.id)).is("hidden_at", null).order("created_at", { ascending: false }),
       admin.from("notifications").select("listing_id, payload").eq("user_id", user.id).eq("kind", "room_taken"),
     ]);
@@ -60,7 +60,7 @@ export function registerInboxRoutes(app: Express): void {
       const similar = a.decline_reason === "room_filled" ? (taken.data ?? []).find((n) => n.listing_id === a.listing_id)?.payload?.similar ?? [] : [];
       return {
         applicationId: a.id,
-        listing: l ? { id: l.id, title: l.title, neighborhood: l.neighborhood, status: l.status, rentCents: l.rent_cents } : null,
+        listing: l ? { id: l.id, title: l.title, neighborhood: l.neighborhood || l.city, status: l.status, rentCents: l.rent_cents } : null, // the city where there's no neighborhood list
         role,
         status: a.status,
         declineReason: a.decline_reason,

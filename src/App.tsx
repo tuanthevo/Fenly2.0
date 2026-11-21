@@ -279,12 +279,34 @@ export default function App() {
   const [findNotice, setFindNotice] = useState<string | null>(null);
   // Fetched again each time Find opens, so edits made in Fill (price, deposit, size...) show up
   const findTabOpen = activeTab === 'listings';
+  const mediaSignedAt = useRef(new Map<string, number>());
   useEffect(() => {
     if (!findMode || !findTabOpen) return;
     let alive = true;
     const load = savedOnly && auth.user ? findApi.savedListings() : findApi.feed(findFilters);
     load
-      .then((data) => alive && setFindListings(data.listings))
+      .then((data) => {
+        if (!alive) return;
+        // Each fetch signs new media URLs. A room already on screen keeps the URL it is playing
+        // (same file, only the signature differs), so its video doesn't reload and freeze.
+        const file = (url: string | null) => (url ? url.split('?')[0] : null);
+        setFindListings((prev) =>
+          data.listings.map((l) => {
+            const old = prev.find((o) => o.id === l.id);
+            // Signed URLs last 6 hours: after 5, take the fresh ones
+            const signedAt = mediaSignedAt.current.get(l.id);
+            if (!old || !signedAt || Date.now() - signedAt > 5 * 3600_000) {
+              mediaSignedAt.current.set(l.id, Date.now());
+              return l;
+            }
+            return {
+              ...l,
+              videoUrl: file(old.videoUrl) === file(l.videoUrl) ? old.videoUrl : l.videoUrl,
+              thumbUrl: file(old.thumbUrl) === file(l.thumbUrl) ? old.thumbUrl : l.thumbUrl,
+            };
+          })
+        );
+      })
       .catch(() => alive && setFindListings([]));
     return () => {
       alive = false;
@@ -1769,8 +1791,10 @@ export default function App() {
         )}
 
         {/* Fenly 2.0 Fill tab (with Supabase): fill a room, drafts, live listings' status */}
-        {activeTab === 'fill' && flagsLoaded && supabaseConfigured && (
-          <div className="relative flex-1 min-h-0 w-full flex flex-col overflow-hidden">
+        {/* While Fill my room (or an edit) is open it stays mounted, hidden, when the host visits another
+            tab: filmed clips and typed text are only saved at each step's Continue, so unmounting lost them */}
+        {(activeTab === 'fill' || Boolean(editListingId) || Boolean(fillOverlay && (fillOverlay === 'new' || fillListingId))) && flagsLoaded && supabaseConfigured && (
+          <div className={`relative flex-1 min-h-0 w-full flex-col overflow-hidden ${activeTab === 'fill' ? 'flex' : 'hidden'}`}>
             {!fillOverlay && !editListingId && !applicantsListingId && !statusListingId && <OnboardingBanner tab="fill" />}
             {editListingId ? (
               <FillFlow

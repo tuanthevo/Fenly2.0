@@ -50,6 +50,7 @@ import { requireFlag } from "./flags.js";
 import { requireUser } from "./auth.js";
 import { NOTE_MAX_CHARS, NOTE_REWRITE_MIN_CHARS, buildNoteRewritePrompt, cleanRewrite } from "../src/find/noteRewrite.js";
 import { registerFoundationRoutes } from "./foundationRoutes.js";
+import { registerUnsubscribeRoutes } from "./unsubscribe.js";
 import { registerFillRoutes } from "./fillRoutes.js";
 import { registerFindRoutes } from "./findRoutes.js";
 import { registerHostRoutes } from "./hostRoutes.js";
@@ -65,6 +66,8 @@ app.use(express.json({ limit: "25mb" }));
 // Human use is a few calls a minute; music (Lyria) is the most expensive, so it gets less.
 app.use(["/api/gemini", "/api/viral", "/api/chat", "/api/verification"], rateLimit(createRateLimiter({ max: 60, windowMs: 10 * 60_000 }), "ai"));
 app.use("/api/viral/music", rateLimit(createRateLimiter({ max: 6, windowMs: 60 * 60_000 }), "music"));
+// The copy pass sends up to ~75 frames to Gemini per call; a host needs a few per listing
+app.use("/api/viral/copy", rateLimit(createRateLimiter({ max: 12, windowMs: 10 * 60_000 }), "viral-copy"));
 
 // Health check: confirms the API is reachable and whether a Gemini key is set (never the key itself).
 app.get("/api/health", (_req, res) => {
@@ -1381,6 +1384,7 @@ registerHostRoutes(app);
 registerInboxRoutes(app);
 registerPassportRoutes(app);
 registerAdminRoutes(app);
+registerUnsubscribeRoutes(app);
 
 // Unknown /api routes get a JSON 404 instead of falling through to the React app.
 app.use("/api", (_req, res) => {
