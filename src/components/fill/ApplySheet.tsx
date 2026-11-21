@@ -14,6 +14,7 @@ import { announceInstallMoment } from '../../pwa/installPrompt';
 import { formatMoveIn, formatRentCents } from '../../fill/publicListing';
 import { todayIn } from '../../fill/fillStatus';
 import { NOTE_REWRITE_MIN_CHARS } from '../../find/noteRewrite';
+import { useFlag } from '../../config/FlagsProvider';
 
 type PublicListing = {
   id: string;
@@ -55,6 +56,8 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
   const [uploadPct, setUploadPct] = useState<number | null>(null);
   const [preview, setPreview] = useState<PassportPreview | null>(null);
   const today = todayIn(new Date());
+  // The 15-second intro video is hidden unless the intro_video flag is on
+  const introVideoOn = useFlag('intro_video');
 
   useEffect(() => {
     if (!ready) return;
@@ -120,7 +123,7 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
     setError(null);
     try {
       let introVideoPath: string | undefined;
-      if (intro && user) {
+      if (introVideoOn && intro && user) {
         const { contentType, ext } = storageVideoType(intro);
         const id = Array.from(crypto.getRandomValues(new Uint8Array(9)), (b) => b.toString(16).padStart(2, '0')).join('');
         introVideoPath = `${user.id}/${id}.${ext}`;
@@ -313,7 +316,7 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
                     </div>
                   )}
                 </div>
-                <IntroVideoPicker value={intro} onChange={setIntro} />
+                {introVideoOn && <IntroVideoPicker value={intro} onChange={setIntro} />}
                 {error && <p className="text-xs font-bold text-[#9A4A33]">{error}</p>}
                 <button
                   type="button"
