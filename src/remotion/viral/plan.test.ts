@@ -11,6 +11,7 @@ import {
   hookReadSec,
   LABEL_MAX_GAP_SEC,
   PERSON_PAD_SEC,
+  BLOCKED_AFTER_SEC,
   REHOOK_MIN_ROOM_SEC,
   roomDetail,
   MAX_TOUR_TOTAL_SEC,
@@ -710,4 +711,38 @@ test('rooms and the opener start on a clear view, not a doorway or a chair in th
     assert.ok(!blocked(s.slotNumber as 1 | 2, s.srcStartSec), `${s.id} opens at ${s.srcStartSec} s on a blocked view`);
   }
   assert.equal(plan.shots[0].slotNumber, 2);
+});
+
+test('a long opener clip with blocked stretches still gives the tour a second moment', () => {
+  // The host's 20 s kitchen/living clip: a person 2.4-5.3 s, then 4 blocked scans (chair in the foreground) 6.6-10.9 s
+  const notes: FrameNote[] = [
+    { t: 1.04, label: 'Living area' },
+    { t: 2.44, label: 'Sectional sofa', person: true },
+    { t: 3.84, label: 'Living room', person: true, blocked: true },
+    { t: 5.25, label: 'Dining area', person: true, blocked: true },
+    { t: 6.65, label: 'Dining table', blocked: true },
+    { t: 8.06, label: 'Kitchen overview', blocked: true },
+    { t: 9.46, label: 'Kitchen aisle', blocked: true },
+    { t: 10.87, label: 'Kitchen entry', blocked: true },
+    { t: 12.27, label: 'Kitchen space' },
+    { t: 13.68, label: 'Kitchen cabinets' },
+    { t: 15.08, label: 'Kitchen island' },
+    { t: 16.49, label: 'Island counter' },
+    { t: 17.89, label: 'Dining area', blocked: true },
+    { t: 19.3, label: 'Living space', blocked: true },
+  ];
+  const clips = guidedClips([1, 2, 3]).map((c) =>
+    c.slotNumber === 2 ? { ...c, durationSec: 20.3, analysis: { ...longRoom(10, 3), durationSec: 20.3, clean: { startSec: 0.33, endSec: 20 } } } : c
+  );
+  const plan = buildViralEditPlan({ listing, clips }, { ai: { hookSlotNumber: 2, frames: { 2: notes } } });
+  assert.deepEqual(checkPlan(plan), []);
+  const kitchen = plan.shots.filter((s) => s.slotNumber === 2);
+  assert.equal(kitchen.length, 2, `kitchen moments: ${kitchen.map((s) => s.id).join(', ')}`);
+  // Blocked frames only move where a shot starts; they don't throw the footage away
+  for (const s of kitchen) {
+    // The opener (the cover) opens clear; the second moment continues the room after a zoom cut
+    if (s.role === 'hook') assert.ok(!notes.some((n) => n.blocked && n.t >= s.srcStartSec - BLOCKED_AFTER_SEC + 1e-6 && n.t <= s.srcStartSec + 1), `${s.id} opens at ${s.srcStartSec} s on a blocked view`);
+    const [a, b] = sourceRange(plan, s);
+    for (const n of notes.filter((x) => x.person)) assert.ok(n.t + PERSON_PAD_SEC <= a + 1e-6 || n.t - PERSON_PAD_SEC >= b - 1e-6, `${s.id} shows a person`);
+  }
 });

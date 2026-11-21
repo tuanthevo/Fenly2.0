@@ -160,6 +160,8 @@ export const SLOT_HOOK_PRIOR: Record<number, number> = { 1: 0.1, 2: 0.06, 3: 0, 
  * corner instead of the kitchen. When the beat does not fit, the facts still reach the end card.
  */
 export const MAX_HOOK_SHIFT_SEC = 1.5;
+/** ...and may slide this much later when that leaves its clip room for a second moment */
+export const MAX_HOOK_LATER_SEC = 3;
 /** A facts beat shorter than this is dropped (the facts still appear on the end card). */
 const MIN_FACTS_SEC = 1.2;
 const MIN_HOOK_SEC = 1.8;
@@ -454,6 +456,9 @@ export function withClearOpening(clip: ViralClipInput, notes: FrameNote[] | null
     if (n.t > start + BLOCKED_BEFORE_SEC) break;
     if (n.blocked) start = n.t + BLOCKED_AFTER_SEC + 0.05;
   }
+  // Only the doorway the clip opens on: a longer blocked stretch (a chair in front of the
+  // kitchen) is still usable mid-shot, and each shot's own start steps off it (clearStartSec)
+  start = Math.min(start, clean.startSec + OPENING_TRIM_MAX_SEC);
   if (start <= clean.startSec || end - start < MIN_PERSON_FREE_SEC) return clip;
   const len = a.best.endSec - a.best.startSec;
   const bestStart = clamp(a.best.startSec, start, Math.max(start, end - len));
@@ -462,6 +467,9 @@ export function withClearOpening(clip: ViralClipInput, notes: FrameNote[] | null
     analysis: { ...a, best: { ...a.best, startSec: bestStart, endSec: bestStart + len }, clean: { ...clean, startSec: start } },
   };
 }
+
+/** The most a clip's opening loses to blocked frames (about one scan step past the doorway) */
+export const OPENING_TRIM_MAX_SEC = 2.5;
 
 /** The re-hook goes on a room on screen at least this long (label first, then the re-hook) */
 export const REHOOK_MIN_ROOM_SEC = 3;
@@ -586,7 +594,12 @@ function planSegments(
     const { startSec: s, endSec: e } = src.clean;
     if (role === 'hook') {
       const earliest = Math.max(s, src.preferred - MAX_HOOK_SHIFT_SEC);
-      const hs = src.preferred + hookUseSec <= e ? src.preferred : Math.max(earliest, e - hookUseSec);
+      let hs = src.preferred + hookUseSec <= e ? src.preferred : Math.max(earliest, e - hookUseSec);
+      // A long clip whose best frame splits it badly: the opener slides a little later so the
+      // footage before it is long enough for a tour moment of its own
+      const sideMax = (h: number) => Math.max(e - (h + hookUseSec + MOMENT_GAP_SEC), h - MOMENT_GAP_SEC - s);
+      const later = s + EXTRA_MIN_CLEAN_SEC + MOMENT_GAP_SEC;
+      if (allow() && sideMax(hs) < EXTRA_MIN_CLEAN_SEC && later > hs && later - hs <= MAX_HOOK_LATER_SEC && later + hookUseSec <= e) hs = later;
       const he = Math.min(e, hs + hookUseSec);
       const after = { startSec: he + MOMENT_GAP_SEC, endSec: e };
       const before = { startSec: s, endSec: hs - MOMENT_GAP_SEC };
@@ -767,7 +780,8 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
   // Open every shot on a clear view (scan frames flag doorways and things in the foreground)
   fits.forEach((fit, i) => {
     const notes = frameNotes(options, ordered[i].slotNumber);
-    if (!notes) return;
+    // A room's second moment continues it after a zoom cut: only first moments need a clear opening
+    if (!notes || segs[i].part === 2) return;
     const needSec = (durationOf(i) / fps) * fit.playbackRate;
     // The opener may move back into earlier clean footage unless its room's other moment plays there
     let bounds = sources[i].clean;
