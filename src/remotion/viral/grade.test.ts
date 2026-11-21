@@ -124,3 +124,12 @@ test('the best fix puts the standard headline back when the host typed one witho
   assert.ok(fix!.grade.total > current.total);
   assert.equal(bestGradeFix(fix!.grade, gradeFixCandidates([1]), build), null, 'nothing beats a fixed edit');
 });
+
+test('rooms sped up to fit 50 s (up to 1.35x) keep full marks for speed; faster than that does not', () => {
+  const clips = realClips();
+  const plan = buildViralEditPlan({ listing, clips });
+  plan.shots[2].playbackRate = 1.3;
+  assert.equal(rowOf(gradePlan(plan, clips), 'speed').score, 2);
+  plan.shots[2].playbackRate = 1.5;
+  assert.equal(rowOf(gradePlan(plan, clips), 'speed').score, 1);
+});

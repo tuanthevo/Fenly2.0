@@ -18,7 +18,7 @@ export const GUIDED_SHOTS: GuidedShot[] = [
     slotNumber: 1,
     name: 'Bedroom Hook',
     instruction:
-      'Turn ALL lights on & open blinds. Stand at the bedroom doorway and walk slowly in, about 5 small steps (7 sec).',
+      'Turn ALL lights on & open blinds. Stand at the bedroom doorway and walk slowly in, about 5 small steps (10 sec).',
     movementCue: '5 slow steps in',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&w=900&q=80',
@@ -27,7 +27,7 @@ export const GUIDED_SHOTS: GuidedShot[] = [
     slotNumber: 2,
     name: 'Kitchen & Shared Space',
     instruction:
-      'Stand at the kitchen entrance and walk slowly toward the island or counter (7 sec).',
+      'Stand at the kitchen entrance and walk slowly toward the island or counter (10 sec).',
     movementCue: 'Walk slowly toward the counter',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=900&q=80',
@@ -36,7 +36,7 @@ export const GUIDED_SHOTS: GuidedShot[] = [
     slotNumber: 3,
     name: 'Bathroom Peek',
     instruction:
-      'Step slowly toward the open bathroom door, then hold still—keep yourself out of the mirror (7 sec).',
+      'Step slowly toward the open bathroom door, then hold still—keep yourself out of the mirror (10 sec).',
     movementCue: 'Step toward the door • stay out of the mirror',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=900&q=80',
@@ -44,7 +44,7 @@ export const GUIDED_SHOTS: GuidedShot[] = [
   {
     slotNumber: 4,
     name: 'Closet & Storage',
-    instruction: 'Open the closet doors wide, take 2 slow steps forward, then hold still (7 sec).',
+    instruction: 'Open the closet doors wide, take 2 slow steps forward, then hold still (10 sec).',
     movementCue: '2 slow steps, then hold',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=900&q=80',
@@ -53,7 +53,7 @@ export const GUIDED_SHOTS: GuidedShot[] = [
     slotNumber: 5,
     name: 'Standout Perk',
     instruction:
-      'Walk slowly toward the best perk—in-unit laundry, balcony, parking, or sunny view—then hold on it (7 sec).',
+      'Walk slowly toward the best perk—in-unit laundry, balcony, parking, or sunny view—then hold on it (10 sec).',
     movementCue: 'Walk to the perk, then hold',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=900&q=80',
@@ -63,10 +63,12 @@ export const GUIDED_SHOTS: GuidedShot[] = [
 export const GUIDED_PRE_SHOT_REMINDER = "Lights ON • Walk forward • Don't pan side-to-side";
 export const GUIDED_COUNTDOWN_STEP_MS = 1000;
 /**
- * 7 s per shot gives the editor ~5 s of clean footage per room for the ~30 s
- * full tour (the first moment of each clip is the tap-to-record shake).
+ * 10 s per shot (host's call, Nov 2026) gives the editor ~8 s of clean footage
+ * per room (the first moment of each clip is the tap-to-record shake): enough
+ * for two moments of a room. If the tour then runs past 50 s, the editor plays
+ * rooms a little faster rather than cut footage (plan.ts MAX_TOUR_TOTAL_SEC).
  */
-export const GUIDED_RECORDING_MS = 7000;
+export const GUIDED_RECORDING_MS = 10000;
 export const MIN_CLIP_DURATION_SEC = 2;
 export const MIN_SHOTS_TO_PROCEED = 3;
 
@@ -151,8 +153,11 @@ export function nextShotToCapture(media: Record<number, unknown>): number | null
 
 /* ---------------- Fenly 2.0 Quick Tour ---------------- */
 
-/** Quick Tour: 3 shots of 5 s (room, shared space, bathroom); 2 optional extras for the full tour. */
-export const QUICK_RECORDING_MS = 5000;
+/**
+ * Quick Tour: 3 shots of 10 s (room, shared space, bathroom); 2 optional extras for the full tour.
+ * 10 s like the guided tour (host's call, Nov 2026): more clean footage per room.
+ */
+export const QUICK_RECORDING_MS = 10000;
 export const QUICK_SHOT_SLOTS: readonly GuidedShot['slotNumber'][] = [1, 2, 3];
 export const EXTRA_SHOT_SLOTS: readonly GuidedShot['slotNumber'][] = [4, 5];
 
@@ -168,7 +173,7 @@ export function recordingMsFor(mode: CaptureMode): number {
   return mode === 'quick' ? QUICK_RECORDING_MS : GUIDED_RECORDING_MS;
 }
 
-/** The shot's instruction with its clip length ("(7 sec)") set to `seconds`. */
+/** The shot's instruction with its clip length ("(10 sec)") set to `seconds`. */
 export function instructionFor(shot: GuidedShot, seconds: number): string {
   return shot.instruction.replace(/\(\d+(?:\.\d+)?\s*sec\)/i, `(${seconds} sec)`);
 }

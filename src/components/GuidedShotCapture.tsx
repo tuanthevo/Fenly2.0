@@ -172,7 +172,7 @@ interface GuidedCameraModalProps {
   onClose: () => void;
   onSave: (media: RecordedViralSlotMedia) => void;
   onUseCameraRoll: () => void;
-  /** Clip length: 7 s for the guided 5-shot tour, 5 s for the Quick Tour */
+  /** Clip length: 10 s per shot (guided 5-shot tour and Quick Tour) */
   recordingMs?: number;
 }
 
@@ -759,7 +759,7 @@ interface GuidedShotCaptureProps {
   openCameraForSlot?: number | null;
   /** Called once the camera request above has been handled */
   onCameraRequestHandled?: () => void;
-  /** 'quick' (Fenly 2.0 Fill): 3 shots of 5 s, plus 2 optional extras; 'guided' (default): 5 shots of 7 s */
+  /** 'quick' (Fenly 2.0 Fill): 3 shots of 10 s, plus 2 optional extras; 'guided' (default): 5 shots of 10 s */
   mode?: CaptureMode;
   /** Quick Tour: offer "Add 2 more shots for the full tour" */
   allowExtras?: boolean;
