@@ -12,6 +12,10 @@ import { moveOutReminderDue } from "./emails.js";
 import { daysUntil, todayIn } from "../src/fill/fillStatus.js";
 import { buildFunnel, median, parseMetricsDays } from "./metrics.js";
 import { bayAreaCity } from "../src/geo/bayArea.js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { alertDigest, cleanAlertPrefs, type AlertListing } from "../src/find/roomAlerts.js";
+import { shareUrl } from "../src/fill/linkCodes.js";
+import { formatRentCents } from "../src/fill/publicListing.js";
 
 type Row = Record<string, any>;
 
@@ -204,6 +208,77 @@ export function registerAdminRoutes(app: Express): void {
       });
       sent++;
     }
-    res.json({ checked: listings?.length ?? 0, reminders: sent });
+    const alerts = await sendRoomAlerts(admin, origin, today);
+    res.json({ checked: listings?.length ?? 0, reminders: sent, roomAlerts: alerts });
   });
+}
+
+/**
+ * "New rooms that match": one digest per renter with alerts on, of rooms published since
+ * their last one (at most a day back), matched on Passport logistics (src/find/roomAlerts.ts).
+ * Each room links to its public page. Never throws: a failed digest must not fail the cron.
+ */
+async function sendRoomAlerts(admin: SupabaseClient, origin: string, today: string): Promise<{ renters: number; sent: number }> {
+  try {
+    const dayAgo = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+    const [{ data: renters }, { data: fresh }] = await Promise.all([
+      admin
+        .from("passports")
+        .select("user_id, alert_rooms, alert_place, alert_lat, alert_lng, alert_miles, alerts_sent_at, budget_max_cents, move_in_from, stay_length")
+        .eq("alert_rooms", true)
+        .limit(5000),
+      admin
+        .from("listings")
+        .select("id, owner_id, city, neighborhood, rent_cents, available_from, lease_term, published_at")
+        .eq("status", "published")
+        .is("hidden_at", null)
+        .gte("published_at", dayAgo)
+        .limit(1000),
+    ]);
+    if (!renters?.length || !fresh?.length) return { renters: renters?.length ?? 0, sent: 0 };
+    const listings: AlertListing[] = fresh.map((l) => ({
+      id: l.id,
+      ownerId: l.owner_id,
+      city: l.city,
+      neighborhood: l.neighborhood,
+      rentCents: l.rent_cents,
+      availableFrom: l.available_from,
+      leaseTerm: l.lease_term,
+      publishedAt: l.published_at,
+    }));
+    const { data: links } = await admin.from("listing_links").select("listing_id, code").eq("channel", "direct").in("listing_id", listings.map((l) => l.id));
+    const urlOf = (id: string) => {
+      const code = (links ?? []).find((k) => k.listing_id === id)?.code;
+      return code ? shareUrl(origin, code) : `${origin}/`;
+    };
+    let sent = 0;
+    for (const row of renters) {
+      const prefs = cleanAlertPrefs(row);
+      if (!prefs) continue;
+      const since = row.alerts_sent_at && Date.parse(row.alerts_sent_at) > Date.parse(dayAgo) ? row.alerts_sent_at : dayAgo;
+      const digest = alertDigest(listings, prefs, since);
+      if (digest.total === 0) continue;
+      await notify(
+        {
+          userId: prefs.userId,
+          kind: "new_rooms",
+          payload: {
+            area: prefs.near?.label ?? "the Bay Area",
+            rooms: digest.rooms.map((l) => ({ area: l.neighborhood || l.city || "the Bay Area", rent: formatRentCents(l.rentCents) ?? "", url: urlOf(l.id) })),
+            total: digest.total,
+            path: "/",
+          },
+          dedupeKey: `new_rooms:${prefs.userId}:${today}`,
+          appUrl: origin,
+        },
+        admin
+      );
+      await admin.from("passports").update({ alerts_sent_at: new Date().toISOString() }).eq("user_id", prefs.userId);
+      sent++;
+    }
+    return { renters: renters.length, sent };
+  } catch (error) {
+    console.error("room alerts:", error instanceof Error ? error.message : error);
+    return { renters: 0, sent: 0 };
+  }
 }

@@ -27,6 +27,7 @@ runs as the signed-out demo (Passport says "Sign-in isn't set up").
 7. Then `supabase/migrations/0005_passport_stay_length.sql` (Passport "Length of
    stay", the same choices as the host's lease term).
 8. Then `supabase/migrations/0006_listing_square_feet.sql` (room size on listings).
+9. Then `supabase/migrations/0007_room_alerts.sql` ("New rooms that match" alerts on the Passport).
 
 Later schema changes go in a new numbered file (`0002_...sql`); never edit one
 that has already been run.
