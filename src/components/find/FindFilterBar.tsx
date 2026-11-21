@@ -1,15 +1,15 @@
 /**
  * Find feed header (Fenly 2.0): "Rooms in <place>", a Filters sheet (a city,
- * neighborhood or ZIP found through Google Maps, a radius in miles, max rent,
- * move-in by) and Saved. Logistics only; never who lives there (fair housing).
+ * neighborhood or ZIP found through Google Maps, a radius in miles, a typed
+ * min/max rent, move-in by) and Saved. Logistics only; never who lives there (fair housing).
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Loader2, MapPin, Pin, SlidersHorizontal, X } from 'lucide-react';
 import { DEFAULT_RADIUS_MILES, RADIUS_MILES } from '../../geo/bayArea';
 import { lookupBayAreaPlace } from '../../lib/geocode';
-import { EMPTY_FIND_FILTERS, activeFilterCount, cleanPlaceLabel, type FindFilters, type FindNear } from '../../find/findFilters';
+import { EMPTY_FIND_FILTERS, activeFilterCount, cleanPlaceLabel, rentInput, rentRangeError, type FindFilters, type FindNear } from '../../find/findFilters';
 
-const RENT_STEPS = [1200, 1500, 1800, 2200, 2600, 3000];
+const dollarsText = (cents: number | null) => (cents == null ? '' : String(Math.round(cents / 100)));
 
 interface FindFilterBarProps {
   filters: FindFilters;
@@ -96,6 +96,12 @@ const FilterSheet: React.FC<{ filters: FindFilters; onClose: () => void; onApply
   const [note, setNote] = useState<{ text: string; bad: boolean } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const miles = draft.near?.miles ?? DEFAULT_RADIUS_MILES;
+  // Rent is typed: kept as text while editing, checked on every change
+  const [minText, setMinText] = useState(dollarsText(filters.minRentCents));
+  const [maxText, setMaxText] = useState(dollarsText(filters.maxRentCents));
+  const min = rentInput(minText);
+  const max = rentInput(maxText);
+  const rentError = min.error ?? max.error ?? rentRangeError(min.cents, max.cents);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -211,33 +217,51 @@ const FilterSheet: React.FC<{ filters: FindFilters; onClose: () => void; onApply
           </div>
         </section>
 
-        <section className="grid grid-cols-2 gap-2">
-          <div>
-            <label className={sectionLabel} htmlFor="find-max-rent">Max rent</label>
-            <select
-              id="find-max-rent"
-              className={input}
-              value={draft.maxRentCents ?? ''}
-              onChange={(e) => setDraft((d) => ({ ...d, maxRentCents: e.target.value ? Number(e.target.value) : null }))}
-            >
-              <option value="">Any</option>
-              {RENT_STEPS.map((dollars) => (
-                <option key={dollars} value={dollars * 100}>
-                  ${dollars.toLocaleString('en-US')}
-                </option>
-              ))}
-            </select>
+        <section>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className={sectionLabel} htmlFor="find-min-rent">Min rent ($/mo)</label>
+              <input
+                id="find-min-rent"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="No min"
+                className={input}
+                value={minText}
+                aria-invalid={Boolean(min.error || rentRangeError(min.cents, max.cents))}
+                aria-describedby="find-rent-hint"
+                onChange={(e) => setMinText(e.target.value.replace(/[^\d$,]/g, '').slice(0, 7))}
+              />
+            </div>
+            <div>
+              <label className={sectionLabel} htmlFor="find-max-rent">Max rent ($/mo)</label>
+              <input
+                id="find-max-rent"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="No max"
+                className={input}
+                value={maxText}
+                aria-invalid={Boolean(max.error || rentRangeError(min.cents, max.cents))}
+                aria-describedby="find-rent-hint"
+                onChange={(e) => setMaxText(e.target.value.replace(/[^\d$,]/g, '').slice(0, 7))}
+              />
+            </div>
           </div>
-          <div>
-            <label className={sectionLabel} htmlFor="find-move-in">Move in by</label>
-            <input
-              id="find-move-in"
-              type="date"
-              className={`${input} px-2`}
-              value={draft.moveInBy ?? ''}
-              onChange={(e) => setDraft((d) => ({ ...d, moveInBy: e.target.value || null }))}
-            />
-          </div>
+          <p id="find-rent-hint" className={`mt-1.5 text-[11px] ${rentError ? 'font-bold text-[#A9513A]' : 'text-[#6E655F]'}`} role={rentError ? 'alert' : undefined}>
+            {rentError ?? 'Leave either one empty for no limit.'}
+          </p>
+        </section>
+
+        <section>
+          <label className={sectionLabel} htmlFor="find-move-in">Move in by</label>
+          <input
+            id="find-move-in"
+            type="date"
+            className={input}
+            value={draft.moveInBy ?? ''}
+            onChange={(e) => setDraft((d) => ({ ...d, moveInBy: e.target.value || null }))}
+          />
         </section>
 
         <div className="grid grid-cols-2 gap-2 pt-1">
@@ -250,9 +274,10 @@ const FilterSheet: React.FC<{ filters: FindFilters; onClose: () => void; onApply
           </button>
           <button
             type="button"
-            onClick={() => onApply(draft)}
+            onClick={() => onApply({ ...draft, minRentCents: min.cents, maxRentCents: max.cents })}
+            disabled={Boolean(rentError)}
             data-testid="find-filters-apply"
-            className="min-h-11 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-sm font-extrabold"
+            className="min-h-11 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] disabled:opacity-50 text-white text-sm font-extrabold"
           >
             Show rooms
           </button>

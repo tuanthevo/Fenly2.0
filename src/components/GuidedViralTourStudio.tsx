@@ -979,7 +979,7 @@ export const GuidedViralTourStudio: React.FC<GuidedViralTourStudioProps> = ({
               <div className="flex items-start gap-3">
                 <div className="relative w-14 h-20 rounded-xl overflow-hidden bg-black border border-white/20 shrink-0">
                   {isComplete && media?.videoUrl?.startsWith('blob:') ? (
-                    <video
+                    <video disablePictureInPicture
                       src={media.videoUrl}
                       poster={media.thumbnailUrl || slot.sampleThumbnailUrl}
                       muted
@@ -1209,7 +1209,7 @@ export const GuidedViralTourStudio: React.FC<GuidedViralTourStudioProps> = ({
                 return (
                   <>
                     {slotMedia?.videoUrl ? (
-                      <video
+                      <video disablePictureInPicture
                         ref={previewVideoRef}
                         key={`preview-clip-${slotNum}`}
                         src={slotMedia.videoUrl}
@@ -1400,7 +1400,7 @@ export const GuidedViralTourStudio: React.FC<GuidedViralTourStudioProps> = ({
                     : ''
                 }`}
               >
-                <video
+                <video disablePictureInPicture
                   ref={cameraVideoRef}
                   className={`w-full h-full object-cover transition-transform duration-300 ${
                     fishEyeLensEnabled ? 'scale-105 contrast-105 saturate-110' : ''

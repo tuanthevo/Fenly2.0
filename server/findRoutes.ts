@@ -85,7 +85,7 @@ export async function blockedWith(admin: SupabaseClient, userId: string): Promis
 }
 
 export function registerFindRoutes(app: Express): void {
-  // Public feed, newest first (closest first with a place). Filters: place + lat/lng + miles, maxRent ($), moveInBy (YYYY-MM-DD).
+  // Public feed, newest first (closest first with a place). Filters: place + lat/lng + miles, minRent / maxRent ($), moveInBy (YYYY-MM-DD).
   app.get("/api/find", optionalUser(), async (req, res) => {
     res.set("Cache-Control", "no-store");
     const admin = getAdminClient();
@@ -98,6 +98,7 @@ export function registerFindRoutes(app: Express): void {
       .is("hidden_at", null)
       .order("published_at", { ascending: false })
       .limit(filters.near ? NEAR_SCAN_LIMIT : FEED_LIMIT * 2);
+    if (filters.minRentCents != null) query = query.gte("rent_cents", filters.minRentCents);
     if (filters.maxRentCents != null) query = query.lte("rent_cents", filters.maxRentCents);
     if (filters.moveInBy) query = query.or(`available_from.is.null,available_from.lte.${filters.moveInBy}`);
     const { data, error } = await query;
