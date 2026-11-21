@@ -105,15 +105,18 @@ flags.
 ### 2.3 Screen-by-screen
 
 **Fill my room (outgoing roommate), target under 10 minutes total**
-1. Two-question start: move-out date, rent for the room.
+1. The basics, one screen (host's call, Nov 2026): the date the room needs
+   filling, rent, security deposit (optional, at most two months' rent), then
+   the room's facts: neighborhood (address/ZIP or location), beds/baths, size,
+   lease term, amenities chips. They come before the tour because the video
+   puts them on screen; most are one tap or prefilled.
 2. Lease check (required): "My lease or landlord lets me find a replacement" /
    "I'm the leaseholder renting a room" / "Not sure" (shows a short guide;
    can still save a draft).
 3. Quick Tour: 3 guided shots of 5 s (room, shared space, bathroom), or upload
    from the camera roll. Optional 2 more shots for the full tour.
-4. Details, mostly prefilled: neighborhood (from location), beds/baths,
-   amenities chips, available date, lease term. AI suggests title and
-   description; the host confirms.
+4. Describe: AI writes the title and description from the clips; the host
+   confirms.
 5. AI edit: Teaser (~13 s) and Full tour (~25-30 s), with the existing hook
    styles; the host edits the callouts.
 6. Publish: public link `fenly.app/r/<id>`, video download, caption, one-tap

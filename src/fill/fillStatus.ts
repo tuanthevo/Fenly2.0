@@ -106,10 +106,10 @@ export function fillNudges(
   const { totals } = summary;
 
   if (ctx.daysLeft !== null && ctx.daysLeft < 0) {
-    nudges.push({ id: 'move_out_passed', priority: 0, text: 'Your move-out date has passed. Update it, or mark the room filled.' });
+    nudges.push({ id: 'move_out_passed', priority: 0, text: 'Your fill-by date has passed. Update it, or mark the room filled.' });
   } else if (ctx.daysLeft !== null && ctx.daysLeft <= 7) {
     const days = ctx.daysLeft === 1 ? '1 day' : `${ctx.daysLeft} days`;
-    nudges.push({ id: 'move_out_soon', priority: 1, text: `${days} until you move out. Repost in every channel today.` });
+    nudges.push({ id: 'move_out_soon', priority: 1, text: `${days} left to fill the room. Repost in every channel today.` });
   }
   if (totals.views === 0 && hoursLive >= 12) {
     nudges.push({ id: 'no_views', priority: 1, text: 'No views yet. Post your link in a Facebook housing group; it takes 2 minutes.' });

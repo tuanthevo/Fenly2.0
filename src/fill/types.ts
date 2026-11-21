@@ -14,6 +14,8 @@ export interface FillListingInfo {
   neighborhood: string | null;
   city: string;
   rentCents: number | null;
+  /** Security deposit; 0 = none, null = not given */
+  depositCents?: number | null;
   /** YYYY-MM-DD */
   availableFrom: string | null;
   /** YYYY-MM-DD */

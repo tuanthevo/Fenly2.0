@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  depositCheck,
   collectStrings,
   isIsoDate,
   listingFairHousingIssues,
@@ -135,4 +136,14 @@ test('raw clip paths round-trip their slot number', () => {
   assert.equal(slotFromRawPath(path), 3);
   assert.equal(slotFromRawPath('aaaa/full.mp4'), null);
   assert.equal(slotFromRawPath('aaaa/raw/slot-9.mp4'), null);
+});
+
+test('security deposit: optional, at most two months of rent, a note past one month', () => {
+  assert.deepEqual(depositCheck(145000, null), {});
+  assert.deepEqual(depositCheck(145000, 0), {});
+  assert.deepEqual(depositCheck(145000, 145000), {});
+  assert.ok(depositCheck(145000, 200000).note, 'over one month: a California note');
+  assert.equal(depositCheck(145000, 200000).error, undefined);
+  assert.ok(depositCheck(145000, 300000).error, 'over two months: blocked');
+  assert.deepEqual(depositCheck(0, 50000), {}, 'no rent yet: nothing to compare');
 });

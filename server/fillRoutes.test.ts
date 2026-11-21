@@ -67,6 +67,23 @@ test("listing page escapes listing text, shows facts, and links Apply with the c
   assert.ok(!/address:/i.test(html));
 });
 
+test("listing page shows the security deposit when the host set one", () => {
+  const page = (row: Record<string, unknown>) =>
+    renderListingPage({
+      listing: toFillListingInfo({ ...ROW, ...row }),
+      status: "published",
+      metaTags: "",
+      videoUrl: null,
+      posterUrl: null,
+      applyHref: "/?apply=aaaa",
+      findHref: "/",
+      today: "2026-11-17",
+    });
+  assert.ok(page({ deposit_cents: 145000 }).includes("$1,450 deposit"));
+  assert.ok(page({ deposit_cents: 0 }).includes("No deposit"));
+  assert.ok(!/deposit</i.test(page({ deposit_cents: null })), "no chip when unknown");
+});
+
 test("a filled listing says so and offers similar rooms instead of Apply", () => {
   const html = renderListingPage({
     listing: toFillListingInfo(ROW),

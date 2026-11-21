@@ -77,6 +77,8 @@ export function renderListingPage(input: ListingPageInput): string {
   const { listing } = input;
   const title = listing.title?.trim() || listingHeadline(listing);
   const rent = formatRentCents(listing.rentCents);
+  const deposit =
+    listing.depositCents == null ? null : listing.depositCents === 0 ? "No deposit" : `${formatRentCents(listing.depositCents)} deposit`;
   const moveIn = formatMoveIn(listing.availableFrom, input.today);
   const area = listing.neighborhood ? `${listing.neighborhood}, ${listing.city}` : listing.city;
   const specs = [listing.beds ? `${listing.beds} bd` : null, listing.baths ? `${listing.baths} ba` : null, listing.leaseTerm]
@@ -102,6 +104,7 @@ ${media ? `<div class="video">${media}</div>` : ""}
 <h1>${escapeHtml(title)}</h1>
 <div class="facts">
 ${rent ? `<span class="chip price">${escapeHtml(rent)}/mo</span>` : ""}
+${deposit ? `<span class="chip">${escapeHtml(deposit)}</span>` : ""}
 ${moveIn ? `<span class="chip sage">${moveIn === "now" ? "Move in now" : `Move in ${escapeHtml(moveIn)}`}</span>` : ""}
 <span class="chip">${escapeHtml(area)}</span>
 ${specs ? `<span class="chip">${escapeHtml(specs)}</span>` : ""}
