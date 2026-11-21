@@ -13,6 +13,7 @@ import {
   PERSON_PAD_SEC,
   BLOCKED_AFTER_SEC,
   REHOOK_MIN_ROOM_SEC,
+  readSecFor,
   roomDetail,
   MAX_TOUR_TOTAL_SEC,
   MOMENT_SEC,
@@ -347,6 +348,8 @@ test('the re-hook lands near the middle, between a room tag and its second callo
   const local = plan.rehook!.fromFrame - room.startFrame;
   assert.ok(local > room.tagInFrame);
   for (const c of room.callouts) assert.ok(local + plan.rehook!.durationInFrames <= c.inFrame, 'gone before the second callout');
+  // "Wait for the best part": 5 words, 1.2 + 5 × 0.22 = 2.3 s (the audit's reading-time rule)
+  assert.equal(plan.rehook!.durationInFrames, Math.round(2.3 * plan.fps), 'on long enough to read');
 });
 
 test('a short camera-roll clip as the closer is never slowed down; only the end card may hold a frame', () => {
@@ -688,7 +691,7 @@ test('the re-hook never crowds a short room: it lands on a room with time for it
   assert.ok(plan.rehook);
   const k = plan.shots.findIndex((s) => s.startFrame <= plan.rehook!.fromFrame && plan.rehook!.fromFrame < s.startFrame + s.durationInFrames);
   assert.ok(onScreen(plan, k) >= REHOOK_MIN_ROOM_SEC, `re-hook on ${plan.shots[k].id}, ${onScreen(plan, k).toFixed(1)} s on screen`);
-  assert.equal(plan.rehook!.durationInFrames, Math.round(1.2 * plan.fps));
+  assert.equal(plan.rehook!.durationInFrames, Math.round(readSecFor(plan.rehook!.text) * plan.fps), 'on long enough to read');
 });
 
 test('rooms and the opener start on a clear view, not a doorway or a chair in the foreground', () => {

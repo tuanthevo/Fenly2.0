@@ -249,6 +249,17 @@ export function orderShots(clips: ViralClipInput[], hookSlot: number): ViralClip
 export const NUMBER_READ_SEC = 0.3;
 
 /**
+ * The audit's reading-time rule for any on-screen text:
+ * max(0.8 s, 1.2 s + 0.22 s × words) + 0.3 s per number. Separators like "·" don't count.
+ */
+export function readSecFor(text: string): number {
+  const tokens = text.trim().split(/\s+/).filter((t) => /[\p{L}\d]/u.test(t));
+  if (tokens.length === 0) return 0;
+  const numbers = tokens.filter((t) => /\d/.test(t)).length;
+  return Math.max(0.8, 1.2 + 0.22 * tokens.length) + NUMBER_READ_SEC * numbers;
+}
+
+/**
  * Headline reading time: a beat to land, about 4.5 words per second, plus a
  * little more for each number, within the preset's range.
  */
@@ -967,18 +978,26 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
   const pick = [tourLabeled.filter(roomy), tourAll.filter(roomy), tourLabeled, tourAll].find((l) => l.length > 0) ?? [];
   const tourIdx = pick;
   if (n >= 4 && tourIdx.length > 0) {
+    const text = rehookText(style, last.slotNumber === 5);
+    // On screen long enough to read (grade.ts reading-time row), and gone before the room's next callout
+    const need = Math.round(readSecFor(text) * fps);
+    const fromFor = (k: number) =>
+      // 0.3 s after the room tag: the shortest gap between two text entrances (grade.ts ENTRANCE_GAP_SEC)
+      shots[k].startFrame + (length === 'full' ? shots[k].tagInFrame + Math.round(0.3 * fps) : shots[k].inOverlapFrames + 6);
+    const roomFor = (k: number) => {
+      const local = fromFor(k) - shots[k].startFrame;
+      const nextCallout = shots[k].callouts.map((c) => c.inFrame).filter((f) => f > local);
+      return Math.min(primary[k] - local - 8, ...nextCallout.map((f) => f - local - 2));
+    };
     const target = (length === 'full' ? 0.45 : 0.5) * totalFrames;
-    const k =
-      length === 'full'
-        ? tourIdx.reduce((a, b) => (Math.abs(shots[b].startFrame - target) < Math.abs(shots[a].startFrame - target) ? b : a))
-        : Math.floor(n / 2);
-    const shot = shots[k];
-    const from = shot.startFrame + (length === 'full' ? shot.tagInFrame + Math.round(0.5 * fps) : shot.inOverlapFrames + 6);
-    const room = primary[k] - (from - shot.startFrame) - 8;
+    const nearest = (list: number[]) =>
+      list.reduce((a, b) => (Math.abs(shots[b].startFrame - target) < Math.abs(shots[a].startFrame - target) ? b : a));
+    const fits = tourIdx.filter((i) => roomFor(i) >= need);
+    const k = length === 'full' ? nearest(fits.length ? fits : tourIdx) : fits.length ? nearest(fits) : Math.floor(n / 2);
     rehook = {
-      text: rehookText(style, last.slotNumber === 5),
-      fromFrame: from,
-      durationInFrames: Math.min(Math.round(1.2 * fps), Math.max(12, room)),
+      text,
+      fromFrame: fromFor(k),
+      durationInFrames: Math.min(need, Math.max(12, roomFor(k))),
     };
   }
 
