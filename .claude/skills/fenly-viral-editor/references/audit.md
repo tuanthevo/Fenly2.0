@@ -55,7 +55,7 @@ Delete the PNGs afterwards. `out/` is gitignored, but keep it tidy.
 | 4 | Placement | Text under the platform UI or over the subject | Inside `SAFE` but crowded | Inside `SAFE`, clear of the subject, one element at a time |
 | 5 | Reading time | Text leaves before it can be read | Tight | Passes the rule: max(0.8 s, 1.2 s + 0.22 s × words) + 0.3 s per number |
 | 6 | Change rate | Gaps over 4 s with nothing new | 3-4 s | Something new every 2-3 s, uneven |
-| 7 | Speed | Fast-forward look, a crawl, or any shot under 1.0x (stutter) | Uneven between rooms | Natural walk at 1.0-1.15x everywhere, no ramps, no slow motion (Fenly, Nov 2026) |
+| 7 | Speed | Fast-forward look, a crawl, or any shot under 1.0x (stutter) | Uneven between rooms | Natural walk at 1.0-1.15x everywhere (up to 1.35x when a tour past 50 s is sped up to fit), no ramps, no slow motion (Fenly, Nov 2026) |
 | 8 | Room openings | A wall, door edge or freeze | One weak opening | Every room opens on a clear, wide view |
 | 9 | Look | Rooms look like different homes | Mostly consistent | Bright, true, consistent; windows not blown out |
 | 10 | Ending | No question, or no loop | One of them | Real price question, last frame matches frame 0 |

@@ -1,8 +1,8 @@
 /**
  * Turns the host's guided clips into a short-form edit plan.
  *
- * FULL TOUR (default, balanced pace, 5 guided 7 s shots, about 34 s; long clips
- * add a second moment per room, up to 45 s. Rooms play at a calm speed matched
+ * FULL TOUR (default, balanced pace, 5 guided shots, about 34 s for 7 s clips; clips with
+ * 8 s+ of clean footage add a second moment per room, up to 50 s, sped up to fit past that. Rooms play at a calm speed matched
  * to the camera's movement, 0.85-1.15x, with no speed ramps.)
  *   0.0 s   HOOK     best frame of the best shot, price + neighborhood headline.
  *                    On screen for its reading time (2.5-3.2 s), 1.0x speed.
@@ -103,10 +103,10 @@ export type LengthPreset = {
 export const LENGTH_PRESETS: Record<ViralLength, LengthPreset> = {
   full: {
     label: 'Full tour',
-    approxLabel: '30-45s',
+    approxLabel: '30-50s',
     hook: { baseSec: 1.2, perWordSec: 0.22, minSec: 2.5, maxSec: 3.2 },
     heroFactsSec: 3,
-    // Targets for a 30-45 s tour; each room still shrinks to its clean footage rather than crawl or show a wall
+    // Targets for a 30-50 s tour; each room still shrinks to its clean footage rather than crawl or show a wall
     tourSec: 7,
     minTourSec: 2.6,
     closerSec: 5,
@@ -181,14 +181,22 @@ const SOURCE_TAIL_SEC = 0.05;
  * headline, and a closer that isn't the perk gets a moment before its reveal.
  */
 export const MOMENT_SEC = 5.5;
-/** Clean footage a room needs before it is split into two moments */
-export const SPLIT_MIN_CLEAN_SEC = 10;
+/** Clean footage a room needs before it is split into two moments (10 s recordings have ~8 s; host, Nov 2026) */
+export const SPLIT_MIN_CLEAN_SEC = 8;
 /** Clean footage left beside the opener's headline that's worth a moment of its own */
 export const EXTRA_MIN_CLEAN_SEC = 4;
 /** Footage skipped between two moments of one clip, so the cut reads as a cut */
 const MOMENT_GAP_SEC = 0.5;
-/** Extra moments are dropped, last first, until the tour fits this */
-export const MAX_TOUR_TOTAL_SEC = 45;
+/**
+ * Longest tour (host's call, Nov 2026). Past it, rooms first play faster (same
+ * footage, up to MAX_FIT_RATE); only if that's not enough are extra moments
+ * dropped, last first.
+ */
+export const MAX_TOUR_TOTAL_SEC = 50;
+/** Fastest a room or the closer may play to fit MAX_TOUR_TOTAL_SEC: still a natural, confident walk (skill: 1.25-1.35x) */
+export const MAX_FIT_RATE = 1.35;
+/** Speed-up steps tried to fit MAX_TOUR_TOTAL_SEC */
+export const FIT_SPEED_STEP = 0.05;
 /** On-screen text size for video tours (photo tours use PHOTO_TEXT_SCALE) */
 export const VIDEO_TEXT_SCALE = 0.8;
 const MIN_START_SEC = 0.25;
@@ -659,15 +667,22 @@ export function editableShots(plan: Pick<ViralEditPlan, 'shots'>): ViralShot[] {
 }
 
 export function buildViralEditPlan(input: BuildViralPlanInput, options: BuildViralPlanOptions = {}): ViralEditPlan {
+  const fits = (p: ViralEditPlan) => p.totalFrames / p.fps <= MAX_TOUR_TOTAL_SEC + 1e-6;
   let plan = buildPlanWith(input, options, Infinity);
-  // Too long: drop extra moments, last first
-  for (let extras = plan.shots.filter((s) => s.part === 2).length - 1; extras >= 0 && plan.totalFrames / plan.fps > MAX_TOUR_TOTAL_SEC; extras--) {
-    plan = buildPlanWith(input, options, extras);
+  if (fits(plan)) return plan;
+  // Too long: play the rooms a little faster (same footage) before dropping any; then drop extra
+  // moments, last first, each time trying the slowest speed that fits
+  const allExtras = plan.shots.filter((s) => s.part === 2).length;
+  for (let extras = allExtras; extras >= 0; extras--) {
+    for (let speedUp = extras === allExtras ? 1 + FIT_SPEED_STEP : 1; speedUp <= MAX_FIT_RATE + 1e-6; speedUp += FIT_SPEED_STEP) {
+      plan = buildPlanWith(input, options, extras, Math.round(speedUp * 100) / 100);
+      if (fits(plan)) return plan;
+    }
   }
   return plan;
 }
 
-function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOptions, maxExtras: number): ViralEditPlan {
+function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOptions, maxExtras: number, speedUp = 1): ViralEditPlan {
   const given = input.clips.filter((c) => Boolean(c.src));
   if (given.length === 0) throw new Error('buildViralEditPlan needs at least one clip');
   // Skip footage with a person in it; a clip that's people throughout is left out (if others remain)
@@ -727,15 +742,19 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
 
   // Speeds: rooms matched to camera movement; the closer eases into slow motion.
   // keepRates: how far a shot may slow down to fill its section with clean footage.
+  // speedUp > 1 only when the tour runs past MAX_TOUR_TOTAL_SEC: rooms and the closer play faster
+  // (never past MAX_FIT_RATE) and their sections shrink to match, so the same footage takes less time.
+  // The opener stays at real time so frame 0 and the headline read cleanly.
+  const fast = (rate: number) => (speedUp > 1 ? round3(Math.min(MAX_FIT_RATE, Math.max(rate, rate * speedUp))) : rate);
   const rates = roles.map((role, i) =>
-    role === 'hook' ? SPEED.hero : role === 'closer' ? lp.closerRate : motionMatchedRate(sources[i].motion, length, pace)
+    role === 'hook' ? SPEED.hero : role === 'closer' ? fast(lp.closerRate) : fast(motionMatchedRate(sources[i].motion, length, pace))
   );
   const keepRates = roles.map((role, i) =>
     role === 'hook'
       ? HERO_KEEP_RATE
       : role === 'closer'
-      ? CLOSER_KEEP_RATE
-      : round3(Math.min(rates[i], Math.max(lp.tourRate.min, rates[i] * ROOM_KEEP_FACTOR)))
+      ? Math.min(rates[i], fast(CLOSER_KEEP_RATE))
+      : round3(Math.min(rates[i], Math.max(fast(lp.tourRate.min), rates[i] * ROOM_KEEP_FACTOR)))
   );
 
   // Section lengths: the preset's targets, shortened to the clean footage each clip has
@@ -760,13 +779,13 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
       const rampExtra = ramp ? (ramp.frames * (ramp.rate - keepRates[i])) / fps : 0;
       const fit = (cleanSeconds(sources[i], 'closer') - rampExtra) / keepRates[i] - 1 / fps;
       const floor = Math.min(MIN_CLOSER_SEC * preset.scale, hardMax(i, SPEED.minCloser));
-      return clamp(fit, floor, lp.closerSec * preset.scale);
+      return clamp(fit, floor, (lp.closerSec * preset.scale) / speedUp);
     }
     // A room keeps its matched speed and gets shorter rather than crawl to fill time
     const rampExtra = ramp ? (ramp.frames * (ramp.rate - keepRates[i])) / fps : 0;
     const fit = (cleanSeconds(sources[i], 'tour') - rampExtra) / keepRates[i] - spareSec(i);
     const floor = Math.min(lp.minTourSec * preset.scale, hardMax(i, SPEED.minTour));
-    return clamp(fit, floor, (isSplit(i) ? MOMENT_SEC : lp.tourSec) * preset.scale);
+    return clamp(fit, floor, ((isSplit(i) ? MOMENT_SEC : lp.tourSec) * preset.scale) / speedUp);
   });
   const { primary, endCard: endCardFrames } = snapToBeats(seconds, lp.endCardSec * preset.scale, fps, bpm);
 

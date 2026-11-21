@@ -10,7 +10,7 @@
  *
  * Pure and unit tested (grade.test.ts).
  */
-import { changeFrames, readSecFor } from './plan';
+import { changeFrames, MAX_FIT_RATE, readSecFor } from './plan';
 import { MAX_HOOK_CHARS } from './copy';
 import { TYPE } from './theme';
 import type { ClipAnalysis, ViralClipInput, ViralEditPlan, ViralShot } from './types';
@@ -277,21 +277,23 @@ export function gradePlan(
     );
   }
 
-  // 7. Speed: natural walk, 1.0-1.15x, no ramps, nothing under 1.0x
+  // 7. Speed: natural walk, 1.0-1.15x, no ramps, nothing under 1.0x. Up to MAX_FIT_RATE (1.35x, still a
+  // confident walk) is allowed when a tour past 50 s plays its rooms faster to fit (host's call, Nov 2026).
   {
     const rates = plan.shots.map((s) => s.playbackRate);
     const slow = plan.shots.filter((s) => s.playbackRate < 1 - 1e-6);
     const fast = plan.shots.filter((s) => s.playbackRate > 1.6);
     const ramps = plan.shots.filter((s) => s.rampFrames > 0);
-    const outside = plan.shots.filter((s) => s.playbackRate > 1.15 + 1e-6);
+    const outside = plan.shots.filter((s) => s.playbackRate > MAX_FIT_RATE + 1e-6);
+    const fitted = plan.shots.some((s) => s.playbackRate > 1.15 + 1e-6);
     const score = (slow.length || fast.length ? 0 : outside.length || ramps.length ? 1 : 2) as 0 | 1 | 2;
     rows.push(
       row(
         'speed',
         'Speed',
         score,
-        `Rooms play at ${Math.min(...rates).toFixed(2)}-${Math.max(...rates).toFixed(2)}x${ramps.length ? ', with speed ramps' : ''}.`,
-        slow.length ? 'Never slow phone footage below 1.0x: it stutters.' : 'Keep every room between 1.0x and 1.15x.',
+        `Rooms play at ${Math.min(...rates).toFixed(2)}-${Math.max(...rates).toFixed(2)}x${fitted && !outside.length ? ' (faster to fit 50 s)' : ''}${ramps.length ? ', with speed ramps' : ''}.`,
+        slow.length ? 'Never slow phone footage below 1.0x: it stutters.' : 'Keep every room between 1.0x and 1.35x.',
         [...slow, ...fast].map((s) => s.slotNumber)
       )
     );

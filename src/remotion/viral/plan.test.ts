@@ -16,6 +16,7 @@ import {
   readSecFor,
   roomDetail,
   MAX_TOUR_TOTAL_SEC,
+  MAX_FIT_RATE,
   MOMENT_SEC,
   VIDEO_TEXT_SCALE,
   motionMatchedRate,
@@ -488,7 +489,8 @@ test('a late best frame keeps the cover; the facts move to the end card instead 
 
 test('long clips use a second moment of the same room instead of being thrown away (3 shots: 9 / 20 / 20 s)', () => {
   const clips = guidedClips([1, 2, 3]).map((c, i) => ({ ...c, durationSec: [9, 20, 20][i] }));
-  const before = buildViralEditPlan({ listing, clips: guidedClips([1, 2, 3]).map((c) => ({ ...c, durationSec: 9 })) });
+  // Short (7 s) clips have too little clean footage to split (SPLIT_MIN_CLEAN_SEC)
+  const before = buildViralEditPlan({ listing, clips: guidedClips([1, 2, 3]) });
   const plan = buildViralEditPlan({ listing, clips });
   assert.deepEqual(checkPlan(plan), []);
   assert.ok(sec(plan) >= 30 && sec(plan) <= MAX_TOUR_TOTAL_SEC, `duration ${sec(plan)}s`);
@@ -760,6 +762,37 @@ test('nothing ever plays below real time: opener, rooms, closer, for every lengt
         assert.deepEqual(checkPlan(plan), []);
         for (const s of plan.shots) assert.ok(s.playbackRate >= 1, `${length} ${pace} ${dur}s: ${s.id} at ${s.playbackRate}x`);
       }
+    }
+  }
+});
+
+test('10 s recordings: rooms get a second moment, and the tour stays under 50 s at real speed', () => {
+  const plan = buildViralEditPlan({ listing, clips: guidedClips([1, 2, 3, 4, 5], 10) });
+  assert.deepEqual(checkPlan(plan), []);
+  assert.equal(MAX_TOUR_TOTAL_SEC, 50);
+  assert.ok(sec(plan) > 30 && sec(plan) <= MAX_TOUR_TOTAL_SEC, `duration ${sec(plan)}s`);
+  assert.ok(plan.shots.some((s) => s.part === 2), 'longer footage is used, not thrown away');
+  for (const s of plan.shots) assert.ok(s.playbackRate >= 1 && s.playbackRate <= 1.15, `${s.id} ${s.playbackRate}x`);
+});
+
+test('a tour past 50 s plays its rooms faster (same footage) before dropping any moment', () => {
+  const clips = guidedClips([1, 2, 3, 4, 5], 20);
+  const plan = buildViralEditPlan({ listing, clips });
+  assert.deepEqual(checkPlan(plan), []);
+  assert.ok(sec(plan) <= MAX_TOUR_TOTAL_SEC, `duration ${sec(plan)}s`);
+  assert.equal(plan.shots[0].playbackRate, 1, 'the opener stays real time: frame 0 and the headline read cleanly');
+  assert.ok(plan.shots.slice(1).some((s) => s.playbackRate > 1), 'rooms play faster to fit');
+  for (const s of plan.shots) assert.ok(s.playbackRate <= MAX_FIT_RATE, `${s.id} ${s.playbackRate}x`);
+  assert.equal(plan.shots.filter((s) => s.part === 2).length, 4, 'every second moment is kept');
+});
+
+test('no tour runs past 50 s or past 1.35x, however long the clips', () => {
+  for (const d of [8, 10, 12, 15, 20, 30, 60]) {
+    for (const slots of [[1, 2, 3], [1, 2, 3, 4, 5]]) {
+      const plan = buildViralEditPlan({ listing, clips: guidedClips(slots, d) });
+      assert.deepEqual(checkPlan(plan), [], `${slots.length} x ${d}s`);
+      assert.ok(sec(plan) <= MAX_TOUR_TOTAL_SEC, `${slots.length} x ${d}s: ${sec(plan)}s`);
+      for (const s of plan.shots) assert.ok(s.playbackRate >= 1 && s.playbackRate <= MAX_FIT_RATE, `${slots.length} x ${d}s ${s.id} ${s.playbackRate}x`);
     }
   }
 });
