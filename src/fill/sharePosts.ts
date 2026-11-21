@@ -2,8 +2,8 @@
  * Prewritten posts for each channel in the share kit. Facts only (rent, area,
  * move-in date, room details); never who should live there (fair housing).
  */
-import type { FillListingInfo, ShareChannel } from './types';
-import { areaLabel, formatMoveIn, formatRentCents } from './publicListing';
+import type { FillListingInfo, ShareChannel } from './types.js';
+import { areaLabel, formatMoveIn, formatRentCents } from './publicListing.js';
 
 export type SharePosts = {
   facebook: { text: string };

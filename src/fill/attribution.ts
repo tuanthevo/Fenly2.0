@@ -6,8 +6,8 @@
  * Rule: the most recent non-direct link within 7 days wins; a direct visit never
  * overwrites a channel that is still fresh.
  */
-import type { ShareChannel } from './types';
-import { isLinkCode } from './linkCodes';
+import type { ShareChannel } from './types.js';
+import { isLinkCode } from './linkCodes.js';
 
 export const ATTRIBUTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 

@@ -4,7 +4,7 @@
  * never addresses, documents or anything from a Passport beyond what the
  * recipient already sees in the app.
  */
-import { escapeHtml } from "../src/fill/publicListing";
+import { escapeHtml } from "../src/fill/publicListing.js";
 
 export const NOTIFICATION_KINDS = [
   "new_applicant",

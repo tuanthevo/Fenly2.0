@@ -3,9 +3,9 @@
  * the AI summary request. The AI only ever sees numbered applicants' factual
  * fields, never names, photos, bios or notes.
  */
-import type { FactualApplicant } from './factualApplicant';
-import { LIFESTYLE_QUESTIONS } from './lifestyle';
-import { formatRentCents } from '../fill/publicListing';
+import type { FactualApplicant } from './factualApplicant.js';
+import { LIFESTYLE_QUESTIONS } from './lifestyle.js';
+import { formatRentCents } from '../fill/publicListing.js';
 
 export function declineTemplate(firstName: string | null | undefined, listingArea: string): string {
   const hi = firstName?.trim() ? `Hi ${firstName.trim()},` : 'Hi,';

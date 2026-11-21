@@ -2,7 +2,7 @@
  * Pure helpers for the public listing page (/r/<code>) and its link previews.
  * Area only, never an exact address.
  */
-import type { FillListingInfo } from './types';
+import type { FillListingInfo } from './types.js';
 
 const HTML_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 

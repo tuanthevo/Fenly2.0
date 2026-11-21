@@ -8,9 +8,9 @@
  * locally with no AI call; only free-form requests go to a small text-only
  * model, which returns the same kind of patch.
  */
-import { cleanTag, sanitizeHookText, stripEmoji, violatesFairHousing } from './copy';
-import { NATURAL_LOOK, normalizeLook } from './look';
-import type { ClipAnalysis, ViralAiHints, ViralLength, ViralListingInfo, ViralLook, ViralPace, ViralStyleId } from './types';
+import { cleanTag, sanitizeHookText, stripEmoji, violatesFairHousing } from './copy.js';
+import { NATURAL_LOOK, normalizeLook } from './look.js';
+import type { ClipAnalysis, ViralAiHints, ViralLength, ViralListingInfo, ViralLook, ViralPace, ViralStyleId } from './types.js';
 
 export type ViralMusicChoice = {
   /** blob: URL of the track (AI-made or uploaded; saved with the listing) */

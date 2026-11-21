@@ -6,8 +6,8 @@
  * Filters are logistics only (where, how much, when). factualApplicant.test.ts
  * checks FIND_FILTER_KEYS for protected traits.
  */
-import type { RoomListing } from '../types';
-import { DEFAULT_RADIUS_MILES, RADIUS_MILES, areaCenter, distanceMiles, inBayAreaBounds } from '../geo/bayArea';
+import type { RoomListing } from '../types.js';
+import { DEFAULT_RADIUS_MILES, RADIUS_MILES, areaCenter, distanceMiles, inBayAreaBounds } from '../geo/bayArea.js';
 
 /** "Rooms within `miles` of `label`" (the point comes from the Maps lookup or our place list). */
 export type FindNear = { label: string; lat: number; lng: number; miles: number };

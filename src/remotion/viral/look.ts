@@ -4,7 +4,7 @@
  * grade already applies to every frame, so changing the look costs nothing
  * extra in the preview or the export.
  */
-import type { ViralLook } from './types';
+import type { ViralLook } from './types.js';
 
 export const NATURAL_LOOK: ViralLook = { brightness: 0, warmth: 0, contrast: 0, saturation: 0 };
 

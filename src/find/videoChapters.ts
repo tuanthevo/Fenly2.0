@@ -4,7 +4,7 @@
  * left/right swipe. The video's own story bar has one segment per shot, so a
  * jump lands exactly on a segment boundary.
  */
-import type { ViralEditPlan } from '../remotion/viral/types';
+import type { ViralEditPlan } from '../remotion/viral/types.js';
 
 const MAX_CHAPTERS = 20;
 const MAX_VIDEO_SEC = 180;
