@@ -33,6 +33,7 @@ export const EVENT_NAMES = [
   "shortlisted",
   "chosen",
   "room_filled",
+  "room_reopened",
   "id_verified",
   "message_sent",
   "report_submitted",

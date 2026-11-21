@@ -380,12 +380,65 @@ export function registerHostRoutes(app: Express): void {
             listingId: listing.id,
             payload: { area, firstName: (names ?? []).find((n) => n.id === o.applicant_id)?.first_name ?? null, similar, path: "/?inbox=taken" },
             appUrl: origin,
-            dedupeKey: `room_taken:${o.id}`,
+            // The fill time is part of the key: a room reopened and filled again tells them again
+            dedupeKey: `room_taken:${o.id}:${now}`,
           })
         )
       );
     }
     res.json({ status: "chosen", listingStatus: "filled", othersNotified: others?.length ?? 0 });
+  });
+
+  // Reopen a filled room (host only), e.g. the chosen renter backed out. The room goes live again,
+  // the chosen application returns to the shortlist (the host can choose or decline again), and
+  // everyone told "this room is taken" gets their application back, with a note.
+  app.post("/api/listings/:id/reopen", requireUser(), async (req, res) => {
+    const user = currentUser(res)!;
+    const admin = adminDb(res);
+    const db = userDb(res);
+    if (!admin || !db) return;
+    const ctx = await houseContext(admin, res, req.params.id, user);
+    if (!ctx) return;
+    if (ctx.role !== "host") return res.status(403).json({ error: "host_only", message: "Only the host can reopen the room." });
+    const listing = ctx.listing;
+    if (listing.status !== "filled") return res.status(409).json({ error: "not_filled", message: "This room is already open." });
+    const { data: apps } = await admin
+      .from("applications")
+      .select("id, applicant_id, status, decline_reason")
+      .eq("listing_id", listing.id)
+      .or("status.eq.chosen,and(status.eq.declined,decline_reason.eq.room_filled)");
+    const chosenIds = (apps ?? []).filter((a) => a.status === "chosen").map((a) => a.id);
+    const back = (apps ?? []).filter((a) => a.status === "declined");
+    const opened = await db.from("listings").update({ status: "published", filled_at: null }).eq("id", listing.id);
+    if (opened.error) return dbError(res, opened.error, "reopen listing");
+    if (chosenIds.length) {
+      const r = await db.from("applications").update({ status: "shortlisted" }).in("id", chosenIds);
+      if (r.error) return dbError(res, r.error, "reopen chosen");
+    }
+    if (back.length) {
+      const r = await db.from("applications").update({ status: "submitted", decline_reason: null }).in("id", back.map((a) => a.id));
+      if (r.error) return dbError(res, r.error, "reopen applicants");
+    }
+    await track("room_reopened", { applicants: back.length }, { userId: user.id, listingId: listing.id });
+    if (back.length) {
+      const origin = publicOrigin(req);
+      const area = areaOf(listing);
+      const reopenedAt = new Date().toISOString();
+      const { data: names } = await admin.from("users").select("id, first_name").in("id", back.map((a) => a.applicant_id));
+      await Promise.all(
+        back.map((a) =>
+          notify({
+            userId: a.applicant_id,
+            kind: "room_reopened",
+            listingId: listing.id,
+            payload: { area, firstName: (names ?? []).find((n) => n.id === a.applicant_id)?.first_name ?? null, path: `/?inbox=${a.id}` },
+            appUrl: origin,
+            dedupeKey: `room_reopened:${a.id}:${reopenedAt}`,
+          })
+        )
+      );
+    }
+    res.json({ listingStatus: "published", applicantsBack: back.length });
   });
 
   // Housemates (and the host) vote; 0 removes the vote.

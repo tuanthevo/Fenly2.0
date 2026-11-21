@@ -11,6 +11,7 @@ export const NOTIFICATION_KINDS = [
   "chosen",
   "declined",
   "room_taken",
+  "room_reopened",
   "move_out_reminder",
   "id_check_requested",
   "new_rooms",
@@ -80,6 +81,11 @@ export function buildEmail(kind: NotificationKind, p: EmailPayload, appUrl: stri
       subject = `Update on the room in ${area}`;
       lines = [hi, p.message?.trim() || `The host went with another applicant for the room in ${area}.`, "There are new rooms in Find every week."];
       cta = "Find another room";
+      break;
+    case "room_reopened":
+      subject = `The room in ${area} is open again`;
+      lines = [hi, `The room in ${area} you applied for is available again.`, "Your application is back with the host. Message them if you're still interested."];
+      cta = "Open the conversation";
       break;
     case "room_taken":
       subject = `The room in ${area} is taken`;

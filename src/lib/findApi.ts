@@ -100,6 +100,7 @@ export const findApi = {
     ),
   act: (applicationId: string, action: 'shortlist' | 'decline' | 'choose' | 'request-id', body: Record<string, unknown> = {}) =>
     api<Record<string, unknown>>(`/api/applications/${applicationId}/${action}`, { method: 'POST', body }),
+  reopen: (listingId: string) => api<{ listingStatus: string; applicantsBack: number }>(`/api/listings/${listingId}/reopen`, { method: 'POST', body: {} }),
   vote: (applicationId: string, vote: 1 | -1 | 0) => api<{ vote: number }>(`/api/applications/${applicationId}/vote`, { method: 'POST', body: { vote } }),
   invite: (listingId: string) => api<{ url: string; expiresInDays: number }>(`/api/listings/${listingId}/invites`, { method: 'POST', body: {} }),
   redeemInvite: (token: string) =>
