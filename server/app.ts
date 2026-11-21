@@ -38,10 +38,13 @@ import {
   isEmptyPatch,
   localEditPatch,
   sanitizeEditPatch,
+  sanitizeEditSettings,
   type ViralEditSettings,
 } from "../src/remotion/viral/editSettings.js";
 import { buildMusicPrompt, musicLabel, sanitizeMusicMood } from "../src/remotion/viral/musicMood.js";
 import type { ViralAiHints } from "../src/remotion/viral/types.js";
+import { createRateLimiter, rateLimit } from "./rateLimit.js";
+import { promptListing } from "./promptInput.js";
 import { requireFlag } from "./flags.js";
 import { registerFoundationRoutes } from "./foundationRoutes.js";
 import { registerFillRoutes } from "./fillRoutes.js";
@@ -54,6 +57,11 @@ import { registerAdminRoutes } from "./adminRoutes.js";
 const app = express();
 
 app.use(express.json({ limit: "25mb" }));
+
+// AI routes cost money per call and stay open to signed-out hosts: cap each client.
+// Human use is a few calls a minute; music (Lyria) is the most expensive, so it gets less.
+app.use(["/api/gemini", "/api/viral", "/api/chat", "/api/verification"], rateLimit(createRateLimiter({ max: 60, windowMs: 10 * 60_000 }), "ai"));
+app.use("/api/viral/music", rateLimit(createRateLimiter({ max: 6, windowMs: 60 * 60_000 }), "music"));
 
 // Health check: confirms the API is reachable and whether a Gemini key is set (never the key itself).
 app.get("/api/health", (_req, res) => {
@@ -978,7 +986,7 @@ const MAX_AI_HOOK_WORDS = 8;
 app.post("/api/viral/copy", async (req, res) => {
   const startTime = Date.now();
   const body = req.body || {};
-  const listing = body.listing || {};
+  const listing = promptListing(body.listing);
   const shots: { slotNumber: number; room: string; jpegBase64?: string }[] = Array.isArray(body.shots)
     ? body.shots
         .filter((s: any) => Number.isInteger(s?.slotNumber) && s.slotNumber >= 1 && s.slotNumber <= 5)
@@ -990,18 +998,16 @@ app.post("/api/viral/copy", async (req, res) => {
     return;
   }
 
-  const rent = Number(listing.monthlyRent) || 0;
-  const rentLabel = `$${rent.toLocaleString("en-US")}/mo`;
-  const neighborhood = String(listing.neighborhood || "").slice(0, 60);
-  const city = String(listing.city || "").slice(0, 60);
-  const amenities = (Array.isArray(listing.amenities) ? listing.amenities : []).slice(0, 8).join(", ");
+  const rentLabel = `$${listing.monthlyRent.toLocaleString("en-US")}/mo`;
+  const { neighborhood, city } = listing;
+  const amenities = listing.amenities.join(", ");
   const slotNumbers = shots.map((s) => s.slotNumber);
 
   try {
     const parts: any[] = [];
     for (const shot of shots) {
       parts.push({ text: `Shot ${shot.slotNumber} (${String(shot.room || "").slice(0, 40)}):` });
-      if (typeof shot.jpegBase64 === "string" && shot.jpegBase64.length > 0 && shot.jpegBase64.length < 600_000) {
+      if (typeof shot.jpegBase64 === "string" && shot.jpegBase64.length > 0 && shot.jpegBase64.length < 600_000 && /^[A-Za-z0-9+/=]+$/.test(shot.jpegBase64)) {
         parts.push({ inlineData: { mimeType: "image/jpeg", data: shot.jpegBase64 } });
       }
     }
@@ -1009,7 +1015,7 @@ app.post("/api/viral/copy", async (req, res) => {
       text: `You write on-screen text for a 15-30 second vertical rental tour video (TikTok / Reels / Shorts).
 Listing facts:
 - Rent: ${rentLabel}
-- ${listing.beds} bed, ${listing.baths} bath, ${String(listing.roomType || "")}${listing.squareFeet ? `, ${listing.squareFeet} sq ft` : ""}
+- ${listing.beds} bed, ${listing.baths} bath, ${listing.roomType}${listing.squareFeet ? `, ${listing.squareFeet} sq ft` : ""}
 - Neighborhood: ${neighborhood}, ${city}
 - Amenities: ${amenities}
 
@@ -1125,7 +1131,7 @@ app.post("/api/viral/edit", async (req, res) => {
   const startTime = Date.now();
   const body = req.body || {};
   const request = typeof body.request === "string" ? body.request.trim().slice(0, 300) : "";
-  const settings: ViralEditSettings = { ...DEFAULT_EDIT_SETTINGS, ...(body.settings || {}) };
+  const settings: ViralEditSettings = sanitizeEditSettings(body.settings);
   const shots: { slotNumber: number; room: string; tag: string; detail: string }[] = Array.isArray(body.shots)
     ? body.shots
         .filter((s: any) => Number.isInteger(s?.slotNumber) && s.slotNumber >= 1 && s.slotNumber <= 5)
@@ -1138,7 +1144,7 @@ app.post("/api/viral/edit", async (req, res) => {
         }))
     : [];
   const slotNumbers = shots.map((s) => s.slotNumber);
-  const listing = body.listing || {};
+  const listing = promptListing(body.listing);
   const local = () => localEditPatch(request, settings)?.patch ?? null;
 
   if (!request) {
@@ -1151,7 +1157,7 @@ app.post("/api/viral/edit", async (req, res) => {
   }
 
   try {
-    const rentLabel = `$${(Number(listing.monthlyRent) || 0).toLocaleString("en-US")}/mo`;
+    const rentLabel = `$${listing.monthlyRent.toLocaleString("en-US")}/mo`;
     const response = await ai.models.generateContent({
       model: GEMINI_FLASH_LITE_MODEL,
       contents: `You adjust a vertical rental-tour video by changing its settings. Return only what the host asked to change.
@@ -1162,7 +1168,7 @@ Current settings:
 - hook style: ${settings.style} (price-hook | guess-rent | pov); hook text: "${String(body.hookText || "").slice(0, 80)}"
 - sound effects: ${settings.sfxOn ? "on" : "off"}; room sound: ${settings.roomSound ? "on" : "off"}; music: ${settings.music ? `on, volume ${settings.music.volume}` : "none"}
 - rooms (slotNumber, room, callout, second callout): ${JSON.stringify(shots.map((s) => [s.slotNumber, s.room, s.tag, s.detail]))}
-Listing: ${rentLabel}, ${String(listing.neighborhood || "").slice(0, 60)}, ${String(listing.city || "").slice(0, 60)}, ${listing.beds} bed ${listing.baths} bath.
+Listing: ${rentLabel}, ${listing.neighborhood}, ${listing.city}, ${listing.beds} bed ${listing.baths} bath.
 
 Host's request: "${request}"
 

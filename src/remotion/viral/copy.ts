@@ -294,7 +294,14 @@ export function defaultTags(listing: ViralListingInfo): Record<number, string> {
  * soft warning in the editor.
  */
 const FAIR_HOUSING_PATTERNS: RegExp[] = [
-  /\b(perfect|ideal|great|best|suited|made)\s+for\s+(an?\s+)?(young|single|singles|couple|couples|students?|professionals?|famil(y|ies)|kids|children|men|women|guys|girls|bachelors?|retirees?|seniors?|christians?|muslims?|jewish)\b/i,
+  /\b(perfect|ideal|great|best|suited|made)\s+for\s+(an?\s+)?((quiet|working|busy|mature|responsible|clean|grad|graduate)\s+)?(young|single|singles|couple|couples|students?|professionals?|famil(y|ies)|kids|children|men|women|guys|girls|bachelors?|retirees?|seniors?|christians?|muslims?|jewish)\b/i,
+  // Source of income (protected in California and San Francisco)
+  /\b(no|not accepting|don't accept|do not accept)\s+(section\s*8|vouchers?|housing\s+assistance)\b/i,
+  /\b(section\s*8|vouchers?)\s+(not\s+(accepted|allowed|welcome))\b/i,
+  // National origin, disability, age
+  /\b(english|spanish|chinese|native)\s+speakers?\s+only\b/i,
+  /\b(able[- ]bodied|no\s+wheelchairs?)\b/i,
+  /\bmature\s+(adults?|persons?|people|tenants?)\b/i,
   /\b(no|without)\s+(kids|children|families|babies)\b/i,
   /\b(adults?|singles?|couples?|men|women|males?|females?|christians?|muslims?)\s+only\b/i,
   /\b(only|just)\s+(adults?|singles?|couples?|men|women|males?|females?)\b/i,

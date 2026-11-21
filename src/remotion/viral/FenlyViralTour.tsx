@@ -36,6 +36,7 @@ import { sfxSrc } from './sfx';
 import { FENN } from './theme';
 import { gradeFor } from './look';
 import { CutOverlay, cutPresentation, isOverlayCut } from './transitions';
+import { PUNCH_FRAMES, PUNCH_SCALE } from './plan';
 import type { ViralCutKind, ViralEditPlan, ViralShot } from './types';
 
 export type FenlyViralTourProps = { plan: ViralEditPlan };
@@ -187,12 +188,17 @@ const ShotLayer: React.FC<{
         ? interpolate(frame, [0, hookExit], [1.12, 1], { ...clamp, easing: Easing.bezier(0.33, 0, 0.67, 1) })
         : interpolate(frame, [hookExit, d], [1, 1.06], clamp)
       : interpolate(frame, [0, d], [1, 1.08], clamp);
+  // Gentle punch-ins fill quiet stretches (plan.ts QUIET_MAX_SEC)
+  const punch = (shot.punchInFrames ?? []).reduce(
+    (z, p) => z * interpolate(frame, [p, p + PUNCH_FRAMES], [1, PUNCH_SCALE], { ...clamp, easing: Easing.bezier(0.16, 1, 0.3, 1) }),
+    1
+  );
 
   const endCardLocal = plan.endCard.fromFrame - shot.startFrame;
 
   return (
     <AbsoluteFill style={{ backgroundColor: FENN.espresso, overflow: 'hidden' }}>
-      <AbsoluteFill style={reframeStyle(shot, zoom)}>
+      <AbsoluteFill style={reframeStyle(shot, zoom * punch)}>
         <ShotFootage plan={plan} shot={shot} blurRadius={blurRadius} />
       </AbsoluteFill>
       {shot.role === 'tour' && shot.tag ? (

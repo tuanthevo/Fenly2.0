@@ -83,6 +83,17 @@ test('fair-housing guard catches who-should-live-here phrasing only', () => {
   assert.ok(violatesFairHousing('No kids please'));
   assert.ok(violatesFairHousing('Women only'));
   assert.ok(!violatesFairHousing('Perfect for working from home'));
+  // Audit additions: an adjective in between, source of income (protected in California), language, disability, age
+  assert.ok(violatesFairHousing('Great for working professionals'));
+  assert.ok(violatesFairHousing('Ideal for a quiet student'));
+  assert.ok(violatesFairHousing('No Section 8'));
+  assert.ok(violatesFairHousing('no vouchers accepted'));
+  assert.ok(violatesFairHousing('English speakers only'));
+  assert.ok(violatesFairHousing('Must be able-bodied'));
+  assert.ok(violatesFairHousing('Mature adults preferred'));
+  assert.ok(!violatesFairHousing('Section 8 welcome'));
+  assert.ok(!violatesFairHousing('Mature trees out back'));
+  assert.ok(!violatesFairHousing('Great for working from home'));
   assert.ok(!violatesFairHousing('Walk-in closet'));
   assert.ok(!violatesFairHousing('What $1,250/mo gets you in Echo Park'));
 });

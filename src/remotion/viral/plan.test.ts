@@ -4,7 +4,9 @@ import { readFileSync } from 'node:fs';
 import { analyzeSamples } from './clipSignals';
 import {
   buildViralEditPlan,
+  changeFrames,
   checkPlan,
+  QUIET_MAX_SEC,
   editableShots,
   hookReadSec,
   roomDetail,
@@ -499,4 +501,70 @@ test('video tours use smaller text', () => {
   const plan = buildViralEditPlan({ listing, clips: guidedClips() });
   assert.equal(plan.textScale, VIDEO_TEXT_SCALE);
   assert.ok(VIDEO_TEXT_SCALE < 1);
+});
+
+// --- Viral audit (Nov 2026): no dead air, labels on the footage they name, a clean opener without analysis ---
+
+/** The host's 5 test clips (bedroom 8.7 s, living/kitchen 20.3 s, bath 13.6 s, closet 7.3 s, TV room 16.1 s) with typical AI copy. */
+function hostClipsWithAi() {
+  const durs = [8.7, 20.3, 13.6, 7.27, 16.1];
+  const clips = guidedClips().map((c, i) => ({ ...c, durationSec: durs[i] }));
+  const ai = {
+    tags: { 1: 'Big window', 2: 'Open kitchen', 3: 'Glass shower', 4: 'Walk-in closet', 5: 'TV lounge' },
+    details: { 1: 'Queen bed', 2: 'Gas range', 3: 'Double vanity', 4: 'Built-in shelves', 5: 'Hardwood floors' },
+  };
+  return { clips, ai };
+}
+
+test('something new happens at least every ~3 s: quiet stretches get a punch-in', () => {
+  for (const length of ['full', 'teaser'] as const) {
+    const { clips, ai } = hostClipsWithAi();
+    const plan = buildViralEditPlan({ listing, clips }, { ai, length });
+    assert.deepEqual(checkPlan(plan), []);
+    const frames = changeFrames(plan).filter((f) => f <= plan.endCard.fromFrame);
+    for (let k = 1; k < frames.length; k++) {
+      const gap = (frames[k] - frames[k - 1]) / plan.fps;
+      assert.ok(gap <= QUIET_MAX_SEC + 0.05, `${length}: ${gap.toFixed(2)} s with nothing new from ${(frames[k - 1] / plan.fps).toFixed(2)} s`);
+    }
+    // A punch-in sits inside its shot, after the label, and never on the opener (the headline is up)
+    for (const shot of plan.shots) {
+      for (const p of shot.punchInFrames ?? []) {
+        assert.notEqual(shot.role, 'hook');
+        assert.ok(p > shot.tagInFrame && p < shot.durationInFrames - shot.outOverlapFrames, shot.id);
+      }
+    }
+  }
+  // Short, busy rooms need no punch-in
+  const plain = buildViralEditPlan({ listing, clips: guidedClips() }, { length: 'teaser' });
+  assert.ok(plain.shots.every((s) => !s.punchInFrames));
+});
+
+test('a split room shows its AI detail on the moment that holds the frame Gemini saw', () => {
+  const room = (bestSec: number): ClipAnalysis => ({
+    ...analysis({ startSec: bestSec }),
+    durationSec: 20,
+    hookScore: 0.2, // never the opener
+    clean: { startSec: 0.3, endSec: 20 },
+  });
+  const ai = { tags: { 3: 'Glass shower' }, details: { 3: 'Double vanity' } };
+  for (const [bestSec, want] of [[2, 0], [15, 1]] as const) {
+    const clips = guidedClips([1, 3, 5]).map((c) => (c.slotNumber === 3 ? { ...c, durationSec: 20, analysis: room(bestSec) } : c));
+    const plan = buildViralEditPlan({ listing, clips }, { ai });
+    const bath = plan.shots.filter((s) => s.slotNumber === 3);
+    assert.equal(bath.length, 2, `best at ${bestSec}s`);
+    const withDetail = bath.findIndex((s) => s.callouts.some((c) => c.text === 'Double vanity'));
+    assert.equal(withDetail, want, `best at ${bestSec}s: detail on moment ${withDetail + 1}`);
+    // The other moment still gets something (a listing fact), and the editor still finds the detail
+    assert.ok(bath[1 - want].callouts.length > 0 || bath[1 - want].tag, `best at ${bestSec}s: other moment is empty`);
+    assert.equal(roomDetail(plan, 3), 'Double vanity');
+  }
+});
+
+test('without clip analysis the opener skips the first seconds of a long clip (record tap, floor, feet)', () => {
+  const clips = guidedClips([1, 2, 3]).map((c) => ({ ...c, durationSec: 12 }));
+  const plan = buildViralEditPlan({ listing, clips });
+  assert.ok(plan.shots[0].srcStartSec >= 1.5, `opener starts at ${plan.shots[0].srcStartSec}s`);
+  // A 7 s guided clip still fits its opener
+  const short = buildViralEditPlan({ listing, clips: guidedClips() });
+  assert.deepEqual(checkPlan(short), []);
 });
