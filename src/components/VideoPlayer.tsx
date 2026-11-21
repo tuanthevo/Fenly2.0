@@ -3,6 +3,7 @@ import { Play, Pause, Heart } from 'lucide-react';
 import { RoomListing } from '../types';
 import { photoTourPlanForRoom } from '../utils/photoTourListing';
 import { useFlag } from '../config/FlagsProvider';
+import { chapterJump } from '../find/videoChapters';
 
 // The photo tour pulls in Remotion: load it only when a card is on screen
 const PhotoTourPlayer = React.lazy(() => import('./PhotoTourPlayer'));
@@ -250,8 +251,11 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const lastTapRef = useRef<number>(0);
   const touchStartY = useRef<number | null>(null);
   const touchCurrentY = useRef<number | null>(null);
+  const touchStartX = useRef<number | null>(null);
+  const touchCurrentX = useRef<number | null>(null);
   const didSwipeRef = useRef<boolean>(false);
   const mouseStartY = useRef<number | null>(null);
+  const mouseStartX = useRef<number | null>(null);
   const lastWheelTimeRef = useRef<number>(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
@@ -284,6 +288,19 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const isViralEdit = room.tourFormat === 'viral_edit' && Boolean(room.videoUrl);
   const viralVideoRef = useRef<HTMLVideoElement | null>(null);
+  // The tour video's real progress (0-100) for the bottom bar; its own story bar is drawn into the video
+  const [videoProgress, setVideoProgress] = useState(0);
+
+  /** Left/right swipe on a tour video: jump to the next room, or back to this/the previous room's start. */
+  const jumpRoom = (dir: 'next' | 'prev') => {
+    const video = viralVideoRef.current;
+    if (!isViralEdit || !video) return;
+    const to = chapterJump(room.videoChapters ?? [], video.currentTime, dir);
+    if (to == null) return;
+    video.currentTime = to;
+    setIsPlaying(true);
+    video.play().catch(() => {});
+  };
 
   // Listing photos edited into a "walking into the home" short (src/remotion/viral/photoTour.ts).
   // Photos are loaded first and any that fail are skipped, so a dead link never shows as a black frame.
@@ -317,6 +334,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   useEffect(() => {
     setSceneIndex(0);
     setSceneProgress(0);
+    setVideoProgress(0);
     setIsPlaying(true);
   }, [room.id]);
 
@@ -392,12 +410,21 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     mouseStartY.current = e.clientY;
+    mouseStartX.current = e.clientX;
   };
 
   const handleMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
     if (mouseStartY.current !== null) {
       const deltaY = mouseStartY.current - e.clientY;
+      const deltaX = (mouseStartX.current ?? e.clientX) - e.clientX;
       mouseStartY.current = null;
+      mouseStartX.current = null;
+      // Sideways drag: room to room inside the tour (left = next room)
+      if (Math.abs(deltaX) > 65 && Math.abs(deltaX) > Math.abs(deltaY)) {
+        didSwipeRef.current = true;
+        jumpRoom(deltaX > 0 ? 'next' : 'prev');
+        return;
+      }
       if (Math.abs(deltaY) > 65) {
         if (deltaY > 0) onNextRoom();
         else onPrevRoom();
@@ -441,6 +468,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (e.touches.length > 0) {
       touchStartY.current = e.touches[0].clientY;
       touchCurrentY.current = e.touches[0].clientY;
+      touchStartX.current = e.touches[0].clientX;
+      touchCurrentX.current = e.touches[0].clientX;
       didSwipeRef.current = false;
     }
   };
@@ -450,21 +479,30 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (e.touches.length > 0 && startY !== null) {
       const currentY = e.touches[0].clientY;
       touchCurrentY.current = currentY;
-      if (Math.abs(startY - currentY) > 15) {
+      touchCurrentX.current = e.touches[0].clientX;
+      if (Math.abs(startY - currentY) > 15 || Math.abs((touchStartX.current ?? 0) - e.touches[0].clientX) > 15) {
         didSwipeRef.current = true;
       }
     }
   };
 
-  const finishTouchSwipe = (endY?: number) => {
+  /** Up/down: next/previous listing. Left/right: next/previous room inside this listing's tour. */
+  const finishTouchSwipe = (endY?: number, endX?: number) => {
     const startY = touchStartY.current;
     if (startY === null) return;
     const finalY = endY ?? touchCurrentY.current ?? startY;
     const deltaY = startY - finalY;
+    const startX = touchStartX.current ?? 0;
+    const deltaX = startX - (endX ?? touchCurrentX.current ?? startX);
     touchStartY.current = null;
     touchCurrentY.current = null;
+    touchStartX.current = null;
+    touchCurrentX.current = null;
 
-    if (deltaY > 35) {
+    if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY)) {
+      didSwipeRef.current = true;
+      jumpRoom(deltaX > 0 ? 'next' : 'prev');
+    } else if (deltaY > 35) {
       didSwipeRef.current = true;
       onNextRoom();
     } else if (deltaY < -35) {
@@ -474,8 +512,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    const endY = e.changedTouches?.[0]?.clientY;
-    finishTouchSwipe(endY);
+    finishTouchSwipe(e.changedTouches?.[0]?.clientY, e.changedTouches?.[0]?.clientX);
   };
 
   const handleTouchCancel = () => {
@@ -483,7 +520,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   };
 
   const currentScene = scenes[sceneIndex] || scenes[0];
-  const overallProgress = showPhotoTour
+  const overallProgress = isViralEdit
+    ? videoProgress
+    : showPhotoTour
     ? tourProgress * 100
     : ((sceneIndex * 100 + sceneProgress) / (scenes.length * 100)) * 100;
 
@@ -508,6 +547,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           loop
           playsInline
           muted={isMuted}
+          onTimeUpdate={(e) => {
+            const v = e.currentTarget;
+            setVideoProgress(v.duration > 0 ? (v.currentTime / v.duration) * 100 : 0);
+          }}
           className="absolute inset-0 w-full h-full object-cover z-10"
         />
       )}
@@ -555,8 +598,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         );
       })}
 
-      {/* Segmented Short-Form Story/Reels Progress Bars at Top Edge (the photo tour draws its own) */}
-      <div className={`absolute top-1 left-3 right-3 z-25 flex items-center gap-1.5 pointer-events-none ${showPhotoTour && isActive ? 'hidden' : ''}`}>
+      {/* Segmented Short-Form Story/Reels Progress Bars at Top Edge (the photo slideshow only: a tour video
+          and the photo tour draw their own bar, so a second, timer-driven one here would be wrong) */}
+      <div className={`absolute top-1 left-3 right-3 z-25 flex items-center gap-1.5 pointer-events-none ${isViralEdit || (showPhotoTour && isActive) ? 'hidden' : ''}`}>
         {scenes.map((_, idx) => {
           const widthPct =
             idx < sceneIndex ? 100 : idx === sceneIndex ? sceneProgress : 0;

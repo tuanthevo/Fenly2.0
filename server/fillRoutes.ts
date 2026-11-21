@@ -158,7 +158,7 @@ function referrerHost(req: Request): string | null {
 }
 
 /**
- * Scam / fair-housing check on a newly published listing. Flags go to the review
+ * Scam / fair-housing check on a newly published listing (and on later text edits). Flags go to the review
  * queue; a high-risk scam flag hides the room from Find (its link keeps working).
  * Returns true when the listing was hidden for review. Never throws.
  */
@@ -260,7 +260,10 @@ export function registerFillRoutes(app: Express): void {
     if (Object.keys(patch).length === 0) return res.json({ listing });
     const { data, error } = await db.from("listings").update(patch).eq("id", listing.id).select(LISTING_COLUMNS).single();
     if (error) return dbError(res, error, "update listing");
-    res.json({ listing: data });
+    // A live listing whose text changed gets the same scam check as at publish
+    const textChanged = "title" in patch || "description" in patch || "house_rules" in patch;
+    const underReview = (data as ListingRow).status === "published" && textChanged ? await moderateListing(data as ListingRow) : false;
+    res.json({ listing: data, underReview });
   });
 
   // Publish: lease check, approved copy, video + cover, fair housing; then links and posts.

@@ -3,7 +3,7 @@
  * channel, nudges, and a way back into the share kit.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, CalendarClock, Eye, FileCheck, Lightbulb, Loader2, RefreshCw, Share2 } from 'lucide-react';
+import { ArrowLeft, CalendarClock, Eye, FileCheck, Lightbulb, Loader2, Pencil, RefreshCw, Share2 } from 'lucide-react';
 import { fillApi, type LinkRow } from '../../lib/fillApi';
 import { channelLabel } from '../../fill/attribution';
 import { formatRentCents } from '../../fill/publicListing';
@@ -15,7 +15,7 @@ type StatusData = Awaited<ReturnType<typeof fillApi.status>>;
 
 const cardClass = 'p-4 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm';
 
-export const FillStatusView: React.FC<{ listingId: string; onBack: () => void }> = ({ listingId, onBack }) => {
+export const FillStatusView: React.FC<{ listingId: string; onBack: () => void; onEdit?: () => void }> = ({ listingId, onBack, onEdit }) => {
   const [data, setData] = useState<StatusData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -70,6 +70,16 @@ export const FillStatusView: React.FC<{ listingId: string; onBack: () => void }>
         <h2 className="flex-1 min-w-0 text-base font-extrabold text-[#2C2724] truncate">
           {kit ? 'Share kit' : data?.listing.title || 'Fill status'}
         </h2>
+        {!kit && onEdit && (
+          <button
+            type="button"
+            onClick={onEdit}
+            data-testid="fill-status-edit"
+            className="min-h-10 px-3 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/25 text-[#2C2724] text-xs font-extrabold flex items-center gap-1.5 shrink-0 active:scale-95"
+          >
+            <Pencil className="w-3.5 h-3.5" /> Edit
+          </button>
+        )}
         {!kit && (
           <button
             type="button"

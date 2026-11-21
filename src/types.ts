@@ -47,6 +47,8 @@ export interface RoomListing {
   squareFeet: number;
   amenities: string[];
   videoUrl: string;
+  /** Fenly 2.0: room start times in the tour video (seconds), for left/right swipes */
+  videoChapters?: number[];
   fallbackThumbnail: string;
   audioTrack: {
     title: string;

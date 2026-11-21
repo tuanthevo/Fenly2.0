@@ -48,6 +48,7 @@ import {
 import { FILL_AMENITIES, leaseTermOptions } from '../../fill/neighborhoods';
 import { BAY_AREA_CITIES, BAY_AREA_REGIONS, areaLabel, bayAreaCity, nearestArea } from '../../geo/bayArea';
 import { lookupBayAreaPlace } from '../../lib/geocode';
+import { chaptersFromPlan } from '../../find/videoChapters';
 import { formatMoveIn, formatRentCents } from '../../fill/publicListing';
 import { todayIn } from '../../fill/fillStatus';
 import type { SharePosts } from '../../fill/sharePosts';
@@ -63,6 +64,13 @@ const STEPS: { id: FillStep; label: string }[] = [
   { id: 'details', label: 'Describe' },
   { id: 'video', label: 'Video' },
   { id: 'publish', label: 'Publish' },
+];
+
+/** Editing a live listing: what renters see, without the lease check, the tour or publishing again */
+const EDIT_STEPS: { id: FillStep; label: string }[] = [
+  { id: 'start', label: 'Basics' },
+  { id: 'details', label: 'Describe' },
+  { id: 'video', label: 'Video' },
 ];
 
 const card = 'p-4 rounded-2xl bg-white border border-[#2C2724]/10';
@@ -93,9 +101,16 @@ interface FillFlowProps {
   onOpenStatus: (listingId: string) => void;
   /** The draft now exists (lets the app put its id in the history, so a reload resumes it) */
   onDraftCreated?: (listingId: string) => void;
+  /**
+   * 'edit' changes a listing that's already live: the basics, the text and (optionally) the video.
+   * Each step saves on Continue; the lease check, the tour and publishing are skipped.
+   */
+  mode?: 'create' | 'edit';
 }
 
-export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onClose, onOpenStatus, onDraftCreated }) => {
+export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onClose, onOpenStatus, onDraftCreated, mode = 'create' }) => {
+  const editing = mode === 'edit' && Boolean(requestedId);
+  const steps = editing ? EDIT_STEPS : STEPS;
   // Only the id this flow opened with is loaded; later id changes come from this flow itself
   const listingId = useRef(requestedId).current;
   const today = useMemo(() => todayIn(new Date()), []);
@@ -208,9 +223,12 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
         setMedia(restored);
         const thumb = data.media.find((m) => m.kind === 'thumbnail')?.signedUrl;
         if (thumb) setCover(thumb);
-        const next = resumeStep(data.listing, data.media.map((m) => m.kind), Object.keys(restored).length);
-        if (next === 'share') onOpenStatus(listingId);
-        else setStep(next);
+        if (editing) setStep('start');
+        else {
+          const next = resumeStep(data.listing, data.media.map((m) => m.kind), Object.keys(restored).length);
+          if (next === 'share') onOpenStatus(listingId);
+          else setStep(next);
+        }
       } catch (e) {
         if (alive) setError(messageOf(e));
       } finally {
@@ -272,7 +290,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
         amenities,
       });
       applyListing(updated);
-      setStep('lease');
+      setStep(editing ? 'details' : 'lease');
     });
 
   /* ---------- Step 2: lease ---------- */
@@ -404,7 +422,8 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
     [title, description]
   );
 
-  const submitDetails = () =>
+  /** Saves the text. Editing a live listing ends here (back to its status) unless the host asked for a new video. */
+  const submitDetails = (thenVideo = false) =>
     run('details', async () => {
       setIssues([]);
       if (!title.trim() || !description.trim()) throw new Error('Add a title and a description.');
@@ -416,7 +435,8 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
         copy_approved: true,
       });
       setListing(updated);
-      setStep('video');
+      if (editing && !thenVideo) onOpenStatus(updated.id);
+      else setStep('video');
     });
 
   /* ---------- Step 5: video ---------- */
@@ -463,6 +483,8 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
       // The edit behind the video (no blob URLs: clips point at their Storage paths)
       let edit: Record<string, unknown> = {
         ...result.edit,
+        // Where each room starts in the video: the Find feed jumps room to room on a left/right swipe
+        chapters: chaptersFromPlan(result.plan),
         clips: Object.values(media).map((m) => ({
           slotNumber: m.slotNumber,
           durationSec: m.durationSec,
@@ -476,7 +498,8 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
       setVideoBlob(result.blob);
       setCover(frame.dataUrl);
       setMediaKinds((k) => [...new Set([...k, 'video_full', 'thumbnail', ...(result.teaser ? ['video_teaser'] : [])])]);
-      setStep('publish');
+      if (editing) onOpenStatus(id);
+      else setStep('publish');
     }).finally(() => setUploadProgress(null));
 
   /* ---------- Publish ---------- */
@@ -500,11 +523,11 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
     });
 
   /* ---------- Layout ---------- */
-  const stepIndex = STEPS.findIndex((s) => s.id === step);
+  const stepIndex = steps.findIndex((s) => s.id === step);
   const goBack = () => {
     if (step === 'share' || stepIndex <= 0) return onClose();
     setError(null);
-    setStep(STEPS[stepIndex - 1].id);
+    setStep(steps[stepIndex - 1].id);
   };
   /** The header arrow does what the step's main button does, and says what's missing when it can't. */
   const goForward = () => {
@@ -519,19 +542,18 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
       return void submitTour();
     }
     if (step === 'details') return void submitDetails();
+    if (step === 'video' && editing) return onOpenStatus(listing!.id);
     if (step === 'video') {
       if (!mediaKinds.includes('video_full')) return setError('Make your video first, then tap "Use this video".');
       return setStep('publish');
     }
   };
-  const canGoForward = step !== 'publish' && step !== 'share';
+  const canGoForward = step !== 'publish' && step !== 'share' && !(editing && step === 'video');
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-center bg-[#2C2724]/60 sm:items-center font-['Plus_Jakarta_Sans','Inter',sans-serif]">
-      <div
-        className="w-full sm:max-w-[440px] h-full sm:h-[96vh] sm:rounded-[32px] bg-[#F9F7F3] text-[#2C2724] flex flex-col overflow-hidden"
-        data-testid="fill-flow"
-      >
+    // Lives inside the Fill tab, above the app's bottom navigation (which stays usable)
+    <div className="relative flex-1 min-h-0 w-full flex flex-col font-['Plus_Jakarta_Sans','Inter',sans-serif]">
+      <div className="w-full flex-1 min-h-0 bg-[#F9F7F3] text-[#2C2724] flex flex-col overflow-hidden" data-testid="fill-flow">
         {/* Header */}
         <div className="px-3.5 pt-3 pb-2 border-b border-[#2C2724]/10 space-y-2 shrink-0">
           <div className="flex items-center gap-2">
@@ -543,7 +565,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
-            <h2 className="flex-1 text-base font-extrabold">{step === 'share' ? 'Share your room' : 'Fill my room'}</h2>
+            <h2 className="flex-1 text-base font-extrabold">{step === 'share' ? 'Share your room' : editing ? 'Edit listing' : 'Fill my room'}</h2>
             {canGoForward && (
               <button
                 type="button"
@@ -559,16 +581,16 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
             <button
               type="button"
               onClick={onClose}
-              aria-label={step === 'share' ? 'Done' : 'Save and exit'}
+              aria-label={step === 'share' ? 'Done' : editing ? 'Close' : 'Save and exit'}
               title="Everything you've done is saved"
               className="min-h-10 px-3 rounded-xl hover:bg-[#F2EFE9] text-xs font-bold text-[#6E655F] flex items-center gap-1 shrink-0"
             >
-              {step === 'share' ? 'Done' : 'Save & exit'}
+              {step === 'share' ? 'Done' : editing ? 'Close' : 'Save & exit'}
             </button>
           </div>
           {step !== 'share' && (
-            <div className="flex gap-1" aria-label={`Step ${stepIndex + 1} of ${STEPS.length}`}>
-              {STEPS.map((s, i) => (
+            <div className="flex gap-1" aria-label={`Step ${stepIndex + 1} of ${steps.length}`}>
+              {steps.map((s, i) => (
                 <span
                   key={s.id}
                   className={`h-1 flex-1 rounded-full ${i <= stepIndex ? 'bg-[#D06C4E]' : 'bg-[#2C2724]/10'}`}
@@ -889,8 +911,13 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                     data-testid="fill-details-continue"
                   >
                     {busy === 'details' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                    Continue to the video
+                    {editing ? 'Save changes' : 'Continue to the video'}
                   </button>
+                  {editing && (
+                    <button type="button" className={secondaryBtn} disabled={busy !== null} onClick={() => void submitDetails(true)} data-testid="fill-edit-new-video">
+                      Save and make a new video
+                    </button>
+                  )}
                 </div>
               )}
 
