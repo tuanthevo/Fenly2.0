@@ -40,3 +40,19 @@ export function chapterJump(chapters: number[], currentSec: number, dir: 'next' 
   const into = currentSec - chapters[index];
   return into > RESTART_GRACE_SEC ? chapters[index] : chapters[Math.max(0, index - 1)];
 }
+
+/** Rough room length for tours saved before chapters were stored (rooms run up to ~7 s; see plan.ts). */
+export const FALLBACK_ROOM_SEC = 6;
+
+/**
+ * Room start times to swipe between: the saved chapters, or, for a video made
+ * before they were saved, a start every FALLBACK_ROOM_SEC (none closer than
+ * 2 s to the end, so a swipe never lands on the loop point).
+ */
+export function roomStarts(chapters: number[] | undefined, durationSec: number): number[] {
+  if (chapters && chapters.length >= 2) return chapters;
+  if (!Number.isFinite(durationSec) || durationSec < FALLBACK_ROOM_SEC + 2) return [];
+  const starts: number[] = [];
+  for (let t = 0; t < durationSec - 2; t += FALLBACK_ROOM_SEC) starts.push(t);
+  return starts.length >= 2 ? starts : [];
+}
