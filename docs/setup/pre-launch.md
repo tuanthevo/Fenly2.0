@@ -28,6 +28,8 @@ Work top to bottom. Detailed Supabase steps are in [supabase.md](supabase.md).
 | `FENLY_FLAGS` | empty, or e.g. `id_check` | `demo_listings` and `photo_tour` only for demos |
 | `RESEND_API_KEY` | `re_…` | |
 | `FENLY_EMAIL_FROM` | `Fenn <hello@<your-domain>>` | the domain must be verified in Resend |
+| `FENLY_POSTAL_ADDRESS` | your business mailing address | shown in every email footer; US commercial-email rules (CAN-SPAM) require one |
+| `FENLY_UNSUBSCRIBE_SECRET` | 32 random characters (optional) | signs the one-click unsubscribe links; falls back to `CRON_SECRET` |
 | `FENLY_ADMIN_EMAILS` | your sign-in email(s) | opens the Review queue and Metrics |
 | `CRON_SECRET` | 32 random characters | Vercel Cron sends it to `/api/cron/daily` |
 | `VITE_GOOGLE_MAPS_API_KEY` | browser key | restrict it by HTTP referrer to your domain |

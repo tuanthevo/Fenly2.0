@@ -126,20 +126,34 @@ const retakeKinds = (a: ClipAnalysis | null | undefined, kinds: string[]) =>
 export function gradePlan(
   plan: ViralEditPlan,
   clips: ViralClipInput[],
-  frameNotes?: Record<number, { t: number; blocked?: boolean; person?: boolean }[]>
+  frameNotes?: Record<number, { t: number; blocked?: boolean; person?: boolean }[]>,
+  /**
+   * The clip checks have all run. A clip still without analysis then could not be read on this
+   * device: it is graded as "can't check" (retake offered) instead of "wait", and the other
+   * rooms are graded without it, so one unreadable clip never blocks export for good.
+   */
+  checksDone = false
 ): PlanGrade {
   const fps = plan.fps;
   const clipOf = (slot: number) => clips.find((c) => c.slotNumber === slot);
   const rows: GradeRow[] = [];
   const rooms = plan.shots.filter((s) => !s.part);
-  const measured = rooms.every((s) => clipOf(s.slotNumber)?.analysis);
+  const unchecked = rooms.filter((s) => !clipOf(s.slotNumber)?.analysis);
+  const checkedRooms = rooms.filter((s) => clipOf(s.slotNumber)?.analysis);
+  // Still waiting for checks (or nothing could be read at all): the footage rows hold at 1
+  const measured = unchecked.length === 0 || (checksDone && checkedRooms.length > 0);
+  const uncheckedNote = unchecked.length && checksDone ? ` ${unchecked.map((s) => s.room).join(', ')} couldn’t be checked on this device.` : '';
 
   // 1. Frame 0: the best room, bright and clear, headline on screen from frame 0
   {
     const hook = plan.shots[0];
     const a = hook ? clipOf(hook.slotNumber)?.analysis : null;
     if (!hook || !a) {
-      rows.push(row('frame0', 'Frame 0', 1, 'The opening clip hasn’t been checked yet.', 'Wait for the clip check to finish.'));
+      rows.push(
+        checksDone && hook
+          ? row('frame0', 'Frame 0', 1, `${hook.room} couldn’t be checked on this device.`, `Open on another room, or film ${hook.room} again.`, [hook.slotNumber])
+          : row('frame0', 'Frame 0', 1, 'The opening clip hasn’t been checked yet.', 'Wait for the clip check to finish.')
+      );
     } else {
       const bestScore = Math.max(...clips.map((c) => c.analysis?.hookScore ?? -Infinity));
       const isBest = a.hookScore >= bestScore - HOOK_SCORE_SLACK;
@@ -309,13 +323,13 @@ export function gradePlan(
     if (!measured) {
       rows.push(row('openings', 'Room openings', 1, 'Not every clip has been checked yet.', 'Wait for the clip check to finish.'));
     } else {
-      const weak = rooms.filter((s) => weakOpening(s, clipOf(s.slotNumber), frameNotes?.[s.slotNumber]));
+      const weak = checkedRooms.filter((s) => weakOpening(s, clipOf(s.slotNumber), frameNotes?.[s.slotNumber]));
       rows.push(
         row(
           'openings',
           'Room openings',
           (weak.length === 0 ? 2 : weak.length === 1 ? 1 : 0) as 0 | 1 | 2,
-          weak.length === 0 ? 'Every room opens on a clear view.' : `${weak.map((s) => s.room).join(', ')} open${weak.length === 1 ? 's' : ''} on a wall, door edge or person.`,
+          (weak.length === 0 ? 'Every room opens on a clear view.' : `${weak.map((s) => s.room).join(', ')} open${weak.length === 1 ? 's' : ''} on a wall, door edge or person.`) + (weak.length ? uncheckedNote : ''),
           'Retake those rooms starting in the doorway, facing in.',
           weak.map((s) => s.slotNumber)
         )
@@ -328,7 +342,7 @@ export function gradePlan(
     if (!measured) {
       rows.push(row('look', 'Look', 1, 'Not every clip has been checked yet.', 'Wait for the clip check to finish.'));
     } else {
-      const lumas = rooms.map((s) => ({ s, luma: clamp01((clipOf(s.slotNumber)!.analysis!.best.meanLuma) * 2 ** s.exposure) }));
+      const lumas = checkedRooms.map((s) => ({ s, luma: clamp01((clipOf(s.slotNumber)!.analysis!.best.meanLuma) * 2 ** s.exposure) }));
       const values = lumas.map((x) => x.luma);
       const spread = Math.max(...values) - Math.min(...values);
       const dark = lumas.filter((x) => x.luma < LOOK_RANGE.min || retakeKinds(clipOf(x.s.slotNumber)?.analysis, ['dark']));

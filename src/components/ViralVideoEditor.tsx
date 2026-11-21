@@ -371,15 +371,16 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
     [clips, analysisVersion]
   );
   const grade = useMemo<PlanGrade | null>(
-    () => (plan ? gradePlan(plan, gradeClips, activeHints?.frames) : null),
-    [plan, gradeClips, activeHints]
+    () => (plan ? gradePlan(plan, gradeClips, activeHints?.frames, analysisDone) : null),
+    [plan, gradeClips, activeHints, analysisDone]
   );
-  // Below the bar: the best change the editor can make on its own (another opener, the standard headline...)
+  // Under 20/20 (the goal; 18 is the floor): the best change the editor can make on its own
+  // (another opener, the standard headline...)
   const gradeFix = useMemo(() => {
-    if (!grade || grade.passed || !analysisDone) return null;
+    if (!grade || grade.total >= grade.max || !analysisDone) return null;
     return bestGradeFix(grade, gradeFixCandidates(clips.map((c) => c.slotNumber)), (patch) => {
       const p = buildPlanFor(length, patch);
-      return p ? { plan: p, grade: gradePlan(p, gradeClips, activeHints?.frames) } : null;
+      return p ? { plan: p, grade: gradePlan(p, gradeClips, activeHints?.frames, analysisDone) } : null;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [grade, analysisDone]);
@@ -1296,7 +1297,9 @@ const VideoScoreCard: React.FC<{
             {checking
               ? 'The score is ready once every clip is checked.'
               : grade.passed
-              ? 'Ready to post.'
+              ? grade.total >= grade.max
+                ? 'Top score. Ready to post.'
+                : `Ready to post. The goal is ${grade.max}/${grade.max}.`
               : grade.total < PASS_SCORE
               ? `It needs ${PASS_SCORE}/${grade.max} to go out.`
               : 'The length needs fixing before it goes out.'}
@@ -1320,7 +1323,7 @@ const VideoScoreCard: React.FC<{
           onClick={onApplyFix}
           className="w-full min-h-10 rounded-lg bg-[#B85B3F] hover:bg-[#A9513A] text-white text-[11px] font-extrabold flex items-center justify-center gap-1.5 active:scale-95"
         >
-          <Sparkles className="w-3.5 h-3.5" /> Fix it for me ({fix.grade.total}/{fix.grade.max})
+          <Sparkles className="w-3.5 h-3.5" /> {grade.passed ? 'Improve it for me' : 'Fix it for me'} ({fix.grade.total}/{fix.grade.max})
         </button>
       )}
       {!checking && (open || (!grade.passed && !fix)) && weak.length > 0 && (

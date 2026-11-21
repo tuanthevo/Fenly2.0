@@ -146,7 +146,9 @@ export function bayAreaCity(name: string | null | undefined): BayAreaCity | null
 export function neighborhoodIn(c: BayAreaCity, name: string | null | undefined): Spot | null {
   if (!name || !c.neighborhoods) return null;
   const n = norm(name);
-  return c.neighborhoods.find((h) => norm(h.name) === n || n.startsWith(`${norm(h.name)} `)) ?? null;
+  // Exact, or with a generic ending. "Mission Bay" and "Mission Terrace" are other places, not Mission
+  const base = n.replace(/\s+(district|neighborhood|area)$/, '');
+  return c.neighborhoods.find((h) => norm(h.name) === n || norm(h.name) === base) ?? null;
 }
 
 /** Where a listing is, for distances: its neighborhood's center, else its city's. Null when unknown. */

@@ -104,8 +104,8 @@ test('find filters: parse, match, query string', () => {
   });
   assert.equal(parseFindQuery({ place: 'Oakland', lat: '37.8', lng: '-122.27', miles: '7' }).near?.miles, 5, 'unknown radius -> 5 mi');
   assert.equal(parseFindQuery({ place: '<script>', lat: '37.8', lng: '-122.27', miles: '3' }).near?.label, 'script');
-  assert.equal(findQueryString({ near: oakland, minRentCents: null, maxRentCents: 150000, moveInBy: null }), 'place=Oakland&lat=37.8044&lng=-122.2712&miles=5&maxRent=1500');
-  assert.deepEqual(parseFindQuery(Object.fromEntries(new URLSearchParams(findQueryString({ near: oakland, minRentCents: null, maxRentCents: null, moveInBy: null })))).near, oakland);
+  assert.equal(findQueryString({ near: oakland, minRentCents: null, maxRentCents: 150000, moveInBy: null }), 'place=Oakland&lat=37.8&lng=-122.27&miles=5&maxRent=1500', 'coordinates go out rounded to 2 decimals');
+  assert.deepEqual(parseFindQuery(Object.fromEntries(new URLSearchParams(findQueryString({ near: oakland, minRentCents: null, maxRentCents: null, moveInBy: null })))).near, { ...oakland, lat: 37.8, lng: -122.27 });
 
   const mission = { city: 'San Francisco', neighborhood: 'Mission', rentCents: 145000, availableFrom: '2026-12-01' };
   const sf = { label: 'San Francisco', lat: 37.7749, lng: -122.4194, miles: 3 };

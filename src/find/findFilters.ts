@@ -81,8 +81,9 @@ export function findQueryString(filters: FindFilters): string {
   const params = new URLSearchParams();
   if (filters.near) {
     params.set('place', filters.near.label);
-    params.set('lat', String(filters.near.lat));
-    params.set('lng', String(filters.near.lng));
+    // 2 decimals (about half a mile): a typed address never reaches the server or its logs exactly
+    params.set('lat', String(Math.round(filters.near.lat * 100) / 100));
+    params.set('lng', String(Math.round(filters.near.lng * 100) / 100));
     params.set('miles', String(filters.near.miles));
   }
   if (filters.minRentCents != null) params.set('minRent', String(Math.round(filters.minRentCents / 100)));

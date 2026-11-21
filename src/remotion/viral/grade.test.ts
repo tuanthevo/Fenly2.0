@@ -156,3 +156,20 @@ test('rooms sped up to fit 50 s (up to 1.35x) keep full marks for speed; faster 
   plan.shots[2].playbackRate = 1.5;
   assert.equal(rowOf(gradePlan(plan, clips), 'speed').score, 1);
 });
+
+test('a clip that could not be checked on the device does not block export once the checks are done', () => {
+  const clips = realClips().map((c) => (c.slotNumber === 3 ? { ...c, analysis: null } : c));
+  const plan = buildViralEditPlan({ listing, clips });
+  const waiting = gradePlan(plan, clips);
+  assert.equal(rowOf(waiting, 'openings').score, 1, 'while checks run, the footage rows wait');
+  const done = gradePlan(plan, clips, undefined, true);
+  assert.equal(rowOf(done, 'openings').score, 2, 'graded on the rooms that were read');
+  assert.equal(rowOf(done, 'look').score, 2);
+  assert.ok(done.total >= PASS_SCORE);
+  // The unreadable clip as the opener: 1 point off, with a retake offered instead of "wait"
+  const opener = clips.map((c) => ({ ...c, analysis: c.slotNumber === 1 ? null : realClips()[c.slotNumber - 1].analysis }));
+  const row = rowOf(gradePlan(buildViralEditPlan({ listing, clips: opener }, { hookSlotNumber: 1 }), opener, undefined, true), 'frame0');
+  assert.equal(row.score, 1);
+  assert.deepEqual(row.retakeSlots, [1]);
+  assert.doesNotMatch(row.fix, /Wait/);
+});
