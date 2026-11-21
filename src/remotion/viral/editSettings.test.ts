@@ -19,6 +19,8 @@ test('the natural look keeps the original grade; presets stay in range', () => {
     contrast: 1.06,
     saturation: 1.06,
     vibrance: 0.12,
+    highlights: -0.35,
+    whites: -0.2,
   });
   for (const preset of Object.values(LOOK_PRESETS)) {
     const g = gradeFor(0.6, preset.look);
