@@ -166,7 +166,9 @@ export const HookTitle: React.FC<{ plan: ViralEditPlan }> = ({ plan }) => {
 };
 
 /** Story bar position (px from the top of 1920). */
-export const STORY_BAR_TOP = 110;
+// At the very top (host's call, Nov 2026): in the Find feed it replaces the app's old timer bar.
+// 52 px still clears the top crop when a wide card trims the 9:16 frame (about 40 px).
+export const STORY_BAR_TOP = 52;
 
 /** Segmented story bar: tells viewers the video is short and how far along they are. */
 export const StoryProgress: React.FC<{ plan: ViralEditPlan }> = ({ plan }) => {

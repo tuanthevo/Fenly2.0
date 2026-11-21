@@ -48,6 +48,7 @@ import {
 import { FILL_AMENITIES, leaseTermOptions } from '../../fill/neighborhoods';
 import { BAY_AREA_CITIES, BAY_AREA_REGIONS, areaLabel, bayAreaCity, nearestArea } from '../../geo/bayArea';
 import { lookupBayAreaPlace } from '../../lib/geocode';
+import { chaptersFromPlan } from '../../find/videoChapters';
 import { formatMoveIn, formatRentCents } from '../../fill/publicListing';
 import { todayIn } from '../../fill/fillStatus';
 import type { SharePosts } from '../../fill/sharePosts';
@@ -463,6 +464,8 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
       // The edit behind the video (no blob URLs: clips point at their Storage paths)
       let edit: Record<string, unknown> = {
         ...result.edit,
+        // Where each room starts in the video: the Find feed jumps room to room on a left/right swipe
+        chapters: chaptersFromPlan(result.plan),
         clips: Object.values(media).map((m) => ({
           slotNumber: m.slotNumber,
           durationSec: m.durationSec,

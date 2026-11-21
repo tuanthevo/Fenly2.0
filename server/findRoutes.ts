@@ -11,12 +11,13 @@ import { getAdminClient } from "./supabase.js";
 import { track } from "./track.js";
 import { adminDb, dbError, isUuid, signedUrls, userDb } from "./routeKit.js";
 import { parseFindQuery, roomDistanceMiles, type FindListing } from "../src/find/findFilters.js";
+import { cleanChapters } from "../src/find/videoChapters.js";
 
 const FEED_LIMIT = 40;
 /** Rooms scanned when filtering by distance (the radius is checked here, not in SQL) */
 const NEAR_SCAN_LIMIT = 500;
 const FEED_COLUMNS =
-  "id, owner_id, status, title, description, neighborhood, city, rent_cents, deposit_cents, available_from, lease_term, beds, baths, square_feet, amenities, house_rules, published_at";
+  "id, owner_id, status, title, description, neighborhood, city, rent_cents, deposit_cents, available_from, lease_term, beds, baths, square_feet, amenities, house_rules, published_at, chapters:viral_edit->chapters";
 
 type Row = Record<string, any>;
 
@@ -64,6 +65,7 @@ export async function buildFindListings(admin: SupabaseClient, rows: Row[]): Pro
     squareFeet: r.square_feet ?? null,
     amenities: Array.isArray(r.amenities) ? r.amenities : [],
     houseRules: r.house_rules ?? null,
+    chapters: cleanChapters(r.chapters),
     status: r.status,
     videoUrl: videoPaths[i] ? videos.get(videoPaths[i]!) ?? null : null,
     thumbUrl: thumbPaths[i] ? thumbs.get(thumbPaths[i]!) ?? null : null,

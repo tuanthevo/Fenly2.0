@@ -141,6 +141,8 @@ export type FindListing = {
   squareFeet?: number | null;
   amenities: string[];
   houseRules: string | null;
+  /** Room start times in the tour video (seconds); [] for videos made before they were saved */
+  chapters?: number[];
   status: 'published' | 'filled';
   videoUrl: string | null;
   thumbUrl: string | null;
@@ -188,6 +190,7 @@ export function toRoomListing(l: FindListing, today: string): RoomListing {
     squareFeet: l.squareFeet ?? 0,
     amenities: l.amenities ?? [],
     videoUrl: l.videoUrl ?? '',
+    videoChapters: l.chapters ?? [],
     fallbackThumbnail: l.thumbUrl ?? '',
     tourFormat: 'viral_edit',
     audioTrack: { title: 'Original sound', artist: hostName },
