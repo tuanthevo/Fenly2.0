@@ -126,10 +126,10 @@ const DaysLeftCard: React.FC<{ daysLeft: number | null; moveOut: string | null; 
       <div className="min-w-0">
         <div className="text-sm font-extrabold text-[#2C2724] flex items-center gap-1.5">
           <CalendarClock className="w-4 h-4 text-[#D06C4E]" />
-          {daysLeft === null ? 'Add your move-out date' : daysLeft < 0 ? 'Move-out date has passed' : 'until you move out'}
+          {daysLeft === null ? 'Add the date you need it filled' : daysLeft < 0 ? 'Fill-by date has passed' : 'left to fill the room'}
         </div>
         <div className="text-[11px] text-[#6E655F]">
-          {moveOut ? `Move-out ${moveOut}` : ''}
+          {moveOut ? `Fill by ${moveOut}` : ''}
           {rent ? ` · ${formatRentCents(rent)}/mo` : ''}
         </div>
       </div>

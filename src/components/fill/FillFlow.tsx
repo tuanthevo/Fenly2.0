@@ -38,7 +38,7 @@ import {
 } from '../../lib/fillApi';
 import {
   PROBLEM_STEP,
-  nextDay,
+  depositCheck,
   rawClipPath,
   resumeStep,
   slotFromRawPath,
@@ -57,10 +57,10 @@ import { ShareKit } from './ShareKit';
 const ViralVideoEditor = React.lazy(() => import('../ViralVideoEditor').then((m) => ({ default: m.ViralVideoEditor })));
 
 const STEPS: { id: FillStep; label: string }[] = [
-  { id: 'start', label: 'Start' },
+  { id: 'start', label: 'Basics' },
   { id: 'lease', label: 'Lease' },
   { id: 'tour', label: 'Tour' },
-  { id: 'details', label: 'Details' },
+  { id: 'details', label: 'Describe' },
   { id: 'video', label: 'Video' },
   { id: 'publish', label: 'Publish' },
 ];
@@ -102,15 +102,16 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
   const [error, setError] = useState<string | null>(null);
   const [listing, setListing] = useState<ListingRow | null>(null);
 
-  // Step 1
+  // Step 1: the basics (date, money, the room's facts). The video puts these on screen, so they come first.
+  /** The date the room should be filled (stored as move_out_date; the room is available that day) */
   const [moveOut, setMoveOut] = useState('');
   const [rent, setRent] = useState('');
+  const [deposit, setDeposit] = useState('');
   // Step 3
   const [media, setMedia] = useState<Record<number, RecordedViralSlotMedia>>({});
   const uploadedClips = useRef(new Map<number, string>()); // slot -> videoUrl already in Storage
   const [retakeSlot, setRetakeSlot] = useState<number | null>(null);
   const clearRetake = useCallback(() => setRetakeSlot(null), []);
-  // Step 4
   const [neighborhood, setNeighborhood] = useState('Mission');
   const [beds, setBeds] = useState(1);
   const [baths, setBaths] = useState(1);
@@ -119,8 +120,8 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
   const [areaNote, setAreaNote] = useState<string | null>(null);
   const [areaBusy, setAreaBusy] = useState(false);
   const [leaseTerm, setLeaseTerm] = useState('6 months');
-  const [availableFrom, setAvailableFrom] = useState('');
   const [amenities, setAmenities] = useState<string[]>([]);
+  // Step 4: describe (AI writes it from the clips)
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [approved, setApproved] = useState(false);
@@ -149,12 +150,12 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
     setListing(row);
     setMoveOut(row.move_out_date ?? '');
     setRent(row.rent_cents ? String(Math.round(row.rent_cents / 100)) : '');
+    setDeposit(row.deposit_cents == null ? '' : String(Math.round(row.deposit_cents / 100)));
     setNeighborhood(row.neighborhood || 'Mission');
     setBeds(row.beds ?? 1);
     setBaths(row.baths == null ? 1 : Number(row.baths));
     setSquareFeet(row.square_feet ? String(row.square_feet) : '');
     setLeaseTerm(row.lease_term || '6 months');
-    setAvailableFrom(row.available_from ?? (row.move_out_date ? nextDay(row.move_out_date) : ''));
     setAmenities(row.amenities ?? []);
     setTitle(row.title ?? '');
     setDescription(row.description ?? '');
@@ -228,24 +229,39 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
   };
 
   const rentCents = Math.round(Number(rent.replace(/[^\d.]/g, '')) * 100);
+  const depositCents = deposit === '' ? null : Math.round(Number(deposit) * 100);
+  const depositRule = depositCheck(rentCents, depositCents);
 
-  /* ---------- Step 1: start ---------- */
+  /* ---------- Step 1: the basics ---------- */
   const submitStart = () =>
     run('start', async () => {
-      if (!moveOut) throw new Error('Pick your move-out date.');
+      if (!moveOut) throw new Error('Pick the date you need the room filled.');
       if (!(rentCents >= 10000 && rentCents <= 2000000)) throw new Error('Rent must be between $100 and $20,000.');
-      if (!listing) {
+      if (depositRule.error) throw new Error(depositRule.error);
+      const sqft = squareFeet ? Number(squareFeet) : null;
+      if (sqft !== null && !(sqft >= 50 && sqft <= 10000)) throw new Error('Room size must be between 50 and 10,000 sq ft, or left blank.');
+      let id = listing?.id;
+      if (!id) {
         const { listing: created } = await fillApi.createDraft(moveOut, rentCents);
-        applyListing(created);
+        // Keep what the host typed: the new row's empty fields must not overwrite the form
+        setListing(created);
         onDraftCreated?.(created.id);
-      } else {
-        const { listing: updated } = await fillApi.patch(listing.id, {
-          move_out_date: moveOut,
-          rent_cents: rentCents,
-          available_from: listing.available_from && listing.available_from > moveOut ? listing.available_from : nextDay(moveOut),
-        });
-        applyListing(updated);
+        id = created.id;
       }
+      const { listing: updated } = await fillApi.patch(id, {
+        move_out_date: moveOut,
+        available_from: moveOut,
+        rent_cents: rentCents,
+        deposit_cents: depositCents,
+        neighborhood,
+        city: 'San Francisco',
+        beds,
+        baths,
+        square_feet: sqft,
+        lease_term: leaseTerm,
+        amenities,
+      });
+      applyListing(updated);
       setStep('lease');
     });
 
@@ -289,7 +305,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
       setStep('details');
     }).finally(() => setUploadProgress(null));
 
-  /* ---------- Step 4: details ---------- */
+  /* ---------- Step 1: where the room is ---------- */
   const useMyLocation = () => {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
@@ -327,6 +343,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
     setAreaNote("We couldn't place that address. Try the 5-digit ZIP code, or pick below.");
   };
 
+  /* ---------- Step 4: describe ---------- */
   const writeWithAi = async () => {
     setAiBusy(true);
     setError(null);
@@ -388,17 +405,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
       if (!title.trim() || !description.trim()) throw new Error('Add a title and a description.');
       if (liveIssues.length > 0) throw new Error('Change the highlighted words in your text first.');
       if (!approved) throw new Error('Tick "I checked this text and it\'s accurate" first.');
-      const sqft = squareFeet ? Number(squareFeet) : null;
-      if (sqft !== null && !(sqft >= 50 && sqft <= 10000)) throw new Error('Room size must be between 50 and 10,000 sq ft, or left blank.');
       const { listing: updated } = await fillApi.patch(listing!.id, {
-        neighborhood,
-        city: 'San Francisco',
-        beds,
-        baths,
-        square_feet: sqft,
-        lease_term: leaseTerm,
-        available_from: availableFrom || null,
-        amenities,
         title,
         description,
         copy_approved: true,
@@ -574,25 +581,136 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
           ) : (
             <>
               {step === 'start' && (
-                <div className={`${card} space-y-4`}>
-                  <div>
-                    <h3 className="text-lg font-extrabold leading-tight">Let's fill your room</h3>
-                    <p className="text-xs text-[#6E655F] mt-1">Two questions, then a 15-second tour. About 10 minutes in all.</p>
+                <div className="space-y-3">
+                  <div className={`${card} space-y-4`}>
+                    <div>
+                      <h3 className="text-lg font-extrabold leading-tight">Let's fill your room</h3>
+                      <p className="text-xs text-[#6E655F] mt-1">The basics, then a 15-second tour. About 10 minutes in all.</p>
+                    </div>
+                    <div>
+                      <label className={label} htmlFor="fill-move-out">When do you need to fill the room?</label>
+                      <input id="fill-move-out" type="date" min={today} className={input} value={moveOut} onChange={(e) => setMoveOut(e.target.value)} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className={label} htmlFor="fill-rent">Rent ($ per month)</label>
+                        <input
+                          id="fill-rent"
+                          inputMode="numeric"
+                          placeholder="1450"
+                          className={input}
+                          value={rent}
+                          onChange={(e) => setRent(e.target.value.replace(/[^\d]/g, '').slice(0, 5))}
+                        />
+                      </div>
+                      <div>
+                        <label className={label} htmlFor="fill-deposit">Security deposit ($)</label>
+                        <input
+                          id="fill-deposit"
+                          inputMode="numeric"
+                          placeholder={rent || '1450'}
+                          className={input}
+                          value={deposit}
+                          aria-describedby="fill-deposit-hint"
+                          onChange={(e) => setDeposit(e.target.value.replace(/[^\d]/g, '').slice(0, 5))}
+                        />
+                      </div>
+                    </div>
+                    <p
+                      id="fill-deposit-hint"
+                      className={`text-[11px] -mt-2 ${depositRule.error ? 'text-[#A9513A] font-bold' : 'text-[#6E655F]'}`}
+                      role={depositRule.error || depositRule.note ? 'status' : undefined}
+                    >
+                      {depositRule.error ?? depositRule.note ?? 'Optional. Enter 0 if there is no deposit.'}
+                    </p>
                   </div>
-                  <div>
-                    <label className={label} htmlFor="fill-move-out">When do you move out?</label>
-                    <input id="fill-move-out" type="date" min={today} className={input} value={moveOut} onChange={(e) => setMoveOut(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className={label} htmlFor="fill-rent">Rent for the room ($ per month)</label>
-                    <input
-                      id="fill-rent"
-                      inputMode="numeric"
-                      placeholder="1450"
-                      className={input}
-                      value={rent}
-                      onChange={(e) => setRent(e.target.value.replace(/[^\d]/g, '').slice(0, 5))}
-                    />
+                  <div className={`${card} space-y-3`} data-testid="fill-room-facts">
+                    <div>
+                      <h3 className="text-sm font-extrabold">About the room</h3>
+                      <p className="text-xs text-[#6E655F] mt-0.5">These go on your video and listing. Change anything later.</p>
+                    </div>
+                    <div>
+                      <label className={label} htmlFor="fill-area-query">Address or ZIP code (only used to find your neighborhood, never saved)</label>
+                      <form
+                        className="flex gap-2 mb-2"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          void findArea();
+                        }}
+                      >
+                        <input
+                          id="fill-area-query"
+                          className={input}
+                          placeholder="94110 or 123 Valencia St"
+                          autoComplete="off"
+                          value={areaQuery}
+                          onChange={(e) => setAreaQuery(e.target.value.slice(0, 120))}
+                        />
+                        <button type="submit" disabled={areaBusy || !areaQuery.trim()} className="min-h-10 px-3 rounded-xl bg-white border border-[#2C2724]/15 hover:bg-[#F2EFE9] text-xs font-bold shrink-0 disabled:opacity-50">
+                          {areaBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Find'}
+                        </button>
+                      </form>
+                      {areaNote && <p className="text-[11px] text-[#6E655F] font-semibold mb-2" role="status">{areaNote}</p>}
+                      <label className={label} htmlFor="fill-neighborhood">Neighborhood (we show the area, never the address)</label>
+                      <div className="flex gap-2">
+                        <select id="fill-neighborhood" className={input} value={neighborhood} onChange={(e) => setNeighborhood(e.target.value)}>
+                          {[...new Set([neighborhood, ...SF_NEIGHBORHOODS.map((n) => n.name)])].map((n) => (
+                            <option key={n} value={n}>{n}</option>
+                          ))}
+                        </select>
+                        <button type="button" onClick={useMyLocation} aria-label="Use my location" className="w-11 rounded-xl bg-white border border-[#2C2724]/15 hover:bg-[#F2EFE9] flex items-center justify-center shrink-0">
+                          <MapPin className="w-4 h-4 text-[#D06C4E]" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Stepper label="Beds" value={beds} min={1} max={6} step={1} onChange={setBeds} />
+                      <Stepper label="Baths" value={baths} min={0.5} max={4} step={0.5} onChange={setBaths} />
+                      <div>
+                        <label className={label} htmlFor="fill-square-feet">Size (sq ft)</label>
+                        <input
+                          id="fill-square-feet"
+                          inputMode="numeric"
+                          placeholder="150"
+                          className={input}
+                          value={squareFeet}
+                          onChange={(e) => setSquareFeet(e.target.value.replace(/[^\d]/g, '').slice(0, 5))}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-3" data-testid="fill-more-details">
+                    <div>
+                      <div>
+                        <label className={label} htmlFor="fill-lease-term">Lease term</label>
+                        <select id="fill-lease-term" className={input} value={leaseTerm} onChange={(e) => setLeaseTerm(e.target.value)}>
+                          {leaseTermOptions(leaseTerm).map((t) => (
+                            <option key={t} value={t}>{t}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <span className={label}>What's included</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {FILL_AMENITIES.map((a) => {
+                          const on = amenities.includes(a);
+                          return (
+                            <button
+                              key={a}
+                              type="button"
+                              aria-pressed={on}
+                              onClick={() => setAmenities((prev) => (on ? prev.filter((x) => x !== a) : [...prev, a]))}
+                              className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all ${
+                                on ? 'bg-[#2C2724] text-[#F9F7F3] border-[#2C2724]' : 'bg-white text-[#2C2724] border-[#2C2724]/25 hover:bg-[#F2EFE9]'
+                              }`}
+                            >
+                              {a}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    </div>
                   </div>
                   <button type="button" className={primaryBtn} disabled={busy !== null} onClick={() => void submitStart()} data-testid="fill-start-continue">
                     {busy === 'start' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
@@ -677,95 +795,6 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
 
               {step === 'details' && (
                 <div className="space-y-3">
-                  <div className={`${card} space-y-3`}>
-                    <div>
-                      <label className={label} htmlFor="fill-area-query">Address or ZIP code (only used to find your neighborhood, never saved)</label>
-                      <form
-                        className="flex gap-2 mb-2"
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          void findArea();
-                        }}
-                      >
-                        <input
-                          id="fill-area-query"
-                          className={input}
-                          placeholder="94110 or 123 Valencia St"
-                          autoComplete="off"
-                          value={areaQuery}
-                          onChange={(e) => setAreaQuery(e.target.value.slice(0, 120))}
-                        />
-                        <button type="submit" disabled={areaBusy || !areaQuery.trim()} className="min-h-10 px-3 rounded-xl bg-white border border-[#2C2724]/15 hover:bg-[#F2EFE9] text-xs font-bold shrink-0 disabled:opacity-50">
-                          {areaBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Find'}
-                        </button>
-                      </form>
-                      {areaNote && <p className="text-[11px] text-[#6E655F] font-semibold mb-2" role="status">{areaNote}</p>}
-                      <label className={label} htmlFor="fill-neighborhood">Neighborhood (we show the area, never the address)</label>
-                      <div className="flex gap-2">
-                        <select id="fill-neighborhood" className={input} value={neighborhood} onChange={(e) => setNeighborhood(e.target.value)}>
-                          {[...new Set([neighborhood, ...SF_NEIGHBORHOODS.map((n) => n.name)])].map((n) => (
-                            <option key={n} value={n}>{n}</option>
-                          ))}
-                        </select>
-                        <button type="button" onClick={useMyLocation} aria-label="Use my location" className="w-11 rounded-xl bg-white border border-[#2C2724]/15 hover:bg-[#F2EFE9] flex items-center justify-center shrink-0">
-                          <MapPin className="w-4 h-4 text-[#D06C4E]" />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <Stepper label="Beds" value={beds} min={1} max={6} step={1} onChange={setBeds} />
-                      <Stepper label="Baths" value={baths} min={0.5} max={4} step={0.5} onChange={setBaths} />
-                      <div>
-                        <span className={label}>Available</span>
-                        <input type="date" min={today} className={`${input} px-2 text-xs`} value={availableFrom} onChange={(e) => setAvailableFrom(e.target.value)} />
-                      </div>
-                    </div>
-                    <div className="space-y-3" data-testid="fill-more-details">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className={label} htmlFor="fill-lease-term">Lease term</label>
-                        <select id="fill-lease-term" className={input} value={leaseTerm} onChange={(e) => setLeaseTerm(e.target.value)}>
-                          {leaseTermOptions(leaseTerm).map((t) => (
-                            <option key={t} value={t}>{t}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className={label} htmlFor="fill-square-feet">Room size (sq ft)</label>
-                        <input
-                          id="fill-square-feet"
-                          inputMode="numeric"
-                          placeholder="150"
-                          className={input}
-                          value={squareFeet}
-                          onChange={(e) => setSquareFeet(e.target.value.replace(/[^\d]/g, '').slice(0, 5))}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <span className={label}>What's included</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {FILL_AMENITIES.map((a) => {
-                          const on = amenities.includes(a);
-                          return (
-                            <button
-                              key={a}
-                              type="button"
-                              aria-pressed={on}
-                              onClick={() => setAmenities((prev) => (on ? prev.filter((x) => x !== a) : [...prev, a]))}
-                              className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all ${
-                                on ? 'bg-[#2C2724] text-[#F9F7F3] border-[#2C2724]' : 'bg-white text-[#2C2724] border-[#2C2724]/25 hover:bg-[#F2EFE9]'
-                              }`}
-                            >
-                              {a}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    </div>
-                  </div>
-
                   <div className={`${card} space-y-3`}>
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm font-extrabold">Title and description</h3>
@@ -873,10 +902,18 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                     )}
                     <div className="min-w-0 space-y-1">
                       <h3 className="text-sm font-extrabold leading-snug">{title}</h3>
-                      <p className="text-xs font-extrabold text-[#A9513A]">{formatRentCents(listing.rent_cents)}/mo</p>
+                      <p className="text-xs font-extrabold text-[#A9513A]">
+                        {formatRentCents(listing.rent_cents)}/mo
+                        {listing.deposit_cents != null ? (
+                          <span className="font-bold text-[#6E655F]">
+                            {' · '}
+                            {listing.deposit_cents === 0 ? 'No deposit' : `${formatRentCents(listing.deposit_cents)} deposit`}
+                          </span>
+                        ) : null}
+                      </p>
                       <p className="text-[11px] text-[#6E655F]">
                         {neighborhood}, San Francisco
-                        {formatMoveIn(availableFrom, today) ? ` · Move in ${formatMoveIn(availableFrom, today)}` : ''}
+                        {formatMoveIn(moveOut, today) ? ` · Move in ${formatMoveIn(moveOut, today)}` : ''}
                       </p>
                       <p className="text-[11px] text-[#6E655F]">Your link shows the area only. The exact address stays private.</p>
                     </div>

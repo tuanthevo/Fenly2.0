@@ -22,7 +22,7 @@ import { FenlyViralTour } from '../remotion/viral/FenlyViralTour';
 import { LENGTH_PRESETS, PACE_PRESETS, buildViralEditPlan, editableShots, roomDetail } from '../remotion/viral/plan';
 import { STYLE_INFO, violatesFairHousing, MAX_HOOK_CHARS, MAX_TAG_CHARS } from '../remotion/viral/copy';
 import { analyzeClipInBrowser } from '../remotion/viral/analyzeClipInBrowser';
-import { fetchViralAiHints } from '../remotion/viral/aiCopy';
+import { fetchViralAiHints, scanTimes } from '../remotion/viral/aiCopy';
 import { makeAiMusic } from '../remotion/viral/aiMusic';
 import {
   DEFAULT_EDIT_SETTINGS,
@@ -229,6 +229,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
         room: c.room,
         src: c.src,
         atSec: (analysisCache.current.get(c.src)?.best.startSec ?? 0.5) + 0.5,
+        scanSec: scanTimes(analysisCache.current.get(c.src), c.durationSec),
       }));
       const hints = await fetchViralAiHints(listing, shots, controller.signal);
       if (!controller.signal.aborted) setFetchedHints(hints);

@@ -59,6 +59,7 @@ import type {
   ClipAnalysis,
   ClipRange,
   ClipWarning,
+  FrameNote,
   HookCopy,
   ViralCallout,
   ViralClipInput,
@@ -207,6 +208,8 @@ const NO_ANALYSIS_START_MAX_SEC = 2;
 const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
 const round3 = (x: number) => Math.round(x * 1000) / 1000;
 const PRICE_IN_TEXT = /\$\s?\d/;
+/** The proven price-hook shape: "What $X/mo gets you in {place}" */
+const PRICE_HOOK_SHAPE = /^what\s+\$\s?[\d,]+(\/mo)?\s+gets\s+you\s+in\s+\S/i;
 
 function hookScoreOf(clip: ViralClipInput): number {
   return (clip.analysis?.hookScore ?? 0.5) + (SLOT_HOOK_PRIOR[clip.slotNumber] ?? 0);
@@ -267,18 +270,23 @@ export function reframeFor(reframe: ClipAnalysis['reframe']): ViralShot['reframe
   return { scale: Math.round(scale * 1000) / 1000, originX: reframe.side === 'right' ? 0 : 100 };
 }
 
-type SourceInfo = { duration: number; preferred: number; clean: ClipRange; motion: number | null };
+type SourceInfo = { duration: number; preferred: number; clean: ClipRange; motion: number | null; hard: boolean };
 
 function sourceInfo(clip: ViralClipInput, aiWindow?: { startSec: number; endSec?: number }): SourceInfo {
   const duration = clip.durationSec > 0 ? clip.durationSec : clip.analysis?.durationSec ?? 4.5;
   const end = Math.max(0, duration - SOURCE_TAIL_SEC);
   const fallbackStart =
     duration >= 3 ? clamp(duration * NO_ANALYSIS_START_SHARE, 0.6, NO_ANALYSIS_START_MAX_SEC) : Math.min(0.2, end);
-  const preferred = clamp(aiWindow?.startSec ?? clip.analysis?.best.startSec ?? fallbackStart, 0, end);
   const analysisClean = clip.analysis?.clean;
+  const hard = Boolean(analysisClean?.hard);
+  const lo = hard ? analysisClean!.startSec : 0;
+  const hi = hard ? Math.min(end, analysisClean!.endSec) : end;
+  const preferred = clamp(aiWindow?.startSec ?? clip.analysis?.best.startSec ?? fallbackStart, lo, hi);
   let clean: ClipRange;
   if (aiWindow) {
-    clean = { startSec: preferred, endSec: clamp(aiWindow.endSec ?? end, preferred, end) };
+    clean = { startSec: preferred, endSec: clamp(aiWindow.endSec ?? end, preferred, hi) };
+  } else if (hard) {
+    clean = { startSec: lo, endSec: hi };
   } else if (analysisClean) {
     clean = {
       startSec: clamp(Math.min(analysisClean.startSec, preferred), 0, end),
@@ -288,7 +296,7 @@ function sourceInfo(clip: ViralClipInput, aiWindow?: { startSec: number; endSec?
     clean = { startSec: Math.min(MIN_START_SEC, preferred), endSec: end };
   }
   const motion = analysisClean?.meanMotion ?? clip.analysis?.best.meanMotion ?? null;
-  return { duration, preferred, clean, motion: motion && motion > 0 ? motion : null };
+  return { duration, preferred, clean, motion: motion && motion > 0 ? motion : null, hard };
 }
 
 /** Room speed matched to camera movement (see LengthPreset.tourRate). */
@@ -360,14 +368,15 @@ export function fitSource(clip: ViralClipInput, req: FitRequest, aiWindow?: { st
   // 3. Slow down further (to minRate) rather than show a wall
   const slowRate = rateFor(cleanLen, null, Math.min(req.minRate, req.rate));
   if (slowRate != null) return done(place(need(slowRate, null), src.clean.endSec, earliest), slowRate, null);
-  // 4. Footage outside the clean range
-  const from = Math.min(MIN_START_SEC, earliest);
-  const wholeLen = end - from;
-  const wholeRate = rateFor(wholeLen, null, keep);
+  // 4. Footage outside the clean range (never when a person is in it)
+  const from = src.hard ? earliest : Math.min(MIN_START_SEC, earliest);
+  const until = src.hard ? src.clean.endSec : end;
+  const wholeLen = until - from;
+  const wholeRate = src.hard ? null : rateFor(wholeLen, null, keep);
   if (wholeRate != null) return done(place(need(wholeRate, null), end, from), wholeRate, null);
   // 5. Slow down to the floor; whatever is still missing holds the last frame
   const floorRate = Math.min(req.rate, Math.max(req.minRate, (wholeLen * fps) / frames));
-  return done(Math.min(earliest, end - need(floorRate, null)), floorRate, null);
+  return done(Math.max(src.hard ? from : 0, Math.min(earliest, until - need(floorRate, null))), floorRate, null);
 }
 
 /** Seconds of clean footage a shot can use, from the earliest allowed start. */
@@ -382,7 +391,8 @@ function resolveHook(style: ViralStyleId, input: BuildViralPlanInput, options: B
   if (hostText) return hookFromText(hostText, input.listing, fallback.kicker);
   if (style === 'price-hook') {
     const aiText = sanitizeHookText(options.ai?.hookText);
-    if (aiText && PRICE_IN_TEXT.test(aiText) && !violatesFairHousing(aiText)) {
+    // One recognizable format across every listing: the AI may only reword the place
+    if (aiText && PRICE_IN_TEXT.test(aiText) && PRICE_HOOK_SHAPE.test(aiText) && !violatesFairHousing(aiText)) {
       return hookFromText(aiText, input.listing, fallback.kicker);
     }
   }
@@ -392,6 +402,86 @@ function resolveHook(style: ViralStyleId, input: BuildViralPlanInput, options: B
 function aiTag(text: string | undefined): string {
   if (!text || violatesFairHousing(text)) return '';
   return cleanTag(text);
+}
+
+/**
+ * A label names a scanned frame at most this far (source seconds) from the moment
+ * it's read, about one scan step: further away, the thing isn't in view yet.
+ */
+export const LABEL_MAX_GAP_SEC = 1.3;
+
+/** Footage this far either side of a scanned frame with a person in it is skipped (about half a scan step) */
+export const PERSON_PAD_SEC = 0.7;
+/** A clip with less person-free footage than this is left out of the tour */
+export const MIN_PERSON_FREE_SEC = 2;
+
+/**
+ * Narrows a clip's usable footage to its longest stretch with no person in it
+ * (from the frame notes), marked hard so nothing outside it plays. Returns null
+ * when too little is left to show the room.
+ */
+export function withoutPeople(clip: ViralClipInput, notes: FrameNote[] | null): ViralClipInput | null {
+  const people = (notes ?? []).filter((n) => n.person).map((n) => n.t);
+  if (people.length === 0 || !clip.analysis) return clip;
+  const a = clip.analysis;
+  const duration = clip.durationSec > 0 ? clip.durationSec : a.durationSec;
+  const lo = a.clean?.startSec ?? 0;
+  const hi = Math.min(duration - SOURCE_TAIL_SEC, a.clean ? Math.max(a.clean.endSec, a.best.endSec) : duration);
+  const blocked = people.map((t): [number, number] => [t - PERSON_PAD_SEC, t + PERSON_PAD_SEC]).sort((x, y) => x[0] - y[0]);
+  let best: [number, number] | null = null;
+  let from = lo;
+  for (const [b0, b1] of [...blocked, [hi, hi] as [number, number]]) {
+    const to = Math.min(b0, hi);
+    if (to - from > (best ? best[1] - best[0] : 0)) best = [from, to];
+    from = Math.max(from, b1);
+  }
+  if (!best || best[1] - best[0] < MIN_PERSON_FREE_SEC) return null;
+  const [s, e] = best;
+  const len = a.best.endSec - a.best.startSec;
+  const bestStart = clamp(a.best.startSec, s, Math.max(s, e - len));
+  return {
+    ...clip,
+    analysis: {
+      ...a,
+      best: { ...a.best, startSec: bestStart, endSec: Math.min(e, bestStart + len) },
+      clean: { startSec: s, endSec: e, meanMotion: a.clean?.meanMotion, hard: true },
+    },
+  };
+}
+
+/** Frame notes for a slot (what Gemini saw across the clip), or null when it wasn't scanned. */
+function frameNotes(options: BuildViralPlanOptions, slotNumber: number): FrameNote[] | null {
+  const notes = options.ai?.frames?.[slotNumber];
+  return notes && notes.length > 0 ? notes : null;
+}
+
+/**
+ * The label of the scanned frame nearest `atSec` inside [fromSec, toSec] (source
+ * seconds), so a callout only names something that's in view on its footage.
+ * Labels in `skip` (already said on this shot) are passed over.
+ */
+export function labelInView(
+  notes: FrameNote[],
+  fromSec: number,
+  toSec: number,
+  atSec: number,
+  skip: string[] = [],
+  maxGapSec = LABEL_MAX_GAP_SEC
+): string {
+  const said = new Set(skip.map((s) => s.toLowerCase()));
+  let best = '';
+  let bestDist = Infinity;
+  for (const n of notes) {
+    if (n.t < fromSec || n.t > toSec || n.person || Math.abs(n.t - atSec) > maxGapSec) continue;
+    const label = aiTag(n.label);
+    if (!label || said.has(label.toLowerCase())) continue;
+    const d = Math.abs(n.t - atSec);
+    if (d < bestDist) {
+      best = label;
+      bestDist = d;
+    }
+  }
+  return best;
 }
 
 /** Snaps section boundaries to music beats when a BPM is known. */
@@ -497,8 +587,13 @@ export function buildViralEditPlan(input: BuildViralPlanInput, options: BuildVir
 }
 
 function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOptions, maxExtras: number): ViralEditPlan {
-  const clips = input.clips.filter((c) => Boolean(c.src));
-  if (clips.length === 0) throw new Error('buildViralEditPlan needs at least one clip');
+  const given = input.clips.filter((c) => Boolean(c.src));
+  if (given.length === 0) throw new Error('buildViralEditPlan needs at least one clip');
+  // Skip footage with a person in it; a clip that's people throughout is left out (if others remain)
+  const kept = given
+    .map((c) => withoutPeople(c, frameNotes(options, c.slotNumber)))
+    .filter((c): c is ViralClipInput => c !== null);
+  const clips = kept.length > 0 ? kept : given;
 
   const fps = options.fps ?? VIDEO.fps;
   const style: ViralStyleId = options.style ?? 'price-hook';
@@ -567,7 +662,11 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
   const heroMax = cleanSeconds(sources[0], 'hook') / HERO_KEEP_RATE - spareSec(0);
   /** The most a clip can fill at the slowest allowed speed: section minimums never exceed it */
   const hardMax = (i: number, minRate: number) =>
-    (sources[i].duration - SOURCE_TAIL_SEC - Math.min(MIN_START_SEC, sources[i].clean.startSec)) / minRate - spareSec(i);
+    (sources[i].hard
+      ? sources[i].clean.endSec - sources[i].clean.startSec
+      : sources[i].duration - SOURCE_TAIL_SEC - Math.min(MIN_START_SEC, sources[i].clean.startSec)) /
+      minRate -
+    spareSec(i);
   const hookSec = Math.min(hookTarget, Math.max(Math.min(MIN_HOOK_SEC, hardMax(0, SPEED.minHero)), heroMax));
   let factsSec = n > 0 ? clamp(heroMax - hookSec, 0, lp.heroFactsSec * preset.scale) : 0;
   if (factsSec < MIN_FACTS_SEC) factsSec = 0;
@@ -589,6 +688,33 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
   });
   const { primary, endCard: endCardFrames } = snapToBeats(seconds, lp.endCardSec * preset.scale, fps, bpm);
 
+  // Where each shot plays inside its clip
+  const outOverlapOf = (i: number) => (i < n - 1 ? overlapOf(cutKinds[i]) : 0);
+  const durationOf = (i: number) => primary[i] + (i === n - 1 ? endCardFrames : outOverlapOf(i));
+  const fits = segs.map((_, i) =>
+    fitSource(
+      ordered[i],
+      {
+        role: roles[i],
+        durationInFrames: durationOf(i),
+        // The closer's end card plays on past the clean footage, unless a person is waiting there
+        cleanFrames: i === n - 1 && !sources[i].hard ? primary[i] : durationOf(i),
+        fps,
+        rate: rates[i],
+        keepRate: keepRates[i],
+        minRate: roles[i] === 'hook' ? SPEED.minHero : roles[i] === 'closer' ? SPEED.minCloser : SPEED.minTour,
+        ramp: rampFor(i),
+      },
+      windowOf(i)
+    )
+  );
+  /** Source second shown at a local frame of shot i (ramps are off, so the rate is constant) */
+  const srcAt = (i: number, localFrame: number) => fits[i].srcStartSec + (localFrame / fps) * fits[i].playbackRate;
+  /** Source seconds shot i shows before it starts to leave */
+  const visibleSpan = (i: number): [number, number] => [fits[i].srcStartSec, srcAt(i, primary[i])];
+  /** A label is read about a second after it pops in: name what's in view then */
+  const READ_AT_SEC = 1;
+
   // Callouts
   const tags = defaultTags(listing);
   const closerIdx = n - 1;
@@ -606,14 +732,22 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
   const unlabeled = (i: number) =>
     roles[i] === 'tour' &&
     ((i > 0 && segs[i - 1].clip === segs[i].clip && roles[i - 1] === 'tour') || (i < n - 1 && segs[i + 1].clip === segs[i].clip && roles[i + 1] === 'closer'));
-  const tourTags = ordered.map((clip, i) =>
-    roles[i] === 'tour' && !unlabeled(i)
-      ? cleanTag(options.tagOverrides?.[clip.slotNumber]) ||
-        aiTag(options.ai?.tags?.[clip.slotNumber]) ||
-        tags[clip.slotNumber] ||
-        cleanTag(clip.room)
-      : ''
-  );
+  // A light leak or flash into the closer sits on top of the footage (and its text) for half its length
+  // after the cut: the reveal waits until it has passed, or the flash washes out the payoff
+  const tagInFrameOf = (i: number) =>
+    i > 0 && isOverlay(cutKinds[i - 1]) ? Math.ceil(CLOSER_OVERLAY_FRAMES / 2) + 3 : inOverlapOf(i) + 3;
+  const tourTags = ordered.map((clip, i) => {
+    if (roles[i] !== 'tour' || unlabeled(i)) return '';
+    const host = cleanTag(options.tagOverrides?.[clip.slotNumber]);
+    if (host) return host;
+    // Scanned clip: name what's in view on this footage (nothing rather than something that isn't)
+    const notes = frameNotes(options, clip.slotNumber);
+    if (notes) {
+      const [from, to] = visibleSpan(i);
+      return labelInView(notes, from, to, srcAt(i, tagInFrameOf(i) + READ_AT_SEC * fps));
+    }
+    return aiTag(options.ai?.tags?.[clip.slotNumber]) || tags[clip.slotNumber] || cleanTag(clip.room);
+  });
   const saidAlready = [closerTag, ...tourTags].filter(Boolean);
   const facts = factsSec > 0 ? heroFacts(listing, saidAlready) : [];
   const factQueue = lp.details ? listingFacts(listing, [...saidAlready, ...facts]) : [];
@@ -642,21 +776,8 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
     const inOverlap = inOverlapOf(i);
     const outOverlap = i < n - 1 ? overlapOf(cutKinds[i]) : 0;
     const isLast = i === n - 1;
-    const durationInFrames = primary[i] + (isLast ? endCardFrames : outOverlap);
-    const fit = fitSource(
-      clip,
-      {
-        role,
-        durationInFrames,
-        cleanFrames: isLast ? primary[i] : durationInFrames,
-        fps,
-        rate: rates[i],
-        keepRate: keepRates[i],
-        minRate: role === 'hook' ? SPEED.minHero : role === 'closer' ? SPEED.minCloser : SPEED.minTour,
-        ramp: rampFor(i),
-      },
-      windowOf(i)
-    );
+    const durationInFrames = durationOf(i);
+    const fit = fits[i];
 
     let tag = '';
     let kicker = '';
@@ -666,7 +787,7 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
     } else if (role === 'tour') {
       tag = tourTags[i];
     }
-    const tagInFrame = inOverlap + 3;
+    const tagInFrame = tagInFrameOf(i);
     const visibleEnd = durationInFrames - outOverlap - 1;
 
     const callouts: ViralCallout[] = [];
@@ -682,9 +803,19 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
       const hostDetail = options.detailOverrides?.[clip.slotNumber];
       const hostCleared = detailHere && hostDetail !== undefined && !cleanTag(hostDetail);
       const fact = () => (factQueue.length > 0 ? { text: factQueue.shift()!, kind: 'fact' as const } : null);
-      const detail = hostCleared ? null : detailHere ? detailFor(clip, i) ?? fact() : fact();
       // An unlabeled moment shows its callout right after the cut, in the label's place
       const inFrame = unlabeled(i) ? tagInFrame + Math.round(0.3 * fps) : tagInFrame + Math.max(Math.round(1.6 * fps), Math.round(0.42 * primary[i]));
+      const notes = frameNotes(options, clip.slotNumber);
+      const hostHere = detailHere && hostDetail !== undefined;
+      let detail: { text: string; kind: 'room' | 'fact' } | null;
+      if (hostCleared) detail = null;
+      else if (notes && !hostHere) {
+        // Scanned clip: each moment names what's in view on its own footage
+        const [from, to] = visibleSpan(i);
+        const roomTag = tourTags.find((t, k) => t && segs[k].clip === clip) || '';
+        const seen = labelInView(notes, from, to, srcAt(i, inFrame + READ_AT_SEC * fps), [roomTag]);
+        detail = seen ? { text: seen, kind: 'room' } : fact();
+      } else detail = detailHere ? detailFor(clip, i) ?? fact() : fact();
       if (detail && inFrame < visibleEnd - Math.round(1.2 * fps)) {
         callouts.push({ ...detail, inFrame, outFrame: visibleEnd, row: unlabeled(i) ? 0 : 1 });
       }

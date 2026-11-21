@@ -39,6 +39,20 @@ export function isIsoDate(value: unknown): value is string {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
 }
 
+/**
+ * Security deposit check for the Fill form. Optional; blocked past two months of rent,
+ * with a note past one month: California caps most deposits at one month's rent
+ * (two for some small landlords) since July 2024. General info, not legal advice.
+ */
+export function depositCheck(rentCents: number, depositCents: number | null): { error?: string; note?: string } {
+  if (depositCents === null || depositCents <= 0 || !(rentCents > 0)) return {};
+  if (depositCents > rentCents * 2) return { error: "A deposit can't be more than two months of rent." };
+  if (depositCents > rentCents) {
+    return { note: "California limits most deposits to one month's rent (two for some small landlords). Check before you post." };
+  }
+  return {};
+}
+
 /** The day after `date` (YYYY-MM-DD). */
 export function nextDay(date: string): string {
   const d = new Date(`${date}T00:00:00Z`);

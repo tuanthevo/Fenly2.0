@@ -21,7 +21,6 @@ import {
   PUBLISH_PROBLEM_TEXT,
   isIsoDate,
   listingFairHousingIssues,
-  nextDay,
   publishProblems,
   sanitizeListingPatch,
   validRentCents,
@@ -34,7 +33,7 @@ import { SHARE_CHANNELS, isShareChannel, type FillListingInfo, type ShareChannel
 const LISTING_COLUMNS =
   "id, owner_id, status, title, description, neighborhood, city, rent_cents, deposit_cents, available_from, move_out_date, lease_term, lease_permission, beds, baths, square_feet, amenities, house_rules, caption, viral_edit, copy_approved_at, published_at, filled_at, created_at, updated_at";
 const PUBLIC_COLUMNS =
-  "id, status, title, description, neighborhood, city, rent_cents, available_from, move_out_date, lease_term, beds, baths, amenities, caption";
+  "id, status, title, description, neighborhood, city, rent_cents, deposit_cents, available_from, move_out_date, lease_term, beds, baths, amenities, caption";
 
 type ListingRow = Record<string, any> & { id: string; status: string };
 type PublicLink = { id: string; listing_id: string; channel: ShareChannel; code: string };
@@ -47,6 +46,7 @@ export function toFillListingInfo(row: Record<string, any>): FillListingInfo {
     neighborhood: row.neighborhood ?? null,
     city: row.city ?? "San Francisco",
     rentCents: row.rent_cents ?? null,
+    depositCents: row.deposit_cents ?? null,
     availableFrom: row.available_from ?? null,
     moveOutDate: row.move_out_date ?? null,
     beds: row.beds ?? null,
@@ -183,13 +183,13 @@ export function registerFillRoutes(app: Express): void {
   app.post("/api/listings", requireUser(), async (req, res) => {
     const user = currentUser(res)!;
     const { moveOutDate, rentCents } = req.body ?? {};
-    if (!isIsoDate(moveOutDate)) return res.status(400).json({ error: "invalid", errors: ["Pick your move-out date."] });
+    if (!isIsoDate(moveOutDate)) return res.status(400).json({ error: "invalid", errors: ["Pick the date you need the room filled."] });
     if (!validRentCents(rentCents)) return res.status(400).json({ error: "invalid", errors: ["Rent must be between $100 and $20,000."] });
     const db = userDb(res);
     if (!db) return;
     const { data, error } = await db
       .from("listings")
-      .insert({ owner_id: user.id, move_out_date: moveOutDate, available_from: nextDay(moveOutDate), rent_cents: rentCents })
+      .insert({ owner_id: user.id, move_out_date: moveOutDate, available_from: moveOutDate, rent_cents: rentCents })
       .select(LISTING_COLUMNS)
       .single();
     if (error) return dbError(res, error, "create listing");

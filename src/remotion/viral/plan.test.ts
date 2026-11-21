@@ -9,6 +9,8 @@ import {
   QUIET_MAX_SEC,
   editableShots,
   hookReadSec,
+  LABEL_MAX_GAP_SEC,
+  PERSON_PAD_SEC,
   roomDetail,
   MAX_TOUR_TOTAL_SEC,
   MOMENT_SEC,
@@ -385,6 +387,11 @@ test('AI copy is used when it is safe, and dropped when it describes who should 
   );
   assert.equal(bad.hook.text, 'What $1,450/mo gets you in Mission District');
   assert.equal(bad.shots[1].tag, 'Full kitchen');
+  // The price hook keeps its one recognizable shape; an AI rewording ("... tour") gets the template
+  for (const hookText of ['$1,450/mo in Mission District tour', '$1,450/mo Mission District private room tour']) {
+    const off = buildViralEditPlan({ listing, clips: guidedClips() }, { ai: { hookText } });
+    assert.equal(off.hook.text, 'What $1,450/mo gets you in Mission District', hookText);
+  }
   assert.ok(bad.shots[1].callouts.every((c) => c.kind === 'fact'));
 });
 
@@ -585,4 +592,84 @@ test('without clip analysis the opener skips the first seconds of a long clip (r
   // A 7 s guided clip still fits its opener
   const short = buildViralEditPlan({ listing, clips: guidedClips() });
   assert.deepEqual(checkPlan(short), []);
+});
+
+/** Frame notes every 1.2 s over 0..12 s: `label(t)` names what's in view, `person(t)` flags people. */
+function scan(label: (t: number) => string | undefined, person: (t: number) => boolean = () => false) {
+  const notes = [];
+  for (let t = 0.6; t < 12; t += 1.2) notes.push({ t: round(t), label: label(t), person: person(t) || undefined });
+  return notes;
+}
+const round = (x: number) => Math.round(x * 1000) / 1000;
+const longRoom = (bestSec: number, hookScore = 0.2): ClipAnalysis => ({
+  ...analysis({ startSec: bestSec }),
+  durationSec: 20,
+  hookScore,
+  clean: { startSec: 0.3, endSec: 12 },
+});
+
+test('with frame notes, every label names something in view on the footage it sits on', () => {
+  // The living room plays first, the kitchen later; Gemini's single best frame (10 s) was the kitchen
+  const frames = { 2: scan((t) => (t < 6 ? 'Sectional sofa' : 'Kitchen island')) };
+  const ai = { tags: { 2: 'Modern kitchen' }, details: { 2: 'Gas range' }, frames };
+  const clips = guidedClips([1, 2, 3]).map((c) => (c.slotNumber === 2 ? { ...c, durationSec: 20, analysis: longRoom(10) } : c));
+  const plan = buildViralEditPlan({ listing, clips }, { ai });
+  assert.deepEqual(checkPlan(plan), []);
+  const kitchen = plan.shots.filter((s) => s.slotNumber === 2 && s.role === 'tour');
+  assert.ok(kitchen.length >= 1);
+  for (const s of kitchen) {
+    const [a, b] = sourceRange(plan, s, s.durationInFrames - s.outOverlapFrames);
+    const seen = new Set(frames[2].filter((n) => n.t >= a && n.t <= b).map((n) => n.label));
+    const shown = [s.tag, ...s.callouts.filter((c) => c.kind === 'room').map((c) => c.text)].filter(Boolean);
+    assert.ok(shown.length > 0, `${s.id} has no label`);
+    for (const text of shown) assert.ok(seen.has(text), `${s.id} (${a.toFixed(1)}-${b.toFixed(1)} s) says "${text}", in view: ${[...seen].join(', ')}`);
+    // ...and it's in view when it's read, about a second after it pops in
+    const pops = [s.tag ? [s.tag, s.tagInFrame] : null, ...s.callouts.filter((c) => c.kind === 'room').map((c) => [c.text, c.inFrame])].filter(Boolean) as [string, number][];
+    for (const [text, at] of pops) {
+      const readSec = s.srcStartSec + (at / plan.fps + 1) * s.playbackRate;
+      assert.ok(frames[2].some((n) => n.label === text && Math.abs(n.t - readSec) <= LABEL_MAX_GAP_SEC), `"${text}" read at ${readSec.toFixed(1)} s is not in view then`);
+    }
+  }
+  // Nothing claims a kitchen over the sofa
+  assert.ok(!plan.shots.some((s) => s.tag === 'Modern kitchen' || s.tag === 'Full kitchen'));
+});
+
+test('the best-part reveal pops in only after the light leak has passed, so the flash never covers it', () => {
+  for (const enableEffects of [true, false]) {
+    const plan = buildViralEditPlan({ listing, clips: guidedClips() }, { enableEffects });
+    const closer = plan.shots[plan.shots.length - 1];
+    const cut = plan.cuts[plan.cuts.length - 1];
+    // The overlay is centred on the cut: it lasts durationInFrames / 2 into the closer
+    const leakEnds = closer.startFrame + Math.ceil(cut.durationInFrames / 2);
+    assert.ok(closer.startFrame + closer.tagInFrame >= leakEnds + 3, `reveal at ${closer.tagInFrame}, leak until +${leakEnds - closer.startFrame}`);
+    // ...and still has its full reading time before the end card
+    assert.ok(plan.endCard.fromFrame - (closer.startFrame + closer.tagInFrame) >= 1.2 * plan.fps);
+  }
+});
+
+test('footage with a person in it is never played; a room that is all people is left out', () => {
+  // Bathroom: someone in the mirror from 1.8 to 6.6 s, then the shower; living room: someone on the sofa 3-5.6 s
+  const frames = {
+    2: scan((t) => (t < 6 ? 'Sectional sofa' : 'Kitchen island'), (t) => t > 3 && t < 5.7),
+    3: scan((t) => (t < 7 ? 'Double vanity' : 'Glass shower'), (t) => t > 1.7 && t < 6.7),
+    4: scan(() => 'Walk-in closet', () => true),
+  };
+  const clips = guidedClips([1, 2, 3, 4, 5]).map((c) =>
+    c.slotNumber === 1 ? { ...c, analysis: analysis({ startSec: 1, hookScore: 2 }) } : { ...c, durationSec: 20, analysis: longRoom(c.slotNumber === 2 ? 10 : 2) }
+  );
+  const plan = buildViralEditPlan({ listing, clips }, { ai: { frames } });
+  assert.deepEqual(checkPlan(plan), []);
+  for (const s of plan.shots) {
+    const notes = frames[s.slotNumber as 2 | 3 | 4];
+    if (!notes) continue;
+    const [a, b] = sourceRange(plan, s);
+    for (const n of notes.filter((x) => x.person)) {
+      assert.ok(n.t + PERSON_PAD_SEC <= a + 1e-6 || n.t - PERSON_PAD_SEC >= b - 1e-6, `${s.id} plays ${a.toFixed(2)}-${b.toFixed(2)} s, person at ${n.t} s`);
+    }
+  }
+  // The closet has a person in every frame: it's left out rather than shown
+  assert.ok(!plan.shots.some((s) => s.slotNumber === 4), 'closet with people throughout is dropped');
+  // The bathroom keeps its person-free shower footage, named for what's in view
+  const bath = plan.shots.filter((s) => s.slotNumber === 3);
+  assert.ok(bath.length >= 1 && bath.every((s) => !s.tag || s.tag === 'Glass shower'), bath.map((s) => s.tag).join(','));
 });

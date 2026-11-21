@@ -153,7 +153,7 @@ test('nudges: no views, move-out soon, quiet channel, views without applications
   const none = summarizeByChannel(LINKS, [], []);
   const n1 = fillNudges(none, { daysLeft: 5, publishedAt, now });
   assert.deepEqual(n1.map((n) => n.id), ['move_out_soon', 'no_views']);
-  assert.match(n1[0].text, /5 days until you move out/);
+  assert.match(n1[0].text, /5 days left to fill the room/);
 
   const visits = Array.from({ length: 35 }, (_, i) => ({ link_id: 'rd', anon_id: `a${i}` }));
   const busy = summarizeByChannel(LINKS, visits, []);
