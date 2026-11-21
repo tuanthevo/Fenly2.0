@@ -288,6 +288,19 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const isViralEdit = room.tourFormat === 'viral_edit' && Boolean(room.videoUrl);
   const viralVideoRef = useRef<HTMLVideoElement | null>(null);
+  // Left/right arrow keys on a computer: room to room in the card that's on screen (up/down change listing in App)
+  const jumpRoomRef = useRef<(dir: 'next' | 'prev') => void>(() => {});
+  useEffect(() => {
+    if (!isActive || !isViralEdit) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) return;
+      if (e.key === 'ArrowRight') jumpRoomRef.current('next');
+      else if (e.key === 'ArrowLeft') jumpRoomRef.current('prev');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isActive, isViralEdit]);
+
   // The tour video's real progress (0-100) for the bottom bar; its own story bar is drawn into the video
   const [videoProgress, setVideoProgress] = useState(0);
 
@@ -301,6 +314,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     setIsPlaying(true);
     video.play().catch(() => {});
   };
+  jumpRoomRef.current = jumpRoom;
 
   // Listing photos edited into a "walking into the home" short (src/remotion/viral/photoTour.ts).
   // Photos are loaded first and any that fail are skipped, so a dead link never shows as a black frame.
