@@ -1,5 +1,5 @@
 /**
- * Find feed: the launch area, filters (area, max rent, move-in by) and the
+ * Find feed: filters (a place and a radius, max rent, move-in by) and the
  * adapter that turns a database listing into the 1.0 feed's RoomListing so the
  * existing VideoPlayer / overlays render it unchanged.
  *
@@ -7,48 +7,57 @@
  * checks FIND_FILTER_KEYS for protected traits.
  */
 import type { RoomListing } from '../types';
+import { DEFAULT_RADIUS_MILES, RADIUS_MILES, areaCenter, distanceMiles, inBayAreaBounds } from '../geo/bayArea';
 
-export const LAUNCH_AREAS = ['Mission', 'Noe Valley', 'Bernal Heights'] as const;
-export type LaunchArea = (typeof LAUNCH_AREAS)[number];
-
-/** Next-door neighborhoods, for "similar rooms nearby". */
-export const NEARBY_AREAS: Record<string, string[]> = {
-  Mission: ['Noe Valley', 'Bernal Heights', 'Castro', 'Potrero Hill'],
-  'Noe Valley': ['Mission', 'Castro', 'Glen Park', 'Bernal Heights'],
-  'Bernal Heights': ['Mission', 'Noe Valley', 'Glen Park', 'Excelsior'],
-};
+/** "Rooms within `miles` of `label`" (the point comes from the Maps lookup or our place list). */
+export type FindNear = { label: string; lat: number; lng: number; miles: number };
 
 export type FindFilters = {
-  area: LaunchArea | null;
+  near: FindNear | null;
   maxRentCents: number | null;
   /** YYYY-MM-DD: rooms free on or before this date */
   moveInBy: string | null;
 };
 
-export const FIND_FILTER_KEYS: (keyof FindFilters)[] = ['area', 'maxRentCents', 'moveInBy'];
-export const EMPTY_FIND_FILTERS: FindFilters = { area: null, maxRentCents: null, moveInBy: null };
+export const FIND_FILTER_KEYS: (keyof FindFilters)[] = ['near', 'maxRentCents', 'moveInBy'];
+export const EMPTY_FIND_FILTERS: FindFilters = { near: null, maxRentCents: null, moveInBy: null };
 
-/** "Mission District" and "mission" both count as Mission. */
-export function launchAreaOf(neighborhood: string | null | undefined): LaunchArea | null {
-  if (!neighborhood) return null;
-  const n = neighborhood.trim().toLowerCase();
-  return LAUNCH_AREAS.find((a) => n === a.toLowerCase() || n.startsWith(`${a.toLowerCase()} `)) ?? null;
+/** A place name safe to show and send: letters, digits, spaces and . , ' - only, at most 60 characters. */
+export function cleanPlaceLabel(text: string): string {
+  return text.replace(/[^\p{L}\p{N} .,'-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
 }
 
 /** Validates query-string filters; bad values are ignored rather than rejected. */
 export function parseFindQuery(query: Record<string, unknown>): FindFilters {
   const str = (v: unknown) => (typeof v === 'string' ? v : Array.isArray(v) && typeof v[0] === 'string' ? v[0] : '');
-  const area = LAUNCH_AREAS.find((a) => a.toLowerCase() === str(query.area).trim().toLowerCase()) ?? null;
+  const lat = Number(str(query.lat));
+  const lng = Number(str(query.lng));
+  const milesIn = Number(str(query.miles));
+  const label = cleanPlaceLabel(str(query.place));
+  const near: FindNear | null =
+    str(query.lat) && str(query.lng) && inBayAreaBounds(lat, lng)
+      ? {
+          label: label || 'this area',
+          lat: Math.round(lat * 1e4) / 1e4,
+          lng: Math.round(lng * 1e4) / 1e4,
+          miles: (RADIUS_MILES as readonly number[]).includes(milesIn) ? milesIn : DEFAULT_RADIUS_MILES,
+        }
+      : null;
   const rentDollars = Number(str(query.maxRent));
   const maxRentCents = Number.isFinite(rentDollars) && rentDollars >= 100 && rentDollars <= 20000 ? Math.round(rentDollars) * 100 : null;
   const by = str(query.moveInBy);
   const moveInBy = /^\d{4}-\d{2}-\d{2}$/.test(by) && !Number.isNaN(Date.parse(by)) ? by : null;
-  return { area, maxRentCents, moveInBy };
+  return { near, maxRentCents, moveInBy };
 }
 
 export function findQueryString(filters: FindFilters): string {
   const params = new URLSearchParams();
-  if (filters.area) params.set('area', filters.area);
+  if (filters.near) {
+    params.set('place', filters.near.label);
+    params.set('lat', String(filters.near.lat));
+    params.set('lng', String(filters.near.lng));
+    params.set('miles', String(filters.near.miles));
+  }
   if (filters.maxRentCents != null) params.set('maxRent', String(Math.round(filters.maxRentCents / 100)));
   if (filters.moveInBy) params.set('moveInBy', filters.moveInBy);
   return params.toString();
@@ -64,10 +73,19 @@ export function toIsoDate(text: string | null | undefined, today: string): strin
   return new Date(t).toISOString().slice(0, 10);
 }
 
-export type FilterableRoom = { neighborhood: string | null; rentCents: number | null; availableFrom: string | null };
+export type FilterableRoom = { city: string | null; neighborhood: string | null; rentCents: number | null; availableFrom: string | null };
+
+/** Miles from the room's area (neighborhood or city center) to a point; null when we can't place the room. */
+export function roomDistanceMiles(room: Pick<FilterableRoom, 'city' | 'neighborhood'>, point: { lat: number; lng: number }): number | null {
+  const center = areaCenter(room.city, room.neighborhood);
+  return center ? distanceMiles(center, point) : null;
+}
 
 export function matchesFindFilters(room: FilterableRoom, filters: FindFilters): boolean {
-  if (filters.area && launchAreaOf(room.neighborhood) !== filters.area) return false;
+  if (filters.near) {
+    const d = roomDistanceMiles(room, filters.near);
+    if (d == null || d > filters.near.miles) return false;
+  }
   if (filters.maxRentCents != null && (room.rentCents == null || room.rentCents > filters.maxRentCents)) return false;
   if (filters.moveInBy && room.availableFrom && room.availableFrom > filters.moveInBy) return false;
   return true;

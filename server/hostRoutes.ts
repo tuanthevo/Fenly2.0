@@ -164,14 +164,14 @@ const areaOf = (listing: Row) => listing.neighborhood || listing.city || "your a
 async function similarFor(admin: SupabaseClient, listing: Row, origin: string) {
   const { data } = await admin
     .from("listings")
-    .select("id, neighborhood, rent_cents, available_from, published_at")
+    .select("id, city, neighborhood, rent_cents, available_from, published_at")
     .eq("status", "published")
     .is("hidden_at", null)
     .neq("id", listing.id)
     .limit(200);
   const picks = similarRooms(
-    { id: listing.id, neighborhood: listing.neighborhood, rentCents: listing.rent_cents, availableFrom: listing.available_from },
-    (data ?? []).map((r) => ({ id: r.id, neighborhood: r.neighborhood, rentCents: r.rent_cents, availableFrom: r.available_from, publishedAt: r.published_at }))
+    { id: listing.id, city: listing.city, neighborhood: listing.neighborhood, rentCents: listing.rent_cents, availableFrom: listing.available_from },
+    (data ?? []).map((r) => ({ id: r.id, city: r.city, neighborhood: r.neighborhood, rentCents: r.rent_cents, availableFrom: r.available_from, publishedAt: r.published_at }))
   );
   if (picks.length === 0) return [];
   const { data: links } = await admin.from("listing_links").select("listing_id, code").in("listing_id", picks.map((p) => p.id)).eq("channel", "direct");
@@ -179,7 +179,7 @@ async function similarFor(admin: SupabaseClient, listing: Row, origin: string) {
     const code = (links ?? []).find((l) => l.listing_id === p.id)?.code;
     return {
       listingId: p.id,
-      area: p.neighborhood ?? "San Francisco",
+      area: p.neighborhood ?? p.city ?? "the Bay Area",
       rent: formatRentCents(p.rentCents) ?? "",
       url: code ? shareUrl(origin, code) : `${origin}/?room=${p.id}`,
     };

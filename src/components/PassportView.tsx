@@ -350,7 +350,7 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
             <IdCard className="w-4 h-4 text-[#D06C4E]" /> Verify your ID
           </h3>
           <p className="text-[11px] text-[#6E655F] leading-relaxed">
-            The host of the room in {idRequests[0].area ?? 'San Francisco'} shortlisted you and asked for an ID check. Take a clear photo of your
+            The host of the room in {idRequests[0].area ?? 'the Bay Area'} shortlisted you and asked for an ID check. Take a clear photo of your
             driver&apos;s license, state ID or passport. We check it once and don&apos;t keep the photo; hosts only see a badge.
           </p>
           <p className="text-[10px] text-[#8A5A14] bg-[#FBF1DE] rounded-lg px-2 py-1">Early version: an automated document check, not yet a full identity verification.</p>

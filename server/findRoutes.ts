@@ -10,9 +10,11 @@ import { currentUser, optionalUser, requireUser } from "./auth.js";
 import { getAdminClient } from "./supabase.js";
 import { track } from "./track.js";
 import { adminDb, dbError, isUuid, signedUrls, userDb } from "./routeKit.js";
-import { LAUNCH_AREAS, launchAreaOf, parseFindQuery, type FindListing } from "../src/find/findFilters.js";
+import { parseFindQuery, roomDistanceMiles, type FindListing } from "../src/find/findFilters.js";
 
 const FEED_LIMIT = 40;
+/** Rooms scanned when filtering by distance (the radius is checked here, not in SQL) */
+const NEAR_SCAN_LIMIT = 500;
 const FEED_COLUMNS =
   "id, owner_id, status, title, description, neighborhood, city, rent_cents, deposit_cents, available_from, lease_term, beds, baths, square_feet, amenities, house_rules, published_at";
 
@@ -83,7 +85,7 @@ export async function blockedWith(admin: SupabaseClient, userId: string): Promis
 }
 
 export function registerFindRoutes(app: Express): void {
-  // Public feed. Launch area first, newest first; filters: area, maxRent ($), moveInBy (YYYY-MM-DD).
+  // Public feed, newest first (closest first with a place). Filters: place + lat/lng + miles, maxRent ($), moveInBy (YYYY-MM-DD).
   app.get("/api/find", optionalUser(), async (req, res) => {
     res.set("Cache-Control", "no-store");
     const admin = getAdminClient();
@@ -95,8 +97,7 @@ export function registerFindRoutes(app: Express): void {
       .eq("status", "published")
       .is("hidden_at", null)
       .order("published_at", { ascending: false })
-      .limit(FEED_LIMIT * 2);
-    if (filters.area) query = query.eq("neighborhood", filters.area);
+      .limit(filters.near ? NEAR_SCAN_LIMIT : FEED_LIMIT * 2);
     if (filters.maxRentCents != null) query = query.lte("rent_cents", filters.maxRentCents);
     if (filters.moveInBy) query = query.or(`available_from.is.null,available_from.lte.${filters.moveInBy}`);
     const { data, error } = await query;
@@ -107,8 +108,15 @@ export function registerFindRoutes(app: Express): void {
       const blocked = await blockedWith(admin, viewer.id);
       rows = rows.filter((r) => !blocked.has(r.owner_id));
     }
-    const launch = new Set<string>(LAUNCH_AREAS);
-    rows.sort((a, b) => Number(launch.has(launchAreaOf(b.neighborhood) ?? "")) - Number(launch.has(launchAreaOf(a.neighborhood) ?? "")));
+    const near = filters.near;
+    if (near) {
+      // Distance from the room's area center (neighborhood or city), never an address
+      rows = rows
+        .map((r) => ({ r, d: roomDistanceMiles({ city: r.city, neighborhood: r.neighborhood }, near) }))
+        .filter((x): x is { r: Row; d: number } => x.d != null && x.d <= near.miles)
+        .sort((a, b) => a.d - b.d)
+        .map((x) => x.r);
+    }
     rows = rows.slice(0, FEED_LIMIT);
     try {
       res.json({ listings: await buildFindListings(admin, rows), configured: true });

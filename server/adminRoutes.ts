@@ -11,7 +11,7 @@ import { adminDb, dbError, isAdminUser, isUuid } from "./routeKit.js";
 import { moveOutReminderDue } from "./emails.js";
 import { daysUntil, todayIn } from "../src/fill/fillStatus.js";
 import { buildFunnel, median, parseMetricsDays } from "./metrics.js";
-import { LAUNCH_AREAS, launchAreaOf } from "../src/find/findFilters.js";
+import { bayAreaCity } from "../src/geo/bayArea.js";
 
 type Row = Record<string, any>;
 
@@ -117,7 +117,7 @@ export function registerAdminRoutes(app: Express): void {
         admin.from("listings").select("id").gte("published_at", since).limit(10000),
         admin.from("events").select("listing_id").eq("name", "link_shared").gte("created_at", since).not("listing_id", "is", null).limit(50000),
         admin.from("applications").select("listing_id, source_link_id").gte("created_at", since).limit(50000),
-        admin.from("listings").select("id, neighborhood, published_at, filled_at").eq("status", "filled").gte("filled_at", since).limit(10000),
+        admin.from("listings").select("id, city, neighborhood, published_at, filled_at").eq("status", "filled").gte("filled_at", since).limit(10000),
         admin.from("applications").select("applicant_id").eq("status", "chosen").lte("updated_at", sixtyDaysAgo).limit(10000),
       ]);
       for (const r of [published, shares, apps, filledRows, chosenOld]) if (r.error) throw new Error(r.error.message);
@@ -135,7 +135,6 @@ export function registerAdminRoutes(app: Express): void {
         ? await admin.from("passports").select("user_id", { count: "exact", head: true }).in("user_id", chosenIds).gte("updated_at", sixtyDaysAgo)
         : { count: 0 };
       const filled = filledRows.data ?? [];
-      const launch = new Set<string>(LAUNCH_AREAS);
       res.json(
         buildFunnel({
           days,
@@ -151,7 +150,7 @@ export function registerAdminRoutes(app: Express): void {
           listingsWithApplications: appListingIds.length,
           filledOfThose: (appListings ?? []).filter((l) => l.status === "filled").length,
           filled: filled.length,
-          filledLaunchArea: filled.filter((l) => launch.has(launchAreaOf(l.neighborhood) ?? "")).length,
+          filledLaunchArea: filled.filter((l) => bayAreaCity(l.city) != null).length,
           medianDaysToFill: median(
             filled.filter((l) => l.published_at && l.filled_at).map((l) => (Date.parse(l.filled_at) - Date.parse(l.published_at)) / DAY)
           ),

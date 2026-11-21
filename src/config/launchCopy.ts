@@ -7,7 +7,7 @@
 export type ValueTab = 'listings' | 'fill' | 'messages' | 'passport';
 
 export const TAB_VALUE: Record<ValueTab, { title: string; line: string }> = {
-  listings: { title: 'Find', line: 'Watch real rooms in Mission, Noe Valley and Bernal. Apply in one tap with your Passport.' },
+  listings: { title: 'Find', line: 'Watch real rooms around the Bay Area. Apply in one tap with your Passport.' },
   fill: { title: 'Fill', line: 'Moving out? Film 3 shots, share one link, and let your replacement find you.' },
   messages: { title: 'Inbox', line: 'Every conversation with hosts and applicants, in one place, without sharing your number.' },
   passport: { title: 'Passport', line: 'One verified profile you reuse for every room. Hosts see badges, never documents.' },

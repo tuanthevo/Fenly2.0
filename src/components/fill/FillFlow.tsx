@@ -45,9 +45,9 @@ import {
   type FairHousingIssue,
   type FillStep,
 } from '../../fill/listingRules';
-import { FILL_AMENITIES, SF_NEIGHBORHOODS, leaseTermOptions, nearestNeighborhood } from '../../fill/neighborhoods';
-import { neighborhoodFromZip } from '../../fill/zipNeighborhood';
-import { geocodeSfAddress } from '../../lib/geocode';
+import { FILL_AMENITIES, leaseTermOptions } from '../../fill/neighborhoods';
+import { BAY_AREA_CITIES, BAY_AREA_REGIONS, areaLabel, bayAreaCity, nearestArea } from '../../geo/bayArea';
+import { lookupBayAreaPlace } from '../../lib/geocode';
 import { formatMoveIn, formatRentCents } from '../../fill/publicListing';
 import { todayIn } from '../../fill/fillStatus';
 import type { SharePosts } from '../../fill/sharePosts';
@@ -73,6 +73,9 @@ const primaryBtn =
 const secondaryBtn =
   'w-full min-h-10 py-2.5 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/15 text-[#2C2724] text-xs font-extrabold flex items-center justify-center gap-1.5 active:scale-95 transition-all';
 const label = 'text-[11px] font-bold text-[#6E655F] block mb-1';
+
+const OUTSIDE_AREA =
+  'Fenn is in the Bay Area for now: San Francisco, the East Bay, the Peninsula and the South Bay. Pick the closest city below.';
 
 const LANDLORD_MESSAGE =
   "Hi, I'm planning to move out on [date]. Would you be OK with me finding a replacement roommate for my room? I'll share applicants with you before anyone signs. Thanks!";
@@ -112,11 +115,13 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
   const uploadedClips = useRef(new Map<number, string>()); // slot -> videoUrl already in Storage
   const [retakeSlot, setRetakeSlot] = useState<number | null>(null);
   const clearRetake = useCallback(() => setRetakeSlot(null), []);
-  const [neighborhood, setNeighborhood] = useState('Mission');
+  const [city, setCity] = useState('');
+  /** One of the city's listed neighborhoods (SF, Oakland, Berkeley, San Jose), or '' */
+  const [neighborhood, setNeighborhood] = useState('');
   const [beds, setBeds] = useState(1);
   const [baths, setBaths] = useState(1);
   const [squareFeet, setSquareFeet] = useState('');
-  const [areaQuery, setAreaQuery] = useState(''); // address or ZIP: only used to pick the neighborhood, never saved
+  const [areaQuery, setAreaQuery] = useState(''); // address or ZIP: only used to pick the area, never saved
   const [areaNote, setAreaNote] = useState<string | null>(null);
   const [areaBusy, setAreaBusy] = useState(false);
   const [leaseTerm, setLeaseTerm] = useState('6 months');
@@ -151,7 +156,10 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
     setMoveOut(row.move_out_date ?? '');
     setRent(row.rent_cents ? String(Math.round(row.rent_cents / 100)) : '');
     setDeposit(row.deposit_cents == null ? '' : String(Math.round(row.deposit_cents / 100)));
-    setNeighborhood(row.neighborhood || 'Mission');
+    // A saved city outside the launch area (or none yet) leaves the picker empty
+    const savedCity = bayAreaCity(row.city);
+    setCity(savedCity?.name ?? '');
+    setNeighborhood(savedCity && row.neighborhood ? row.neighborhood : '');
     setBeds(row.beds ?? 1);
     setBaths(row.baths == null ? 1 : Number(row.baths));
     setSquareFeet(row.square_feet ? String(row.square_feet) : '');
@@ -229,6 +237,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
   };
 
   const rentCents = Math.round(Number(rent.replace(/[^\d.]/g, '')) * 100);
+  const cityNeighborhoods = useMemo(() => (bayAreaCity(city)?.neighborhoods ?? []).map((h) => h.name), [city]);
   const depositCents = deposit === '' ? null : Math.round(Number(deposit) * 100);
   const depositRule = depositCheck(rentCents, depositCents);
 
@@ -238,6 +247,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
       if (!moveOut) throw new Error('Pick the date you need the room filled.');
       if (!(rentCents >= 10000 && rentCents <= 2000000)) throw new Error('Rent must be between $100 and $20,000.');
       if (depositRule.error) throw new Error(depositRule.error);
+      if (!bayAreaCity(city)) throw new Error('Pick the city the room is in.');
       const sqft = squareFeet ? Number(squareFeet) : null;
       if (sqft !== null && !(sqft >= 50 && sqft <= 10000)) throw new Error('Room size must be between 50 and 10,000 sq ft, or left blank.');
       let id = listing?.id;
@@ -253,8 +263,8 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
         available_from: moveOut,
         rent_cents: rentCents,
         deposit_cents: depositCents,
-        neighborhood,
-        city: 'San Francisco',
+        neighborhood: neighborhood || null,
+        city,
         beds,
         baths,
         square_feet: sqft,
@@ -310,37 +320,32 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const found = nearestNeighborhood(pos.coords.latitude, pos.coords.longitude);
-        if (found) setNeighborhood(found);
-        else setError("We couldn't match your location to a San Francisco neighborhood. Pick one from the list.");
+        const found = nearestArea(pos.coords.latitude, pos.coords.longitude);
+        if (found) {
+          setCity(found.city);
+          setNeighborhood(found.neighborhood ?? '');
+          setAreaNote(`${areaLabel(found)}, from your location. Change it below if that's not right.`);
+        } else setError(OUTSIDE_AREA);
       },
-      () => setError('Location is off. Pick your neighborhood from the list.'),
+      () => setError('Location is off. Pick your city from the list.'),
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 }
     );
   };
 
-  /** Address or ZIP -> neighborhood. A ZIP is looked up here; a street address goes to the Maps geocoder. */
+  /** Address, ZIP or city -> city and neighborhood (names and SF ZIPs locally, the rest through Google Maps). */
   const findArea = async () => {
     const text = areaQuery.trim();
     if (!text || areaBusy) return;
     setError(null);
     setAreaNote(null);
-    const pick = (name: string, from: string) => {
-      setNeighborhood(name);
-      setAreaNote(`${name}, from ${from}. Change it below if that's not right.`);
-    };
-    const byZip = neighborhoodFromZip(text);
-    if (byZip.kind === 'found') return pick(byZip.neighborhood, `ZIP ${byZip.zip}`);
-    if (byZip.kind === 'sf_unlisted') return setAreaNote(`ZIP ${byZip.zip} isn't one of our areas yet. Pick the closest one below.`);
-    if (byZip.kind === 'outside_sf') return setAreaNote('Fenn is only in San Francisco for now. Check the ZIP code.');
     setAreaBusy(true);
-    const point = await geocodeSfAddress(text);
+    const place = await lookupBayAreaPlace(text);
     setAreaBusy(false);
-    const near = point ? nearestNeighborhood(point.lat, point.lng) : null;
-    if (near) return pick(near, 'your address');
-    const zipHit = point?.zip ? neighborhoodFromZip(point.zip) : null;
-    if (zipHit?.kind === 'found') return pick(zipHit.neighborhood, 'your address');
-    setAreaNote("We couldn't place that address. Try the 5-digit ZIP code, or pick below.");
+    if (place.kind === 'outside') return setAreaNote(OUTSIDE_AREA);
+    if (place.kind === 'unknown') return setAreaNote("We couldn't place that. Try a 5-digit ZIP code or a city name, or pick below.");
+    setCity(place.city);
+    setNeighborhood(place.neighborhood ?? '');
+    setAreaNote(`${areaLabel(place)}. Change it below if that's not right.`);
   };
 
   /* ---------- Step 4: describe ---------- */
@@ -360,8 +365,8 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          neighborhood,
-          city: 'San Francisco',
+          neighborhood: neighborhood || city,
+          city,
           roomType: 'Private Room',
           beds,
           baths,
@@ -421,12 +426,12 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
       beds,
       baths,
       neighborhood,
-      city: 'San Francisco',
+      city,
       roomType: 'Private Room',
       amenities,
       leaseTerm,
     }),
-    [rentCents, beds, baths, neighborhood, amenities, leaseTerm]
+    [rentCents, beds, baths, neighborhood, city, amenities, leaseTerm]
   );
 
   const saveVideo = (result: ViralVideoResult) =>
@@ -630,7 +635,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                       <p className="text-xs text-[#6E655F] mt-0.5">These go on your video and listing. Change anything later.</p>
                     </div>
                     <div>
-                      <label className={label} htmlFor="fill-area-query">Address or ZIP code (only used to find your neighborhood, never saved)</label>
+                      <label className={label} htmlFor="fill-area-query">Address, ZIP code or city (only used to find your area, never saved)</label>
                       <form
                         className="flex gap-2 mb-2"
                         onSubmit={(e) => {
@@ -641,7 +646,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                         <input
                           id="fill-area-query"
                           className={input}
-                          placeholder="94110 or 123 Valencia St"
+                          placeholder="94612 or 123 Main St, Oakland"
                           autoComplete="off"
                           value={areaQuery}
                           onChange={(e) => setAreaQuery(e.target.value.slice(0, 120))}
@@ -651,17 +656,43 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                         </button>
                       </form>
                       {areaNote && <p className="text-[11px] text-[#6E655F] font-semibold mb-2" role="status">{areaNote}</p>}
-                      <label className={label} htmlFor="fill-neighborhood">Neighborhood (we show the area, never the address)</label>
+                      <label className={label} htmlFor="fill-city">City (we show the area, never the address)</label>
                       <div className="flex gap-2">
-                        <select id="fill-neighborhood" className={input} value={neighborhood} onChange={(e) => setNeighborhood(e.target.value)}>
-                          {[...new Set([neighborhood, ...SF_NEIGHBORHOODS.map((n) => n.name)])].map((n) => (
-                            <option key={n} value={n}>{n}</option>
+                        <select
+                          id="fill-city"
+                          className={input}
+                          value={city}
+                          onChange={(e) => {
+                            setCity(e.target.value);
+                            setNeighborhood('');
+                          }}
+                        >
+                          <option value="" disabled>
+                            Pick a city
+                          </option>
+                          {BAY_AREA_REGIONS.map((region) => (
+                            <optgroup key={region} label={region}>
+                              {BAY_AREA_CITIES.filter((c) => c.region === region).map((c) => (
+                                <option key={c.name} value={c.name}>{c.name}</option>
+                              ))}
+                            </optgroup>
                           ))}
                         </select>
                         <button type="button" onClick={useMyLocation} aria-label="Use my location" className="w-11 rounded-xl bg-white border border-[#2C2724]/15 hover:bg-[#F2EFE9] flex items-center justify-center shrink-0">
                           <MapPin className="w-4 h-4 text-[#D06C4E]" />
                         </button>
                       </div>
+                      {cityNeighborhoods.length > 0 && (
+                        <>
+                          <label className={`${label} mt-2`} htmlFor="fill-neighborhood">Neighborhood</label>
+                          <select id="fill-neighborhood" className={input} value={neighborhood} onChange={(e) => setNeighborhood(e.target.value)}>
+                            <option value="">Not sure / skip</option>
+                            {[...new Set([...(neighborhood ? [neighborhood] : []), ...cityNeighborhoods])].map((n) => (
+                              <option key={n} value={n}>{n}</option>
+                            ))}
+                          </select>
+                        </>
+                      )}
                     </div>
                     <div className="grid grid-cols-3 gap-2">
                       <Stepper label="Beds" value={beds} min={1} max={6} step={1} onChange={setBeds} />
@@ -912,7 +943,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                         ) : null}
                       </p>
                       <p className="text-[11px] text-[#6E655F]">
-                        {neighborhood}, San Francisco
+                        {areaLabel({ city, neighborhood: neighborhood || null })}
                         {formatMoveIn(moveOut, today) ? ` · Move in ${formatMoveIn(moveOut, today)}` : ''}
                       </p>
                       <p className="text-[11px] text-[#6E655F]">Your link shows the area only. The exact address stays private.</p>

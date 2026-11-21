@@ -30,7 +30,7 @@ export function formatRentCents(cents: number | null | undefined): string | null
 }
 
 export function areaLabel(listing: Pick<FillListingInfo, 'neighborhood' | 'city'>): string {
-  return (listing.neighborhood || listing.city || 'San Francisco').trim();
+  return (listing.neighborhood || listing.city || 'the Bay Area').trim();
 }
 
 /** "Room in Mission · $1,450/mo" */

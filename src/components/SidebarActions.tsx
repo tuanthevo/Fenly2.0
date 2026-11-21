@@ -11,7 +11,8 @@ interface SidebarActionsProps {
   room: RoomListing;
   isPinned: boolean;
   onTogglePin: () => void;
-  onOpenExplore: () => void;
+  /** The map (Scout) button; hidden when not given (2.0 keeps Scout behind its flag) */
+  onOpenExplore?: () => void;
   onOpenDetails?: () => void;
   onOpenShare: () => void;
   /** Fenly 2.0: report a listing (shown only when given) */
@@ -44,7 +45,8 @@ export const SidebarActions: React.FC<SidebarActionsProps> = ({
         <Pin className={`w-4 h-4 ${isPinned ? 'fill-white stroke-white' : ''}`} />
       </button>
 
-      {/* 2. Explore (Map Icon) Button ("Scout Neighborhood") */}
+      {/* 2. Explore (Map Icon) Button ("Scout Neighborhood"), only with the scout flag */}
+      {onOpenExplore && (
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -56,6 +58,7 @@ export const SidebarActions: React.FC<SidebarActionsProps> = ({
       >
         <Map className="w-4 h-4 text-[#7A907C]" />
       </button>
+      )}
 
       {/* 3. Share Icon Button */}
       <button

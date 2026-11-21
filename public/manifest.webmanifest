@@ -1,7 +1,7 @@
 {
   "name": "Fenn: fill or find a room",
   "short_name": "Fenn",
-  "description": "Fill your room with a 15-second video and one link, or find a room in San Francisco and apply with your Passport.",
+  "description": "Fill your room with a 15-second video and one link, or find a room in the Bay Area and apply with your Passport.",
   "id": "/",
   "start_url": "/?source=pwa",
   "scope": "/",

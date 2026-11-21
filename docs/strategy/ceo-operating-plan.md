@@ -58,18 +58,23 @@ Every feature must strengthen this loop. Anything else is hidden.
 
 ### 1.4 Where we start
 
-**Primary launch area: San Francisco's Mission, Noe Valley and Bernal Heights.**
+**Launch area (founder's call, Nov 2026): the core Bay Area.** San Francisco,
+the East Bay (Alameda and Contra Costa counties), the Peninsula (San Mateo) and
+the South Bay (Santa Clara). Listings carry a city, plus a neighborhood in SF,
+Oakland, Berkeley and San Jose. Find shows the whole area by default; renters
+narrow it with a city, neighborhood or ZIP and a radius in miles. Marin, Sonoma,
+Napa and Solano come later. Outreach still starts where room turnover is
+densest: SF's Mission, Noe Valley and Bernal Heights, then Berkeley / North
+Oakland.
 Why:
 - California has the highest share of room listings in the US (Zillow).
 - Dense shared housing, young renters, constant turnover.
 - Active Facebook housing groups and r/SFBayHousing to meet listers where they are.
 - Close enough to meet people, film examples and run events in person.
 
-**Backup area:** Berkeley / North Oakland (student and new-grad turnover in
-May-August and December-January).
-
-**Rule:** no second area until the launch area hits the Gate 2 numbers
-(Part 3).
+**Why the whole core Bay Area:** renters search across BART and Caltrain, not
+one neighborhood, and a feed limited to three neighborhoods looks empty. Gate 2
+numbers (Part 3) are still tracked for the launch area as a whole.
 
 ---
 
@@ -94,7 +99,7 @@ May-August and December-January).
 
 | Tab | For | What's there |
 |---|---|---|
-| **Find** | Seekers | Vertical feed of rooms in the launch area, filters (price, move-in, area), saved rooms |
+| **Find** | Seekers | Vertical feed of rooms in the launch area, filters (place + radius, price, move-in), saved rooms |
 | **Fill** | Outgoing roommates / hosts | "Fill my room" flow, my listings, applicant inbox, share kit, fill status |
 | **Inbox** | Everyone | Messages with applicants / hosts |
 | **Passport** | Everyone | Verification, rent history, references, application profile |

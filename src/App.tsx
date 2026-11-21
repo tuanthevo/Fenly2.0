@@ -782,7 +782,7 @@ export default function App() {
     const demo = flags.demo_listings
       ? rooms.filter((r) =>
           matchesFindFilters(
-            { neighborhood: r.neighborhood, rentCents: r.price * 100, availableFrom: toIsoDate(r.availableDate, today) },
+            { city: r.city ?? null, neighborhood: r.neighborhood, rentCents: r.price * 100, availableFrom: toIsoDate(r.availableDate, today) },
             findFilters
           )
         )
@@ -1394,7 +1394,7 @@ export default function App() {
         {/* SCREEN 1: Feed (Watch) — Native Vertical Scroll-Snap Video Feed */}
         {activeTab === 'listings' && (
           <>
-            {/* Clean Filter Button matching Earth-Tone palette (2.0 with Supabase: area / rent / move-in chips) */}
+            {/* Clean Filter Button matching Earth-Tone palette (2.0 with Supabase: "Rooms in <place>" + Filters sheet) */}
             {findMode ? (
               <FindFilterBar
                 filters={findFilters}
@@ -1477,7 +1477,8 @@ export default function App() {
                         room={room}
                         isPinned={pinnedRoomIds.has(room.id)}
                         onTogglePin={() => handleTogglePin(room.id)}
-                        onOpenExplore={() => setActiveTab('explore')}
+                        // The map (Scout) is a 1.0 feature: its button shows only with the scout flag
+                        onOpenExplore={flags.scout ? () => setActiveTab('explore') : undefined}
                         onOpenDetails={() => {
                           setCurrentRoomIndex(idx);
                           setIsDetailsModalOpen(true);
