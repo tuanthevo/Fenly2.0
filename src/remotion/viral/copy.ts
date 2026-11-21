@@ -271,6 +271,13 @@ export function pickPerk(amenities: string[]): string {
   return 'The best part';
 }
 
+/**
+ * The perk shot's label when neither Gemini nor the host named what it shows. It makes
+ * no claim: picking an amenity from the listing ("In-unit laundry") would put it over
+ * footage that may show a balcony or a TV room. The amenities still appear as listing facts.
+ */
+export const PERK_FALLBACK_LABEL = 'Worth the wait';
+
 /** Default callout per guided shot slot (1 bedroom, 2 kitchen, 3 bath, 4 closet, 5 perk). */
 export function defaultTags(listing: ViralListingInfo): Record<number, string> {
   const bedroom: Record<string, string> = {
@@ -284,7 +291,7 @@ export function defaultTags(listing: ViralListingInfo): Record<number, string> {
     2: 'Full kitchen',
     3: listing.amenities.includes('Private Bath') ? 'Private bath' : 'The bathroom',
     4: 'Closet space',
-    5: pickPerk(listing.amenities),
+    5: PERK_FALLBACK_LABEL,
   };
 }
 

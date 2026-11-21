@@ -22,6 +22,7 @@ import {
   REFRAME_MAX_SCALE,
   SPEED,
 } from './plan';
+import { PERK_FALLBACK_LABEL } from './copy';
 import type { ClipAnalysis, ClipSample, ViralClipInput, ViralEditPlan, ViralListingInfo, ViralShot } from './types';
 
 const listing: ViralListingInfo = {
@@ -284,7 +285,8 @@ test('host picks win over the analysis and AI, including second callouts', () =>
 test('without AI, rooms get listing facts as second callouts: amenities, then the lease', () => {
   const plan = buildViralEditPlan({ listing, clips: guidedClips() });
   const details = plan.shots.filter((s) => s.role === 'tour').map((s) => s.callouts.map((c) => `${c.kind}:${c.text}`).join());
-  assert.deepEqual(details, ['fact:Fast WiFi', 'fact:6-month lease', '']);
+  // The perk amenity is a listing fact now, not a label over the perk shot (it may not show it)
+  assert.deepEqual(details, ['fact:Fast WiFi', 'fact:In-unit laundry', 'fact:6-month lease']);
   for (const shot of plan.shots.filter((s) => s.role === 'tour' && s.callouts.length)) {
     const c = shot.callouts[0];
     assert.equal(c.row, 1);
@@ -308,8 +310,24 @@ test('3 shots still make a valid, shorter edit with no re-hook', () => {
   assert.equal(plan.shots.length, 3);
   assert.equal(plan.rehook, null);
   assert.equal(plan.shots[2].kicker, 'THE BEST PART');
-  assert.equal(plan.shots[2].tag, 'In-unit laundry');
   assert.ok(sec(plan) > 18 && sec(plan) < 26, `${sec(plan)}s`);
+});
+
+test('the best-part reveal names only what someone saw: AI or host label, else a neutral line', () => {
+  const clips = guidedClips([1, 3, 5]);
+  // No AI, no host label: no amenity claimed over footage that may not show it
+  const plain = buildViralEditPlan({ listing, clips });
+  const closer = plain.shots[2];
+  assert.equal(closer.kicker, 'THE BEST PART');
+  assert.equal(closer.tag, PERK_FALLBACK_LABEL);
+  // ...the amenity is still in the video (5 shots leave room for it), as a listing fact, and out of the caption's highlights
+  const five = buildViralEditPlan({ listing, clips: guidedClips() });
+  assert.ok(five.shots.some((s) => s.callouts.some((c) => c.kind === 'fact' && c.text === 'In-unit laundry')));
+  assert.ok(!plain.caption.includes(PERK_FALLBACK_LABEL));
+  // Gemini saw it, or the host typed it: that label wins
+  assert.equal(buildViralEditPlan({ listing, clips }, { ai: { perkLabel: 'Sunny balcony' } }).shots[2].tag, 'Sunny balcony');
+  assert.equal(buildViralEditPlan({ listing, clips }, { ai: { tags: { 5: 'TV lounge' } } }).shots[2].tag, 'TV lounge');
+  assert.equal(buildViralEditPlan({ listing, clips }, { perkOverride: 'Rooftop deck' }).shots[2].tag, 'Rooftop deck');
 });
 
 test('the re-hook lands near the middle, between a room tag and its second callout', () => {
