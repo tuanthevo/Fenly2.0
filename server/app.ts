@@ -1045,6 +1045,7 @@ Each image above is the best frame of one guided shot. Return JSON:
 ${scanned ? `7. frames: for EVERY scan frame, one entry with its slotNumber and t exactly as given, plus:
    - label: 2-3 words naming the main thing clearly in view in that frame ("Kitchen island", "Sectional sofa", "Glass shower"). Name only what that frame shows; leave it empty for a wall, floor, door edge or blur. Max 22 characters.
    - person: true if any person, part of a person (hand, leg, head), or a person's reflection in a mirror or window is visible; otherwise false.
+   - blocked: true if a door frame, wall edge or an object close to the camera (a chair back, a bag, a coat) covers part of the view, or the camera is still in a hallway or doorway looking in; otherwise false.
 ` : ""}Rules: no emoji; plain words; never describe who should or should not live there (no age, gender, family status, religion, nationality, disability, or "perfect for students / professionals / couples").`,
     });
 
@@ -1091,8 +1092,9 @@ ${scanned ? `7. frames: for EVERY scan frame, one entry with its slotNumber and 
                   t: { type: Type.NUMBER },
                   label: { type: Type.STRING },
                   person: { type: Type.BOOLEAN },
+                  blocked: { type: Type.BOOLEAN },
                 },
-                required: ["slotNumber", "t", "person"],
+                required: ["slotNumber", "t", "person", "blocked"],
               },
             },
             warnings: {

@@ -6,7 +6,7 @@
  */
 import type { FrameNote } from "../src/remotion/viral/types.js";
 
-export const MAX_SCAN_FRAMES = 10;
+export const MAX_SCAN_FRAMES = 14;
 const MAX_SCAN_B64 = 120_000;
 const B64 = /^[A-Za-z0-9+/=]+$/;
 
@@ -50,6 +50,7 @@ export function parseFrameNotes(
     const label = cleanLabel((r as any)?.label);
     if (label) note.label = label;
     if ((r as any)?.person === true) note.person = true;
+    if ((r as any)?.blocked === true) note.blocked = true;
     list.push(note);
   }
   for (const list of Object.values(out)) list.sort((a, b) => a.t - b.t);

@@ -14,7 +14,8 @@ import {
 } from './clipSignals';
 import type { ClipAnalysis, ClipSample } from './types';
 
-const MAX_SECONDS = 12;
+/** Long camera-roll clips: the analysis (and the AI scan) covers up to 20 s, so their later footage can be used */
+const MAX_SECONDS = 20;
 const LOAD_TIMEOUT_MS = 8000;
 const SEEK_TIMEOUT_MS = 2500;
 
