@@ -37,6 +37,9 @@ export const LOOK_CONTROLS: { key: keyof ViralLook; label: string; low: string; 
 ];
 
 const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x));
+/** Highlight and white roll-off at no brightening (colorCorrection, -1..1 as positive amounts) */
+export const HIGHLIGHT_ROLLOFF = 0.35;
+export const WHITES_ROLLOFF = 0.2;
 const round = (x: number) => Math.round(x * 1000) / 1000;
 
 /** Keeps every control inside -1..1 (missing or NaN = 0). */
@@ -73,6 +76,10 @@ export function gradeFor(shotExposure: number, look: ViralLook | null | undefine
     contrast: round(1.06 + l.contrast * 0.16),
     saturation: round(1.06 + l.saturation * 0.2),
     vibrance: 0.12,
+    // Phone footage keeps detail in bright windows that the lift above would clip to white:
+    // roll the highlights off, more when the shot is brightened (skill: windows not blown out)
+    highlights: round(-clamp(HIGHLIGHT_ROLLOFF + Math.max(0, exposure) * 0.25, 0, 0.8)),
+    whites: round(-clamp(WHITES_ROLLOFF + Math.max(0, exposure) * 0.15, 0, 0.6)),
   };
 }
 

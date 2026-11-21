@@ -91,6 +91,7 @@ price) and one 4.5 s stretch with a single callout in the last room.
 | A split room's AI detail goes on the moment that holds the frame Gemini saw (Gemini sees one frame per room); the other moment gets a listing fact | `plan.ts` `detailMomentOf` |
 | Without clip analysis the opener starts 25% into the clip (0.6-2 s), past the record tap | `plan.ts` `sourceInfo` `NO_ANALYSIS_START_SHARE` |
 | The best-part reveal names only what Gemini saw or the host typed; otherwise it says "Worth the wait" and the perk amenity shows as a listing fact instead | `copy.ts` `PERK_FALLBACK_LABEL`, `defaultTags` |
+| Bright windows keep their detail: the grade rolls off highlights (-0.35) and whites (-0.2), more when a shot is brightened. Phone clips aren't clipped at the source; the lift was clipping them. Real clips: kitchen window pixels at pure white 5.5% → 0.1% | `look.ts` `gradeFor`, `HIGHLIGHT_ROLLOFF`, `WHITES_ROLLOFF` |
 | Cleanest stretch of each clip (no wall, no door edge, no whip pan), auto-brightened | `clipSignals.ts` (tuned on real phone clips, see the fixture test) |
 | A room opens only where at least 90% of the frame shows the room (column coverage), never in the hallway or behind a door edge | `clipSignals.ts` `columnCoverage`, `OPENING_COVERAGE_MIN`, `findCleanRange` (tested on the host's 5 guided shots, `fixtures/guided-shots.json`) |
 | A pillar, wall or door edge that stays along one side is cropped with a small zoom (≤ 1.25x) anchored on the other side | `clipSignals.ts` `sideBand`, `plan.ts` `reframeFor`, `FenlyViralTour.tsx` `reframeStyle` |
