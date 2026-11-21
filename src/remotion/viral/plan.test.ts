@@ -116,12 +116,13 @@ test('5 clean 7 s guided shots make a ~34 s full tour (30-45 s): hook + facts, 3
   assert.equal(plan.endCard.durationInFrames, Math.round(3.5 * plan.fps));
   assert.equal(plan.shots[0].playbackRate, SPEED.hero);
   assert.equal(plan.shots[0].rampFrames, 0, 'no ramp on frame 0');
-  // Calm speed: no 2x ramps, rooms between 0.85x and 1.15x
+  // Calm speed: no 2x ramps, rooms between 1.0x and 1.15x
   for (const s of plan.shots) assert.equal(s.rampFrames, 0, `${s.id} has no speed ramp`);
   for (const s of plan.shots.filter((x) => x.role === 'tour')) {
-    assert.ok(s.playbackRate >= 0.85 && s.playbackRate <= 1.15, `${s.id} plays at ${s.playbackRate}x`);
+    assert.ok(s.playbackRate >= 1 && s.playbackRate <= 1.15, `${s.id} plays at ${s.playbackRate}x`);
   }
-  assert.equal(plan.shots[4].playbackRate, LENGTH_PRESETS.full.closerRate, 'slow-motion perk reveal');
+  // No slow motion on the reveal either: phone footage under 1.0x repeats frames and stutters (host, Nov 2026)
+  assert.equal(plan.shots[4].playbackRate, 1, 'the perk reveal plays in real time');
   assert.deepEqual(plan.cuts.map((c) => c.kind), ['whip-left', 'whip-right', 'whip-left', 'light-leak']);
 });
 
@@ -213,11 +214,12 @@ test('every shot fits inside its clip for every length and pace (only the closer
   }
 });
 
-test('real phone clips: every shot plays clean footage (no opening wall), about 31 s in total', () => {
+test('real phone clips: every shot plays clean footage (no opening wall), about 26 s in real time', () => {
   const clips = realClips();
   const plan = buildViralEditPlan({ listing, clips });
   assert.deepEqual(checkPlan(plan), []);
-  assert.ok(sec(plan) >= 28 && sec(plan) <= 34, `duration ${sec(plan)}s`);
+  // 25.7 s since nothing is slowed down (it was 28.2 s with a 0.85x opener and slow-motion reveal)
+  assert.ok(sec(plan) >= 24 && sec(plan) <= 34, `duration ${sec(plan)}s`);
   for (const shot of plan.shots) {
     const clean = clips.find((c) => c.slotNumber === shot.slotNumber)!.analysis!.clean!;
     const frames = shot.role === 'closer' ? plan.endCard.fromFrame - shot.startFrame : shot.durationInFrames;
@@ -347,13 +349,13 @@ test('the re-hook lands near the middle, between a room tag and its second callo
   for (const c of room.callouts) assert.ok(local + plan.rehook!.durationInFrames <= c.inFrame, 'gone before the second callout');
 });
 
-test('a short camera-roll clip as the closer is slowed down; only the end card may hold a frame', () => {
+test('a short camera-roll clip as the closer is never slowed down; only the end card may hold a frame', () => {
   const clips = guidedClips();
   clips[4].durationSec = 2.0;
   const plan = buildViralEditPlan({ listing, clips });
   const closer = plan.shots[4];
   assert.ok(closer.srcStartSec <= 0.25);
-  assert.ok(closer.playbackRate < 1 && closer.playbackRate >= SPEED.minCloser);
+  assert.ok(closer.playbackRate >= 1, `closer at ${closer.playbackRate}x`);
   const [, revealEnd] = sourceRange(plan, closer, plan.endCard.fromFrame - closer.startFrame);
   assert.ok(revealEnd <= 2.0 + 1e-6, 'the reveal itself never freezes');
 });
@@ -744,5 +746,17 @@ test('a long opener clip with blocked stretches still gives the tour a second mo
     if (s.role === 'hook') assert.ok(!notes.some((n) => n.blocked && n.t >= s.srcStartSec - BLOCKED_AFTER_SEC + 1e-6 && n.t <= s.srcStartSec + 1), `${s.id} opens at ${s.srcStartSec} s on a blocked view`);
     const [a, b] = sourceRange(plan, s);
     for (const n of notes.filter((x) => x.person)) assert.ok(n.t + PERSON_PAD_SEC <= a + 1e-6 || n.t - PERSON_PAD_SEC >= b - 1e-6, `${s.id} shows a person`);
+  }
+});
+
+test('nothing ever plays below real time: opener, rooms, closer, for every length and pace, short clips too', () => {
+  for (const length of ['full', 'teaser'] as const) {
+    for (const pace of Object.keys(PACE_PRESETS) as (keyof typeof PACE_PRESETS)[]) {
+      for (const dur of [7, 4.5, 2.5]) {
+        const plan = buildViralEditPlan({ listing, clips: guidedClips(undefined, dur) }, { length, pace });
+        assert.deepEqual(checkPlan(plan), []);
+        for (const s of plan.shots) assert.ok(s.playbackRate >= 1, `${length} ${pace} ${dur}s: ${s.id} at ${s.playbackRate}x`);
+      }
+    }
   }
 });

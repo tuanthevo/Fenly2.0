@@ -114,7 +114,8 @@ export const LENGTH_PRESETS: Record<ViralLength, LengthPreset> = {
     // Calm: real time, or up to 1.15x for a very slow camera; no ramps (host feedback, Nov 2026).
     // Never below 1.0x: slowed phone footage repeats frames and stutters, so a short clip gets a shorter room instead.
     tourRate: { targetMotion: 0.05, fallback: 1, min: 1, max: 1.15 },
-    closerRate: 0.85,
+    // Real time: slow motion on phone footage repeats frames and looks choppy (host, Nov 2026)
+    closerRate: 1,
     ramp: null,
     details: true,
   },
@@ -145,7 +146,8 @@ export const PACE_PRESETS: Record<
 };
 
 /** Speed limits. The hook plays in real time so its first frame and headline read cleanly. */
-export const SPEED = { hero: 1, minHero: 0.8, minTour: 1, minCloser: 0.7, max: 1.6 } as const;
+/** Never below real time anywhere: slowed 30 fps phone footage repeats frames and stutters (host feedback, Nov 2026). */
+export const SPEED = { hero: 1, minHero: 1, minTour: 1, minCloser: 1, max: 1.6 } as const;
 
 /** Room changes alternate whips; the zoom is kept for two moments of the same room. */
 export const CUT_CYCLE: ViralCutKind[] = ['whip-left', 'whip-right'];
@@ -166,8 +168,8 @@ export const MAX_HOOK_LATER_SEC = 3;
 const MIN_FACTS_SEC = 1.2;
 const MIN_HOOK_SEC = 1.8;
 const MIN_CLOSER_SEC = 1.5;
-const HERO_KEEP_RATE = 0.85;
-const CLOSER_KEEP_RATE = 0.75;
+const HERO_KEEP_RATE = 1;
+const CLOSER_KEEP_RATE = 1;
 /** A room may play up to 15% slower than its matched speed to fill its section */
 const ROOM_KEEP_FACTOR = 0.85;
 const SOURCE_TAIL_SEC = 0.05;
