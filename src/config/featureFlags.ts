@@ -17,6 +17,7 @@ export const FEATURE_FLAGS = [
   'demo_listings', // 1.0 mock rooms in the Find feed after the real ones
   'photo_tour', // demo rooms in Find play their photos as a moving tour (Remotion) instead of the slideshow
   'id_check', // Passport Level 2 ID check (demo provider until a vendor is wired in server/idCheck.ts)
+  'intro_video', // 15-second intro video when applying (hidden by the host, Nov 2026; hosts still see intros already sent)
 ] as const;
 
 export type FeatureFlag = (typeof FEATURE_FLAGS)[number];
@@ -33,6 +34,7 @@ export const DEFAULT_FLAGS: Readonly<FeatureFlags> = Object.freeze({
   demo_listings: false,
   id_check: false,
   photo_tour: false,
+  intro_video: false,
 });
 
 export function isFeatureFlag(value: string): value is FeatureFlag {
