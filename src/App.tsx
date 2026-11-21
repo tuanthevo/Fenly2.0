@@ -277,8 +277,10 @@ export default function App() {
   const [reportTarget, setReportTarget] = useState<{ id: string; hostId: string | null } | null>(null);
   const [inboxThreadId, setInboxThreadId] = useState<string | null>(null);
   const [findNotice, setFindNotice] = useState<string | null>(null);
+  // Fetched again each time Find opens, so edits made in Fill (price, deposit, size...) show up
+  const findTabOpen = activeTab === 'listings';
   useEffect(() => {
-    if (!findMode) return;
+    if (!findMode || !findTabOpen) return;
     let alive = true;
     const load = savedOnly && auth.user ? findApi.savedListings() : findApi.feed(findFilters);
     load
@@ -287,7 +289,7 @@ export default function App() {
     return () => {
       alive = false;
     };
-  }, [findMode, findFilters, savedOnly, auth.user]);
+  }, [findMode, findTabOpen, findFilters, savedOnly, auth.user]);
   // Saved rooms follow the account once signed in (rooms saved while signed out are synced up)
   useEffect(() => {
     if (!findMode || !auth.user) return;
