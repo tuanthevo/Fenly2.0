@@ -411,12 +411,15 @@ export default function App() {
   // are history entries, so the phone's back gesture closes them.
   const fillOverlay = nav.overlay?.startsWith('fill:') ? nav.overlay.slice('fill:'.length) : null;
   const fillListingId = fillOverlay && fillOverlay !== 'new' && isListingId(fillOverlay) ? fillOverlay : null;
+  // Editing a live listing (from its status page): "edit:<id>"
+  const editOverlay = nav.overlay?.startsWith('edit:') ? nav.overlay.slice('edit:'.length) : null;
+  const editListingId = editOverlay && isListingId(editOverlay) ? editOverlay : null;
   const statusListingId =
     nav.overlay?.startsWith('status:') && isListingId(nav.overlay.slice('status:'.length))
       ? nav.overlay.slice('status:'.length)
       : null;
   const openFill = (listingId: string | null) =>
-    requireAccount('publish', () => navigate((prev) => ({ ...prev, overlay: `fill:${listingId ?? 'new'}` })));
+    requireAccount('publish', () => navigate((prev) => ({ ...prev, tab: 'fill', overlay: `fill:${listingId ?? 'new'}` })));
   const closeOverlay = () => navigate((prev) => ({ ...prev, overlay: null }));
   const openFillStatus = (listingId: string, replace = false) =>
     navigate((prev) => ({ ...prev, tab: 'fill', overlay: `status:${listingId}` }), { replace });
@@ -1741,11 +1744,32 @@ export default function App() {
         {/* Fenly 2.0 Fill tab (with Supabase): fill a room, drafts, live listings' status */}
         {activeTab === 'fill' && flagsLoaded && supabaseConfigured && (
           <div className="relative flex-1 min-h-0 w-full flex flex-col overflow-hidden">
-            {!applicantsListingId && !statusListingId && <OnboardingBanner tab="fill" />}
-            {applicantsListingId ? (
+            {!fillOverlay && !editListingId && !applicantsListingId && !statusListingId && <OnboardingBanner tab="fill" />}
+            {editListingId ? (
+              <FillFlow
+                key={`edit-${editListingId}`}
+                mode="edit"
+                listingId={editListingId}
+                onClose={() => openFillStatus(editListingId, true)}
+                onOpenStatus={(id) => openFillStatus(id, true)}
+              />
+            ) : fillOverlay && (fillOverlay === 'new' || fillListingId) ? (
+              // Fill my room opens in the tab, so the bottom navigation stays on screen
+              <FillFlow
+                listingId={fillListingId}
+                onClose={closeOverlay}
+                onOpenStatus={(id) => openFillStatus(id, true)}
+                onDraftCreated={(id) => navigate((prev) => ({ ...prev, overlay: `fill:${id}` }), { replace: true })}
+              />
+            ) : applicantsListingId ? (
               <ApplicantInbox key={applicantsListingId} listingId={applicantsListingId} onBack={closeOverlay} onOpenThread={openThread} />
             ) : statusListingId ? (
-              <FillStatusView key={statusListingId} listingId={statusListingId} onBack={closeOverlay} />
+              <FillStatusView
+                key={statusListingId}
+                listingId={statusListingId}
+                onBack={closeOverlay}
+                onEdit={() => navigate((prev) => ({ ...prev, tab: 'fill', overlay: `edit:${statusListingId}` }))}
+              />
             ) : (
               <FillHome
                 signedIn={Boolean(auth.user)}
@@ -1931,16 +1955,6 @@ export default function App() {
         userProfile={userProfile}
         onOpenAiDirector={() => setIsAiDirectorOpen(true)}
       />
-
-      {/* Fenly 2.0: Fill my room */}
-      {fillOverlay && supabaseConfigured && (fillOverlay === 'new' || fillListingId) && (
-        <FillFlow
-          listingId={fillListingId}
-          onClose={closeOverlay}
-          onOpenStatus={(id) => openFillStatus(id, true)}
-          onDraftCreated={(id) => navigate((prev) => ({ ...prev, overlay: `fill:${id}` }), { replace: true })}
-        />
-      )}
 
       {/* Fenly 2.0: apply from a shared listing link */}
       {applyTarget && (
