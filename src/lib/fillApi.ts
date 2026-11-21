@@ -106,6 +106,8 @@ export const fillApi = {
       nudges: Nudge[];
       links: LinkRow[];
     }>(`/api/listings/${id}/status`),
+  /** "Improve with AI" for the note to the host: a suggested rewrite, never sent until the applicant picks it */
+  rewriteNote: (note: string) => api<{ rewrite: string }>('/api/gemini/rewrite-note', { method: 'POST', body: { note } }),
   apply: (id: string, body: { note?: string; moveInDate?: string | null; via?: string | null; introVideoPath?: string }) =>
     api<{ application: { id: string } }>(`/api/listings/${id}/apply`, { method: 'POST', body }),
 };
