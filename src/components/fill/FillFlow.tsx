@@ -985,7 +985,8 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                         setStep('tour');
                       }}
                       onVideoReady={(result) => void saveVideo(result)}
-                      exportTeaserToo
+                      // No teaser: nothing plays it while the full tour exists, and it added ~13 s of
+                      // rendering plus an upload. Pass exportTeaserToo to bring it back.
                     />
                   </Suspense>
                   {uploadProgress !== null && <Progress value={uploadProgress} text="Uploading your video" />}

@@ -37,9 +37,11 @@ import { LOOK_CONTROLS, LOOK_PRESETS, autoLook, presetOf, type LookPresetId } fr
 import {
   checkBrowserCanExport,
   exportViralVideo,
+  preloadExporter,
   shareOrDownloadVideo,
   videoFileName,
 } from '../remotion/viral/exportVideo';
+import { isStaleCodeError, STALE_CODE_MESSAGE } from '../utils/staleCode';
 import type {
   ClipAnalysis,
   ViralAiHints,
@@ -375,6 +377,11 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const playerRef = useRef<PlayerRef>(null);
+  // Fetch the renderer in the background while the host edits
+  useEffect(() => {
+    const id = window.setTimeout(preloadExporter, 1500);
+    return () => window.clearTimeout(id);
+  }, []);
   const handleExport = async () => {
     if (!plan) return;
     // The preview and the export would decode the same clips at once: pause the preview
@@ -412,7 +419,9 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
       setExportState({
         phase: 'error',
         message:
-          error instanceof Error && /delayRender|timed? ?out/i.test(error.message)
+          isStaleCodeError(error)
+            ? STALE_CODE_MESSAGE
+            : error instanceof Error && /delayRender|timed? ?out/i.test(error.message)
             ? 'Making the video took too long reading one of your clips. Close other apps or tabs and try again; on a computer, iPhone clips export fastest in Safari or Chrome.'
             : error instanceof Error
             ? `${error.message.split('\n')[0].slice(0, 200)} If a clip came from an iPhone, try Safari or Chrome on the phone that filmed it.`

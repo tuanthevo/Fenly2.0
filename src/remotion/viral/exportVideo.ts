@@ -11,9 +11,20 @@
  * in VITE_REMOTION_PUBLIC_LICENSE_KEY (client-side renders use the public key).
  */
 import type { ViralEditPlan } from './types';
+import { isStaleCodeError, STALE_CODE_MESSAGE } from '../../utils/staleCode';
 
 const LICENSE_KEY =
   (import.meta.env.VITE_REMOTION_PUBLIC_LICENSE_KEY as string | undefined) || 'free-license';
+
+/**
+ * Starts downloading the renderer while the host is still editing, so "Make my
+ * video" starts at once (and the file is already here if a deploy lands mid-edit).
+ */
+export function preloadExporter(): void {
+  import('@remotion/web-renderer').catch(() => {
+    // The check before export reports a failure
+  });
+}
 
 export type ExportCheck = { ok: true } | { ok: false; message: string };
 
@@ -33,6 +44,7 @@ export async function checkBrowserCanExport(plan: ViralEditPlan): Promise<Export
       .join(' ');
     return { ok: false, message: reasons || 'This browser can’t export video. Try Chrome or Safari 26+.' };
   } catch (error) {
+    if (isStaleCodeError(error)) return { ok: false, message: STALE_CODE_MESSAGE };
     return { ok: false, message: error instanceof Error ? error.message : 'Export is not available here.' };
   }
 }
