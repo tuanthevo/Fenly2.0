@@ -42,6 +42,7 @@ import {
   videoFileName,
 } from '../remotion/viral/exportVideo';
 import { isStaleCodeError, STALE_CODE_MESSAGE } from '../utils/staleCode';
+import { bestGradeFix, gradeFixCandidates, gradePlan, PASS_SCORE, type PlanGrade } from '../remotion/viral/grade';
 import type {
   ClipAnalysis,
   ViralAiHints,
@@ -324,8 +325,9 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, analysisDone, clipKey, analysisVersion]);
 
-  const buildPlanFor = (planLength: typeof length): ViralEditPlan | null => {
+  const buildPlanFor = (planLength: typeof length, over: Partial<ViralEditSettings> = {}): ViralEditPlan | null => {
     if (clips.length === 0) return null;
+    const { style, pace, hookSlot, hookDraft, tagEdits, detailEdits } = { ...settings, ...over };
     try {
       return buildViralEditPlan(
         {
@@ -362,6 +364,26 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
 
   const planKey = useMemo(() => (plan ? JSON.stringify(plan) : ''), [plan]);
 
+  // Every video is graded on the 20-point audit rubric (grade.ts) and must score PASS_SCORE to export
+  const gradeClips = useMemo(
+    () => clips.map((c) => ({ ...c, analysis: analysisCache.current.get(c.src) ?? null })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [clips, analysisVersion]
+  );
+  const grade = useMemo<PlanGrade | null>(
+    () => (plan ? gradePlan(plan, gradeClips, activeHints?.frames) : null),
+    [plan, gradeClips, activeHints]
+  );
+  // Below the bar: the best change the editor can make on its own (another opener, the standard headline...)
+  const gradeFix = useMemo(() => {
+    if (!grade || grade.passed || !analysisDone) return null;
+    return bestGradeFix(grade, gradeFixCandidates(clips.map((c) => c.slotNumber)), (patch) => {
+      const p = buildPlanFor(length, patch);
+      return p ? { plan: p, grade: gradePlan(p, gradeClips, activeHints?.frames) } : null;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grade, analysisDone]);
+
   // Export
   const [exportState, setExportState] = useState<ExportState>({ phase: 'idle' });
   const abortRef = useRef<AbortController | null>(null);
@@ -383,7 +405,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
     return () => window.clearTimeout(id);
   }, []);
   const handleExport = async () => {
-    if (!plan) return;
+    if (!plan || !grade?.passed) return;
     // The preview and the export would decode the same clips at once: pause the preview
     playerRef.current?.pause();
     setExportState({ phase: 'checking' });
@@ -1121,13 +1143,24 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
         </p>
       </div>
 
+      {/* Video score (grade.ts): the 20-point audit, 18 to export */}
+      {grade && (
+        <VideoScoreCard
+          grade={grade}
+          checking={!analysisDone}
+          fix={gradeFix}
+          onApplyFix={() => gradeFix && update(gradeFix.patch)}
+          onRetakeShot={onRetakeShot}
+        />
+      )}
+
       {/* Export */}
       <div className="space-y-2">
         {(exportState.phase === 'idle' || exportState.phase === 'error' || exportStale) && (
           <button
             type="button"
             data-testid="viral-export-btn"
-            disabled={Boolean(analyzing)}
+            disabled={Boolean(analyzing) || !grade?.passed}
             onClick={handleExport}
             className="w-full py-3 rounded-xl bg-[#D06C4E] hover:bg-[#b85b3f] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-warm-sm active:scale-95 disabled:bg-[#2C2724]/15 disabled:text-[#6E655F] disabled:shadow-none"
           >
@@ -1234,6 +1267,88 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
           </ul>
         )}
       </div>
+    </div>
+  );
+};
+
+/** The video's score on the audit rubric: what holds it back, a one-tap fix, and retakes. */
+const VideoScoreCard: React.FC<{
+  grade: PlanGrade;
+  checking: boolean;
+  fix: { patch: object; grade: PlanGrade } | null;
+  onApplyFix: () => void;
+  onRetakeShot?: (slotNumber: number) => void;
+}> = ({ grade, checking, fix, onApplyFix, onRetakeShot }) => {
+  const [open, setOpen] = useState(false);
+  const weak = grade.rows.filter((r) => r.score < 2);
+  const retakes = [...new Set(weak.flatMap((r) => r.retakeSlots))];
+  return (
+    <div
+      data-testid="viral-score"
+      className={`p-3 rounded-xl border space-y-2 ${grade.passed ? 'bg-[#E8EFE9] border-[#7A907C]/50' : 'bg-[#F9F7F3] border-[#2C2724]/15'}`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className={`text-xs font-extrabold ${grade.passed ? 'text-[#485B4A]' : 'text-[#2C2724]'}`}>
+            {checking ? 'Checking your clips…' : `Video score ${grade.total}/${grade.max}`}
+          </p>
+          <p className="text-[10px] font-semibold text-[#6E655F]">
+            {checking
+              ? 'The score is ready once every clip is checked.'
+              : grade.passed
+              ? 'Ready to post.'
+              : `It needs ${PASS_SCORE}/${grade.max} to go out.`}
+          </p>
+        </div>
+        {weak.length > 0 && !checking && (
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            aria-expanded={open}
+            className="min-h-10 px-2 text-[10px] font-extrabold text-[#A9513A] shrink-0"
+          >
+            {open ? 'Hide' : `What to fix (${weak.length})`}
+          </button>
+        )}
+      </div>
+      {!checking && fix && (
+        <button
+          type="button"
+          data-testid="viral-score-fix"
+          onClick={onApplyFix}
+          className="w-full min-h-10 rounded-lg bg-[#B85B3F] hover:bg-[#A9513A] text-white text-[11px] font-extrabold flex items-center justify-center gap-1.5 active:scale-95"
+        >
+          <Sparkles className="w-3.5 h-3.5" /> Fix it for me ({fix.grade.total}/{fix.grade.max})
+        </button>
+      )}
+      {!checking && (open || (!grade.passed && !fix)) && weak.length > 0 && (
+        <ul className="space-y-1.5">
+          {weak.map((r) => (
+            <li key={r.key} className="text-[10px] leading-snug">
+              <span className="font-extrabold text-[#2C2724]">
+                {r.label} {r.score}/2:
+              </span>{' '}
+              <span className="text-[#6E655F]">{r.note}</span>
+              {r.fix && <span className="block font-semibold text-[#2C2724]">{r.fix}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {!checking && !grade.passed && retakes.length > 0 && onRetakeShot && (
+        <div className="flex flex-wrap gap-1.5">
+          {retakes.map((slot) => (
+            <button
+              key={slot}
+              type="button"
+              onClick={() => onRetakeShot(slot)}
+              className="min-h-10 px-2.5 rounded-lg bg-white border border-[#2C2724]/20 text-[10px] font-extrabold flex items-center gap-1"
+            >
+              <RotateCcw className="w-3 h-3" /> Retake {GUIDED_SHOTS.find((g) => g.slotNumber === slot)?.name ?? `shot ${slot}`}
+            </button>
+          ))}
+        </div>
+      )}
+      {!checking && grade.lengthNote && <p className="text-[10px] font-semibold text-[#6E655F]">{grade.lengthNote}</p>}
     </div>
   );
 };
