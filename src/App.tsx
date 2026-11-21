@@ -255,6 +255,22 @@ export default function App() {
 
   // Fenly 2.0 Find (with Supabase): published rooms from the database, demo rooms behind a flag
   const findMode = flagsLoaded && supabaseConfigured;
+  // Unread messages in the 2.0 Inbox, refreshed when the screen changes (opening a thread marks it read)
+  const [inboxUnread, setInboxUnread] = useState(0);
+  useEffect(() => {
+    if (!findMode || !auth.user) {
+      setInboxUnread(0);
+      return;
+    }
+    let alive = true;
+    findApi
+      .inbox()
+      .then(({ threads }) => alive && setInboxUnread(threads.reduce((n, t) => n + (t.unread || 0), 0)))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [findMode, auth.user, nav.tab, nav.overlay]);
   const [findFilters, setFindFilters] = useState<FindFilters>(EMPTY_FIND_FILTERS);
   const [findListings, setFindListings] = useState<FindListing[]>([]);
   const [savedOnly, setSavedOnly] = useState(false);
@@ -1372,6 +1388,8 @@ export default function App() {
   const homeRole = activeTab === 'fill' ? 'landlord' : nav.home.role;
 
   const unreadMessagesCount = conversations.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
+  // The nav badge: with Supabase (2.0) the unread messages in the real Inbox; the 1.0 demo chats only without it
+  const navUnreadCount = findMode ? inboxUnread : unreadMessagesCount;
 
   return (
     <div className="relative w-screen h-[100dvh] bg-[#2C2724] text-[#2C2724] overflow-hidden flex items-center justify-center font-['Plus_Jakarta_Sans','Inter',sans-serif]">
@@ -1850,7 +1868,7 @@ export default function App() {
         )}
 
         {/* Fenly 2.0 bottom navigation: Find, Fill, Inbox, Passport (1.0 tabs live in the menu behind flags) */}
-        <FenlyNavBar activeTab={activeTab} onSelectTab={handleSelectNavTab} unreadCount={unreadMessagesCount} />
+        <FenlyNavBar activeTab={activeTab} onSelectTab={handleSelectNavTab} unreadCount={navUnreadCount} />
       </main>
 
       {/* --- MODALS & DRAWERS --- */}
