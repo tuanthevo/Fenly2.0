@@ -627,3 +627,16 @@ test('with frame notes, every label names something in view on the footage it si
   // Nothing claims a kitchen over the sofa
   assert.ok(!plan.shots.some((s) => s.tag === 'Modern kitchen' || s.tag === 'Full kitchen'));
 });
+
+test('the best-part reveal pops in only after the light leak has passed, so the flash never covers it', () => {
+  for (const enableEffects of [true, false]) {
+    const plan = buildViralEditPlan({ listing, clips: guidedClips() }, { enableEffects });
+    const closer = plan.shots[plan.shots.length - 1];
+    const cut = plan.cuts[plan.cuts.length - 1];
+    // The overlay is centred on the cut: it lasts durationInFrames / 2 into the closer
+    const leakEnds = closer.startFrame + Math.ceil(cut.durationInFrames / 2);
+    assert.ok(closer.startFrame + closer.tagInFrame >= leakEnds + 3, `reveal at ${closer.tagInFrame}, leak until +${leakEnds - closer.startFrame}`);
+    // ...and still has its full reading time before the end card
+    assert.ok(plan.endCard.fromFrame - (closer.startFrame + closer.tagInFrame) >= 1.2 * plan.fps);
+  }
+});

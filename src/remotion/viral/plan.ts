@@ -674,7 +674,10 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
   const unlabeled = (i: number) =>
     roles[i] === 'tour' &&
     ((i > 0 && segs[i - 1].clip === segs[i].clip && roles[i - 1] === 'tour') || (i < n - 1 && segs[i + 1].clip === segs[i].clip && roles[i + 1] === 'closer'));
-  const tagInFrameOf = (i: number) => inOverlapOf(i) + 3;
+  // A light leak or flash into the closer sits on top of the footage (and its text) for half its length
+  // after the cut: the reveal waits until it has passed, or the flash washes out the payoff
+  const tagInFrameOf = (i: number) =>
+    i > 0 && isOverlay(cutKinds[i - 1]) ? Math.ceil(CLOSER_OVERLAY_FRAMES / 2) + 3 : inOverlapOf(i) + 3;
   const tourTags = ordered.map((clip, i) => {
     if (roles[i] !== 'tour' || unlabeled(i)) return '';
     const host = cleanTag(options.tagOverrides?.[clip.slotNumber]);
