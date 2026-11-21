@@ -5,10 +5,10 @@
  * facts and rules as applicant matching (fit.ts). Pure; the daily cron
  * (server/adminRoutes.ts) sends it through notify().
  */
-import { DEFAULT_RADIUS_MILES, RADIUS_MILES, inBayAreaBounds } from '../geo/bayArea';
-import { isLeaseTerm } from '../fill/leaseTerms';
-import { budgetFit, moveInFit } from './fit';
-import { cleanPlaceLabel, roomDistanceMiles, type FindNear } from './findFilters';
+import { DEFAULT_RADIUS_MILES, RADIUS_MILES, inBayAreaBounds } from '../geo/bayArea.js';
+import { isLeaseTerm } from '../fill/leaseTerms.js';
+import { budgetFit, moveInFit } from './fit.js';
+import { cleanPlaceLabel, roomDistanceMiles, type FindNear } from './findFilters.js';
 
 /** Rooms listed in one email; the rest are counted ("and 4 more") */
 export const ALERT_DIGEST_MAX = 5;

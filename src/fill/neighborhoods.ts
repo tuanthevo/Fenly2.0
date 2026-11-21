@@ -59,4 +59,4 @@ export const FILL_AMENITIES = [
   'Pets OK',
 ];
 
-export { LEASE_TERMS, leaseTermOptions } from './leaseTerms';
+export { LEASE_TERMS, leaseTermOptions } from './leaseTerms.js';

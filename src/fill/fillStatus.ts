@@ -2,8 +2,8 @@
  * Fill status math: days until move-out, views and applications per channel,
  * and the nudges shown to the host. Pure; the server feeds it rows.
  */
-import type { ShareChannel } from './types';
-import { channelLabel } from './attribution';
+import type { ShareChannel } from './types.js';
+import { channelLabel } from './attribution.js';
 
 export const FILL_TIME_ZONE = 'America/Los_Angeles';
 const DAY_MS = 24 * 60 * 60 * 1000;

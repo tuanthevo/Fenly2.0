@@ -7,7 +7,7 @@
  *
  * Pure (no DOM, no network) so the server and the browser share it.
  */
-import { SF_NEIGHBORHOODS } from '../fill/neighborhoods';
+import { SF_NEIGHBORHOODS } from '../fill/neighborhoods.js';
 
 export const BAY_AREA_REGIONS = ['San Francisco', 'East Bay', 'Peninsula', 'South Bay'] as const;
 export type BayAreaRegion = (typeof BAY_AREA_REGIONS)[number];

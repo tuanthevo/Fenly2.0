@@ -1,8 +1,8 @@
 /**
  * Rules for saving and publishing a listing (pure; the server enforces them).
  */
-import { fairHousingIssues } from '../remotion/viral/copy';
-import type { LeasePermission } from './types';
+import { fairHousingIssues } from '../remotion/viral/copy.js';
+import type { LeasePermission } from './types.js';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const LEASE_PERMISSIONS: LeasePermission[] = ['can_replace', 'leaseholder', 'not_sure'];

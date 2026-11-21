@@ -1,4 +1,4 @@
-import type { SavedVideoEdit } from './remotion/viral/editSettings';
+import type { SavedVideoEdit } from './remotion/viral/editSettings.js';
 export interface Host {
   id: string;
   name: string;

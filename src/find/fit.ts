@@ -2,8 +2,8 @@
  * Applicant fit for the host's inbox: move-in timing and budget, plus a short
  * factual summary. Takes FactualApplicant only (see factualApplicant.ts).
  */
-import type { FactualApplicant } from './factualApplicant';
-import { formatRentCents } from '../fill/publicListing';
+import type { FactualApplicant } from './factualApplicant.js';
+import { formatRentCents } from '../fill/publicListing.js';
 
 export type FitLevel = 'great' | 'ok' | 'off' | 'unknown';
 export type Fit = { level: FitLevel; text: string };

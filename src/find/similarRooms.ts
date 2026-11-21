@@ -3,8 +3,8 @@
  * center), rent within ±20%, free within 30 days of the taken room. Same
  * neighborhood first, then the closest.
  */
-import { areaCenter } from '../geo/bayArea';
-import { roomDistanceMiles } from './findFilters';
+import { areaCenter } from '../geo/bayArea.js';
+import { roomDistanceMiles } from './findFilters.js';
 
 export type SimilarCandidate = {
   id: string;

@@ -16,7 +16,7 @@
  * - AI-written copy never describes who should live there (fair-housing
  *   advertising rules), see violatesFairHousing().
  */
-import type { HookCopy, HookSegment, ViralListingInfo, ViralStyleId } from './types';
+import type { HookCopy, HookSegment, ViralListingInfo, ViralStyleId } from './types.js';
 
 export const STYLE_INFO: Record<ViralStyleId, { label: string; blurb: string }> = {
   'price-hook': {

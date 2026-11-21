@@ -8,8 +8,8 @@
  * reveal protected traits. factualApplicant.test.ts fails if a protected-trait
  * term shows up in any of these shapes.
  */
-import { cleanLifestyle, type Lifestyle } from './lifestyle';
-import { isLeaseTerm, type LeaseTerm } from '../fill/leaseTerms';
+import { cleanLifestyle, type Lifestyle } from './lifestyle.js';
+import { isLeaseTerm, type LeaseTerm } from '../fill/leaseTerms.js';
 
 export const FACTUAL_FIELDS = [
   'phoneVerified',
