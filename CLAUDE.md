@@ -3,6 +3,20 @@
 ## Fenly 2.0
 - Source of truth: `docs/strategy/ceo-operating-plan.md`. Read it before planning or building any 2.0 work.
 - Branches: `fenly-2.0` is the 2.0 trunk. Build each step on its own branch off `fenly-2.0` and merge it back into `fenly-2.0` when tests pass. Never commit to `main`. Tag `v1.0` is the frozen 1.0 prototype; don't move or change it.
+- Bugs, errors, or slow code: always use the `diagnosing-bugs` skill before changing code.
+- UI changes or design questions: always use the `impeccable` skill. Keep the brand colors, existing components and the contrast rules below.
+- Other installed skills, and which one wins when they overlap:
+  - Every coding task: follow `karpathy-guidelines` (surface assumptions, simplest change, surgical edits, a clear way to check it worked).
+  - New features: `brainstorming`, then `writing-plans`, before code. Skip both for small fixes and one-line changes.
+  - Tests: `test-driven-development` for new features and bug fixes.
+  - Bugs: `diagnosing-bugs` wins over `systematic-debugging` and `investigate-first`.
+  - UI: `impeccable` wins. Use `ui-ux-pro-max`, `design-taste-frontend`, `frontend-design` and `web-design-guidelines` only as extra checks. Never let any of them change Fenly's palette, fonts or layout. Never apply `brand-guidelines` (that is Anthropic's brand, not Fenly's).
+  - React code: `vercel-react-best-practices` and `vercel-composition-patterns`. Fenly is Vite, not Next.js, so skip the Next.js-only advice.
+  - Questions about how the codebase fits together: `graphify`. Never commit its `graphify-out/` folder.
+  - Before saying work is done, committing or merging: `verification-before-completion` (run `npm run lint` and `npm test` and read the output).
+  - Deploys (`deploy-to-vercel`, `vercel-cli-with-tokens`): only when the user asks.
+  - `caveman` replies: only when the user says "caveman". Otherwise write plain English.
+  - Word, PDF, PowerPoint and Excel files: `docx`, `pdf`, `pptx`, `xlsx`.
 - Product rules: hide features behind feature flags instead of deleting them. Keep the brand colors and existing components. The core loop is Fill a room → share link → Find/Apply → filled; every 2.0 change should serve it.
 - Version: `package.json` `"version"` (2.0.0) is the only place to set it. `vite.config.ts` passes it to the browser as `__APP_VERSION__`.
 - Supabase: the schema lives in `supabase/migrations/` and is run by hand in the dashboard SQL editor (setup steps: `docs/setup/supabase.md`). Put each change in a new numbered file; never edit one that has been run. Every table has RLS. The service-role client (`server/supabase.ts` `getAdminClient`) is used only in `server/`. The browser gets the URL and publishable key from `GET /api/config`, so there are no `VITE_` Supabase vars.
