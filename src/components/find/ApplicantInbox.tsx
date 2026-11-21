@@ -16,6 +16,7 @@ import {
   IdCard,
   Loader2,
   MessageCircle,
+  RotateCcw,
   Sparkles,
   Star,
   ThumbsDown,
@@ -66,6 +67,28 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
   const [choosing, setChoosing] = useState<ApplicantCard | null>(null);
   /** Shown after a choice goes through */
   const [notice, setNotice] = useState<string | null>(null);
+  /** Reopen a filled room: confirm sheet open, and the request running */
+  const [reopening, setReopening] = useState(false);
+  const [reopenBusy, setReopenBusy] = useState(false);
+
+  const reopen = async () => {
+    setReopenBusy(true);
+    setActionError(null);
+    try {
+      const { applicantsBack } = await findApi.reopen(listingId);
+      await load();
+      setNotice(
+        applicantsBack > 0
+          ? `Your room is open again. ${applicantsBack} earlier applicant${applicantsBack === 1 ? ' is' : 's are'} back in your list and got a note.`
+          : 'Your room is open again and back in Find.'
+      );
+      setReopening(false);
+    } catch (e) {
+      setActionError(e instanceof ApiError ? e.body?.message ?? e.message : "That didn't work. Try again.");
+    } finally {
+      setReopenBusy(false);
+    }
+  };
   const [invite, setInvite] = useState<{ url: string; copied: boolean } | null>(null);
   const [reporting, setReporting] = useState<ApplicantCard | null>(null);
   const [showClosed, setShowClosed] = useState(false);
@@ -348,7 +371,23 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
           <Check className="w-3.5 h-3.5 shrink-0" /> {notice}
         </p>
       )}
-      {actionError && !declining && !choosing && <p className="text-xs font-bold text-[#9A4A33]">{actionError}</p>}
+      {isHost && data.listing.status === 'filled' && (
+        <div className="p-3 rounded-xl bg-white border border-[#2C2724]/15 flex items-center justify-between gap-3" data-testid="reopen-room">
+          <p className="text-xs text-[#6E655F] leading-snug">This room is filled. Plans changed?</p>
+          <button
+            type="button"
+            onClick={() => {
+              setActionError(null);
+              setNotice(null);
+              setReopening(true);
+            }}
+            className="min-h-10 px-3 rounded-lg bg-white border border-[#2C2724]/25 hover:bg-[#F2EFE9] text-xs font-extrabold flex items-center gap-1.5 shrink-0"
+          >
+            <RotateCcw className="w-3.5 h-3.5" /> Reopen room
+          </button>
+        </div>
+      )}
+      {actionError && !declining && !choosing && !reopening && <p className="text-xs font-bold text-[#9A4A33]">{actionError}</p>}
 
       {data.applicants.length === 0 ? (
         <div className="p-4 rounded-2xl bg-white border border-[#2C2724]/15 text-center space-y-1">
@@ -426,6 +465,29 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
                 className="flex-1 min-h-10 py-2.5 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-xs font-extrabold flex items-center justify-center gap-1 disabled:opacity-60"
               >
                 {busyId === choosing.applicationId && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Choose and fill the room
+              </button>
+            </div>
+          </div>
+        </div>
+      , document.body)}
+
+      {reopening && createPortal(
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-[#2C2724]/60" onClick={() => { setReopening(false); setActionError(null); }}>
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm max-h-[90dvh] overflow-y-auto bg-[#F9F7F3] border border-[#2C2724] rounded-t-3xl sm:rounded-2xl p-5 space-y-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]" data-testid="reopen-confirm">
+            <h3 className="font-extrabold text-sm">Reopen this room?</h3>
+            <p className="text-xs text-[#6E655F] leading-relaxed">
+              Your room goes live again in Find and on its link. The person you chose moves back to your shortlist, and applicants who were told the room was taken get their application back, with a note.
+            </p>
+            {actionError && <p role="alert" className="text-xs font-bold text-[#9A4A33]">{actionError}</p>}
+            <div className="flex gap-2">
+              <button type="button" onClick={() => { setReopening(false); setActionError(null); }} className="flex-1 min-h-10 py-2.5 rounded-xl bg-white border border-[#2C2724]/25 text-xs font-bold">Keep it filled</button>
+              <button
+                type="button"
+                disabled={reopenBusy}
+                onClick={() => void reopen()}
+                className="flex-1 min-h-10 py-2.5 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-xs font-extrabold flex items-center justify-center gap-1 disabled:opacity-60"
+              >
+                {reopenBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Reopen room
               </button>
             </div>
           </div>
