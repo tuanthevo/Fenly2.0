@@ -108,9 +108,11 @@ interface FillFlowProps {
    * Each step saves on Continue; the lease check, the tour and publishing are skipped.
    */
   mode?: 'create' | 'edit';
+  /** Edit mode: open at the video editor instead of the basics ("Edit video" on the status page) */
+  startAt?: 'video';
 }
 
-export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onClose, onOpenStatus, onDraftCreated, mode = 'create' }) => {
+export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onClose, onOpenStatus, onDraftCreated, mode = 'create', startAt }) => {
   const editing = mode === 'edit' && Boolean(requestedId);
   const steps = editing ? EDIT_STEPS : STEPS;
   // Only the id this flow opened with is loaded; later id changes come from this flow itself
@@ -217,7 +219,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
           const clip: RecordedViralSlotMedia = {
             slotNumber: slot,
             videoUrl: url,
-            thumbnailUrl: frame?.dataUrl ?? GUIDED_SHOTS[slot - 1].sampleThumbnailUrl,
+            thumbnailUrl: frame?.dataUrl ?? '', // never a stock photo: the card shows the clip itself
             source: 'uploaded',
             durationSec: Math.round(((m.duration_ms ?? (frame?.durationSec ?? 5) * 1000) / 1000) * 10) / 10,
             isLandscape: Boolean(m.width && m.height && m.width > m.height),
@@ -250,7 +252,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
         savedClips.current = data.media;
         const thumb = data.media.find((m) => m.kind === 'thumbnail')?.signedUrl;
         if (thumb) setCover(thumb);
-        if (editing) setStep('start');
+        if (editing) setStep(startAt === 'video' ? 'video' : 'start');
         else {
           const rawClips = data.media.filter((m) => m.kind === 'raw_clip' && m.signedUrl && slotFromRawPath(m.path)).length;
           const next = resumeStep(data.listing, data.media.map((m) => m.kind), rawClips);
@@ -653,7 +655,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                   <div className={`${card} space-y-4`}>
                     <div>
                       <h3 className="text-lg font-extrabold leading-tight">Let's fill your room</h3>
-                      <p className="text-xs text-[#6E655F] mt-1">The basics, then three 15-second shots. About 10 minutes in all.</p>
+                      <p className="text-xs text-[#6E655F] mt-1">The basics, then three shots of 10 seconds or more. About 10 minutes in all.</p>
                     </div>
                     <div>
                       <label className={label} htmlFor="fill-move-out">When do you need to fill the room?</label>

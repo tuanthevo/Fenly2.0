@@ -497,8 +497,11 @@ test('long clips use a second moment of the same room instead of being thrown aw
   assert.ok(sec(plan) > sec(before) + 8, `${sec(plan)}s vs ${sec(before)}s with short clips`);
   // The 20 s bathroom (a tour room) plays as two moments joined by a zoom cut; the label sits on the first
   const bath = plan.shots.filter((s) => s.slotNumber === 3);
-  assert.equal(bath.length, 2);
-  assert.ok(bath[0].tag && !bath[1].tag, 'one label per room');
+  // 20 s of footage: three moments (THIRD_MIN_CLEAN_SEC), so long clips make a longer tour
+  assert.equal(bath.length, 3);
+  assert.equal(bath[2].part, 3);
+  assert.equal(bath[2].id, 'shot-3-3');
+  assert.ok(bath[0].tag && !bath[1].tag && !bath[2].tag, 'one label per room');
   assert.equal(bath[1].part, 2);
   assert.equal(bath[1].id, 'shot-3-2');
   const cutIntoSecond = plan.cuts[plan.shots.indexOf(bath[1]) - 1];
@@ -514,7 +517,7 @@ test('long clips use a second moment of the same room instead of being thrown aw
   for (const s of bath) assert.ok(onScreen(plan, plan.shots.indexOf(s)) <= MOMENT_SEC + 0.5, `${s.id} ${onScreen(plan, plan.shots.indexOf(s))}s`);
   // The kitchen closer (not the perk) gets a calm moment before its slow reveal
   const kitchen = plan.shots.filter((s) => s.slotNumber === 2);
-  assert.deepEqual(kitchen.map((s) => s.role), ['tour', 'closer']);
+  assert.deepEqual(kitchen.map((s) => s.role), ['tour', 'tour', 'closer']);
   // The editor still lists one row per room, and finds each room's detail
   assert.deepEqual(editableShots(plan).map((s) => s.slotNumber), [1, 3, 2]);
   assert.ok(roomDetail(plan, 3).length > 0);
@@ -581,15 +584,15 @@ test('a split room shows its AI detail on the moment that holds the frame Gemini
     clean: { startSec: 0.3, endSec: 20 },
   });
   const ai = { tags: { 3: 'Glass shower' }, details: { 3: 'Double vanity' } };
-  for (const [bestSec, want] of [[2, 0], [15, 1]] as const) {
+  for (const [bestSec, want] of [[2, 0], [15, 2]] as const) {
     const clips = guidedClips([1, 3, 5]).map((c) => (c.slotNumber === 3 ? { ...c, durationSec: 20, analysis: room(bestSec) } : c));
     const plan = buildViralEditPlan({ listing, clips }, { ai });
     const bath = plan.shots.filter((s) => s.slotNumber === 3);
-    assert.equal(bath.length, 2, `best at ${bestSec}s`);
+    assert.equal(bath.length, 3, `best at ${bestSec}s: 20 s of footage plays as three moments`);
     const withDetail = bath.findIndex((s) => s.callouts.some((c) => c.text === 'Double vanity'));
     assert.equal(withDetail, want, `best at ${bestSec}s: detail on moment ${withDetail + 1}`);
     // The other moment still gets something (a listing fact), and the editor still finds the detail
-    assert.ok(bath[1 - want].callouts.length > 0 || bath[1 - want].tag, `best at ${bestSec}s: other moment is empty`);
+    assert.ok(bath.some((b, k) => k !== want && (b.callouts.length > 0 || b.tag)), `best at ${bestSec}s: the other moments are empty`);
     assert.equal(roomDetail(plan, 3), 'Double vanity');
   }
 });
@@ -783,7 +786,9 @@ test('a tour past 50 s plays its rooms faster (same footage) before dropping any
   assert.equal(plan.shots[0].playbackRate, 1, 'the opener stays real time: frame 0 and the headline read cleanly');
   assert.ok(plan.shots.slice(1).some((s) => s.playbackRate > 1), 'rooms play faster to fit');
   for (const s of plan.shots) assert.ok(s.playbackRate <= MAX_FIT_RATE, `${s.id} ${s.playbackRate}x`);
-  assert.equal(plan.shots.filter((s) => s.part === 2).length, 4, 'every second moment is kept');
+  const uncapped = guidedClips([1, 2, 3, 4, 5], 20).length; // every room at least once
+  assert.ok(new Set(plan.shots.map((s) => s.slotNumber)).size === uncapped, 'every room is in the tour');
+  assert.ok(plan.shots.filter((s) => s.part).length >= 4, 'extra moments are kept, not cut');
 });
 
 test('no tour runs past 50 s or past 1.35x, however long the clips', () => {

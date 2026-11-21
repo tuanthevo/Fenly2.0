@@ -18,7 +18,7 @@ test('Guided 5-shot list has the 5 shots in order with 7s recording', () => {
     ['Bedroom Hook', 'Kitchen & Shared Space', 'Bathroom Peek', 'Closet & Storage', 'Standout Perk']
   );
   assert.equal(GUIDED_RECORDING_MS, 15000);
-  assert.ok(GUIDED_SHOTS.every((s) => s.instruction.includes(`(${GUIDED_RECORDING_MS / 1000} sec)`)));
+  assert.ok(GUIDED_SHOTS.every((s) => s.instruction.includes('(at least 10 sec)')), 'hosts are told at least 10 seconds per shot');
   const slots = createGuidedShotSlots();
   assert.equal(slots.length, 5);
   assert.equal(slots[0].title, 'Shot 1: Bedroom Hook');
@@ -68,5 +68,6 @@ test('Quick Tour: 3 shots of 15 s (room, shared space, bathroom), extras add clo
   assert.match(instructionFor(ALL[0], 5), /\(5 sec\)/);
   assert.doesNotMatch(instructionFor(ALL[0], 5), /15 sec/);
   // every shot states its length, so the shown length always matches the recording
-  for (const shot of ALL) assert.match(shot.instruction, /\(\d+ sec\)/, shot.name);
+  for (const shot of ALL) assert.match(shot.instruction, /\(at least \d+ sec\)/, shot.name);
+  assert.match(instructionFor(ALL[0], 15), /\(15 sec\)/, 'the in-app recorder states its exact length');
 });

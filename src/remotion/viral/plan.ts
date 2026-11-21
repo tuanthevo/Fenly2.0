@@ -183,6 +183,11 @@ const SOURCE_TAIL_SEC = 0.05;
 export const MOMENT_SEC = 5.5;
 /** Clean footage a room needs before it is split into two moments (10 s recordings have ~8 s; host, Nov 2026) */
 export const SPLIT_MIN_CLEAN_SEC = 8;
+/**
+ * Clean footage a room needs for a third moment: hosts who film well past 10 s get a longer
+ * tour instead of unused footage (host's call, Nov 2026). Still capped by MAX_TOUR_TOTAL_SEC.
+ */
+export const THIRD_MIN_CLEAN_SEC = 14;
 /** Clean footage left beside the opener's headline that's worth a moment of its own */
 export const EXTRA_MIN_CLEAN_SEC = 4;
 /** Footage skipped between two moments of one clip, so the cut reads as a cut */
@@ -211,13 +216,13 @@ const MIN_START_SEC = 0.25;
  * Longest stretch with nothing new on screen (no cut, label, callout or punch-in).
  * Past ~3 s the retention curve drops; a gentle punch-in fills it without more text.
  */
-export const QUIET_MAX_SEC = 3.2;
+export const QUIET_MAX_SEC = 3;
 /** How far a punch-in zooms, and how long it takes */
 export const PUNCH_SCALE = 1.06;
 export const PUNCH_FRAMES = 10;
 /** Shots already zoomed this far to crop a wall get no punch-in (more looks soft) */
 const PUNCH_MAX_REFRAME = 1.15;
-const MAX_PUNCHES = 2;
+const MAX_PUNCHES = 3;
 /**
  * Without clip analysis, the opener starts this far into a long clip: phone clips
  * open on the record tap (floor, feet). Capped so short guided clips still fit.
@@ -593,7 +598,7 @@ function snapToBeats(seconds: number[], endCardSec: number, fps: number, bpm: nu
 }
 
 type Window = { startSec: number; endSec: number };
-type Segment = { clip: ViralClipInput; role: ViralShotRole; part: 1 | 2; window?: Window };
+type Segment = { clip: ViralClipInput; role: ViralShotRole; part: 1 | 2 | 3; window?: Window };
 
 /** One segment per clip, plus a second moment for clips with long clean footage (see MOMENT_SEC). */
 function planSegments(
@@ -644,6 +649,16 @@ function planSegments(
     const splittable = role === 'tour' || (role === 'closer' && clip.slotNumber !== 5);
     if (splittable && allow() && e - s >= SPLIT_MIN_CLEAN_SEC) {
       extras++;
+      // Very long clean footage: three moments (thirds of the clip), when another extra is allowed
+      if (e - s >= THIRD_MIN_CLEAN_SEC && allow()) {
+        extras++;
+        const third = (e - s) / 3;
+        const win = (k: number) => ({ startSec: s + k * third + (k ? MOMENT_GAP_SEC / 2 : 0), endSec: s + (k + 1) * third - (k < 2 ? MOMENT_GAP_SEC / 2 : 0) });
+        segs.push({ clip, role: 'tour', part: 1, window: win(0) });
+        segs.push({ clip, role: 'tour', part: 2, window: win(1) });
+        segs.push({ clip, role, part: 3, window: win(2) });
+        return;
+      }
       const [a, b] = halves(src);
       segs.push({ clip, role: 'tour', part: 1, window: a });
       segs.push({ clip, role, part: 2, window: b });
@@ -679,7 +694,7 @@ export function buildViralEditPlan(input: BuildViralPlanInput, options: BuildVir
   if (fits(plan)) return plan;
   // Too long: play the rooms a little faster (same footage) before dropping any; then drop extra
   // moments, last first, each time trying the slowest speed that fits
-  const allExtras = plan.shots.filter((s) => s.part === 2).length;
+  const allExtras = plan.shots.filter((s) => s.part).length;
   for (let extras = allExtras; extras >= 0; extras--) {
     for (let speedUp = extras === allExtras ? 1 + FIT_SPEED_STEP : 1; speedUp <= MAX_FIT_RATE + 1e-6; speedUp += FIT_SPEED_STEP) {
       plan = buildPlanWith(input, options, extras, Math.round(speedUp * 100) / 100);
@@ -820,7 +835,7 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
   fits.forEach((fit, i) => {
     const notes = frameNotes(options, ordered[i].slotNumber);
     // A room's second moment continues it after a zoom cut: only first moments need a clear opening
-    if (!notes || segs[i].part === 2) return;
+    if (!notes || segs[i].part > 1) return;
     const needSec = (durationOf(i) / fps) * fit.playbackRate;
     // The opener may move back into earlier clean footage unless its room's other moment plays there
     let bounds = sources[i].clean;
@@ -889,8 +904,12 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
   const detailMomentOf = new Map<ViralClipInput, number>();
   segs.forEach((sg, b) => {
     if (b === 0 || roles[b] !== 'tour' || !unlabeled(b) || segs[b - 1].clip !== sg.clip || roles[b - 1] !== 'tour') return;
+    if (detailMomentOf.has(sg.clip)) return; // a room of three moments is decided once
     const best = sourceInfo(sg.clip, options.ai?.windows?.[sg.clip.slotNumber]).preferred;
-    detailMomentOf.set(sg.clip, sg.window && best < sg.window.startSec ? b - 1 : b);
+    // The room's tour moments, in order: the last one that starts at or before the best frame holds it
+    const moments = segs.map((x, k) => ({ x, k })).filter(({ x, k }) => x.clip === sg.clip && roles[k] === 'tour');
+    const holding = [...moments].reverse().find(({ x }) => !x.window || x.window.startSec <= best) ?? moments[0];
+    detailMomentOf.set(sg.clip, holding.k);
   });
 
   const shots: ViralShot[] = [];
@@ -947,8 +966,8 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
     }
 
     shots.push({
-      id: segs[i].part === 2 ? `shot-${clip.slotNumber}-2` : `shot-${clip.slotNumber}`,
-      ...(segs[i].part === 2 ? { part: 2 as const } : null),
+      id: segs[i].part > 1 ? `shot-${clip.slotNumber}-${segs[i].part}` : `shot-${clip.slotNumber}`,
+      ...(segs[i].part > 1 ? { part: segs[i].part as 2 | 3 } : null),
       slotNumber: clip.slotNumber,
       room: clip.room,
       src: clip.src,

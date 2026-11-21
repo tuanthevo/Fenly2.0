@@ -18,7 +18,7 @@ export const GUIDED_SHOTS: GuidedShot[] = [
     slotNumber: 1,
     name: 'Bedroom Hook',
     instruction:
-      'Turn ALL lights on & open blinds. Stand at the bedroom doorway and walk slowly in, about 5 small steps (15 sec).',
+      'Turn ALL lights on & open blinds. Stand at the bedroom doorway and walk slowly in, about 5 small steps (at least 10 sec).',
     movementCue: '5 slow steps in',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&w=900&q=80',
@@ -27,7 +27,7 @@ export const GUIDED_SHOTS: GuidedShot[] = [
     slotNumber: 2,
     name: 'Kitchen & Shared Space',
     instruction:
-      'Stand at the kitchen entrance and walk slowly toward the island or counter (15 sec).',
+      'Stand at the kitchen entrance and walk slowly toward the island or counter (at least 10 sec).',
     movementCue: 'Walk slowly toward the counter',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=900&q=80',
@@ -36,7 +36,7 @@ export const GUIDED_SHOTS: GuidedShot[] = [
     slotNumber: 3,
     name: 'Bathroom Peek',
     instruction:
-      'Step slowly toward the open bathroom door, then hold still—keep yourself out of the mirror (15 sec).',
+      'Step slowly toward the open bathroom door, then hold still—keep yourself out of the mirror (at least 10 sec).',
     movementCue: 'Step toward the door • stay out of the mirror',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=900&q=80',
@@ -44,7 +44,7 @@ export const GUIDED_SHOTS: GuidedShot[] = [
   {
     slotNumber: 4,
     name: 'Closet & Storage',
-    instruction: 'Open the closet doors wide, take 2 slow steps forward, then hold still (15 sec).',
+    instruction: 'Open the closet doors wide, take 2 slow steps forward, then hold still (at least 10 sec).',
     movementCue: '2 slow steps, then hold',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=900&q=80',
@@ -53,7 +53,7 @@ export const GUIDED_SHOTS: GuidedShot[] = [
     slotNumber: 5,
     name: 'Standout Perk',
     instruction:
-      'Walk slowly toward the best perk—in-unit laundry, balcony, parking, or sunny view—then hold on it (15 sec).',
+      'Walk slowly toward the best perk—in-unit laundry, balcony, parking, or sunny view—then hold on it (at least 10 sec).',
     movementCue: 'Walk to the perk, then hold',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=900&q=80',
@@ -71,6 +71,8 @@ export const GUIDED_COUNTDOWN_STEP_MS = 1000;
  */
 export const GUIDED_RECORDING_MS = 15000;
 export const MIN_CLIP_DURATION_SEC = 2;
+/** What hosts are told to film per shot (host's call, Nov 2026); longer is welcome, the editor uses it */
+export const SHOT_GUIDE_SEC = 10;
 export const MIN_SHOTS_TO_PROCEED = 3;
 
 /**
@@ -174,7 +176,10 @@ export function recordingMsFor(mode: CaptureMode): number {
   return mode === 'quick' ? QUICK_RECORDING_MS : GUIDED_RECORDING_MS;
 }
 
-/** The shot's instruction with its clip length ("(15 sec)") set to `seconds`. */
+/**
+ * The shot's instruction with its clip length set to exactly `seconds`, for the in-app
+ * recorder, which stops by itself. The cards show shot.instruction ("at least 10 sec").
+ */
 export function instructionFor(shot: GuidedShot, seconds: number): string {
-  return shot.instruction.replace(/\(\d+(?:\.\d+)?\s*sec\)/i, `(${seconds} sec)`);
+  return shot.instruction.replace(/\((?:at least )?\d+(?:\.\d+)?\s*sec\)/i, `(${seconds} sec)`);
 }
