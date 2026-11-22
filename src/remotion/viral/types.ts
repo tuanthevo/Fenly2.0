@@ -77,6 +77,15 @@ export type ClipWindow = {
   meanMotion?: number;
 };
 
+/** Fenn's shot: the steadiest 3-5 s of a clip's usable footage. */
+export type SteadyWindow = {
+  startSec: number;
+  endSec: number;
+  /** 0 (smooth, even movement) .. 1 (jolts and uneven movement) */
+  shake: number;
+  meanMotion: number;
+};
+
 /** A stretch of usable footage: the room is in view and the camera is steady. */
 export type ClipRange = {
   startSec: number;
@@ -97,6 +106,8 @@ export type ClipAnalysis = {
    * instead of slowing down or showing the wall the clip opened on.
    */
   clean?: ClipRange;
+  /** The steadiest 3-5 s inside `clean` (missing on analyses saved before Fenn) */
+  steady?: SteadyWindow;
   /** Exposure correction in stops for colorCorrection(), -0.25..0.6 */
   exposureBoost: number;
   /**
