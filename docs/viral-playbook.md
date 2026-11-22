@@ -37,6 +37,48 @@ that already works.
   ([revid TikTok safe-zone checker](https://www.revid.ai/tiktok-safe-zone),
   [cross-platform guide](https://wildandfreetools.com/blog/vertical-video-safe-zones-guide-2026/))
 
+## The Fenn edit (default since Nov 22, 2026)
+
+The host's concept: slow-moving clips of 3 to 5 seconds, room by room, on the details, with a
+different camera move per shot. Fenn is the editor's name for this style and for its self-check.
+
+**Filming: never walk.** Walking shakes the camera, so every guided shot is one slow move made
+standing still (`guidedShots.ts`, `GuidedShot.move`): a **slide** (feet planted, the phone moves
+sideways), a **turn** (from the hips) or a **push** (the arms reach forward). Neighbouring shots
+use different moves. No instruction, cue, reminder or retake tip may say "walk" or "step"
+(`guidedShots.test.ts` fails if one does). Recording length and the 3 required Quick Tour shots
+are unchanged.
+
+**Editing** (`plan.ts` `LENGTH_PRESETS.fenn`):
+
+| Section | Length | Notes |
+| --- | --- | --- |
+| Opener | 3-3.4 s | the headline alone, from the clip's best frame. No facts beat: three facts in the 2 s left of a 5 s shot could not be read, so the facts go to the rooms and the end card |
+| Each room | 3-5 s | plays from the steadiest stretch of its clip (`clipSignals.ts` `findSteadyWindow`, `ClipAnalysis.steady`); under 3 s of clear footage gives a shorter shot, never slower playback |
+| Long clips | two shots of up to 4.5 s | a clip with 8.5 s+ of clear footage (`FENN_SPLIT_MIN_CLEAN_SEC`, `FENN_MOMENT_SEC`) |
+| Re-hook | 1.2 s | only when the video is 15 s+ and the re-hook would land after the first third (`REHOOK_MIN_TOTAL_SEC`, `REHOOK_EARLIEST_SHARE`) |
+| Best part | up to 4 s | as before |
+| End card | 3.2 s | as before |
+
+There is **no length target**: the video is as long as its good shots (3 quick shots give about
+15-18 s, five clips about 25 s). `MAX_TOUR_TOTAL_SEC` (45 s) stays as a ceiling only. Speed stays
+1.0-1.15x. The full tour and the teaser remain for listings saved with them.
+
+**Fenn's score** (`fennScore.ts` `scoreEdit`, `bestFennEdit`): the ten rows of
+`references/audit.md`, two points each, worked out from the plan and the clip analysis (cover,
+headline, text size, one thing at a time, reading time, change rate, 3-5 s shots at real time,
+steadiness, light, question and loop). Fenn tries every clip as the opener (unless the host
+picked one) and keeps the highest score. The editor shows "Fenn's score N/20"; under 18 it names
+the one retake that helps most and never blocks the export. Shake is 0 (smooth) to 1: the
+host's clips measure 0.05-0.34; over 0.25 costs a point, over 0.45 (`SHAKE_RETAKE`) or a sweep
+faster than 0.11 mean motion asks for a slower retake. The number cannot see the picture, so a
+real render is still audited by eye before a rule changes, and the audit log records both.
+
+**Caption** (`sharePosts.ts`, from `/ig-caption`): the video carries the hook, so the Instagram
+caption is the facts and one ask. Rent, place and date sit inside the 125 characters shown before
+"... more"; no link (captions aren't clickable; the share kit copies the bio link); at most 5
+hashtags, used as topic labels.
+
 ## Section timing (full tour, balanced pace, 5 guided 7 s shots ≈ 35 s when every shot is clean)
 
 Targets after the November 2026 updates: 30-45 s (rooms aim for 7 s, the perk for 5 s, the end card 3.5 s). Rooms still shrink to their clean footage, so real clips with doorways or edges give shorter tours. Long clips are no longer thrown away: a room with 10 s+ of clean footage plays as **two moments** of ~5.5 s from different parts of the clip, joined by a zoom cut (whips stay for room changes); the opener's room gets a tour moment after the headline when there's 4 s+ footage left; a closer that isn't the perk gets a moment before its reveal. Extra moments are dropped, last first, past 45 s. Host test (5 phone clips, 7-20 s): 35.4 s → 43.5 s; Quick Tour with 3 of them: 21.5 s → 31.0 s. The table below describes the beats; the exact targets live in `plan.ts` `LENGTH_PRESETS`.
@@ -124,3 +166,5 @@ price) and one 4.5 s stretch with a single callout in the last room.
 | --- | --- | --- | --- | --- |
 | Nov 20, 2026 | 5 clips | 27.6 s | 19/20 | Room openings (1): door edges at the bathroom and closet cuts; scan notes are ~1.3 s apart, too coarse to step off every edge |
 | Nov 20, 2026 | 3 clips (Quick Tour) | 20.5 s | 19/20 | Room openings (1): the second kitchen moment opens on the dining table. Shorter because the living room and bathroom vanity have a person in frame (retakes, not editing, fix that) |
+| Nov 22, 2026 | 5 clips, Fenn edit (steady windows measured from the clips with ffmpeg at the app's 6 fps, 72x128) | 24.7 s | 19/20 by eye, 19/20 Fenn's score | By eye, room openings (1): the bathroom opens beside the shower door. Fenn's score, 3-5 s shots (1): the bathroom has only 2 s with nobody in the mirror. Both are fixed by retaking the bathroom, not by editing. Frames cannot show how smooth the movement is; the closet measures the shakiest (0.23, sweep 0.11) and the app asks for a slower retake |
+| Nov 22, 2026 | 3 clips, Fenn edit | 17.4 s | 19/20 Fenn's score (not audited by eye) | The same 2 s bathroom shot. No re-hook: it would have landed in the first third |

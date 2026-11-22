@@ -73,9 +73,17 @@ Read it first, and keep it in sync with any change you make.
 
 ## Length and pacing
 
-- **Full tour ~25-30 s (default), teaser ~12-15 s.** 2026 data favors ~20-35 s
-  tours for reach and engagement; very short clips finish more often but give
-  less watch time. Offer both rather than arguing for one.
+- **The Fenn edit is the default (Nov 2026): slow-moving shots of 3-5 s, room by
+  room, no length target.** The video is as long as its good shots (about 15-18 s
+  from 3 quick shots, about 25 s from five clips). Never pad a video to a length
+  and never cut a good shot to hit one. The older full tour (~30 s) and teaser
+  (~13 s) remain as presets.
+- **Hosts never walk while filming.** Walking shakes the camera. Every guided shot
+  is one slow move made standing still: slide, turn or push. No instruction, cue
+  or tip may say "walk" or "step" (a test enforces it).
+- **Fenn scores every edit out of 20** (`fennScore.ts`, the rubric rows worked out
+  from the plan) and keeps its best cut. Read that number first, then audit the
+  render by eye: the number cannot see the picture.
 - **Hook 2.5-3.2 s**: long enough to read the headline once at a comfortable pace
   (`hookReadSec`: 1.2 s + 0.22 s per word).
 - **Rooms ~4-5 s each in the full tour** (2-2.5 s in the teaser), never under
