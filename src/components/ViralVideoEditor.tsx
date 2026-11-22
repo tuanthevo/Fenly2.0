@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { FenlyViralTour } from '../remotion/viral/FenlyViralTour';
 import { LENGTH_PRESETS, PACE_PRESETS, buildViralEditPlan, editableShots, roomDetail } from '../remotion/viral/plan';
+import { FENN_PASS, bestFennEdit, scoreEdit } from '../remotion/viral/fennScore';
 import { STYLE_INFO, violatesFairHousing, MAX_HOOK_CHARS, MAX_TAG_CHARS } from '../remotion/viral/copy';
 import { analyzeClipInBrowser } from '../remotion/viral/analyzeClipInBrowser';
 import { fetchViralAiHints, scanTimes } from '../remotion/viral/aiCopy';
@@ -41,6 +42,8 @@ import {
   videoFileName,
 } from '../remotion/viral/exportVideo';
 import type {
+  BuildViralPlanInput,
+  BuildViralPlanOptions,
   ClipAnalysis,
   ViralAiHints,
   ViralClipInput,
@@ -90,13 +93,13 @@ type AiEditState =
   | { phase: 'error'; message: string };
 
 /**
- * Create Listing makes the choices for the host: price hook (editable text), full
- * tour, balanced pace, no sound effects, room sound or music. Lighting is set
+ * Create Listing makes the choices for the host: price hook (editable text), the Fenn
+ * edit (slow 3-5 s shots), balanced pace, no sound effects, room sound or music. Lighting is set
  * automatically from the clips. The edit screen offers all of these as controls.
  */
 const CREATE_LISTING_SETTINGS: Partial<ViralEditSettings> = {
   style: 'price-hook',
-  length: 'full',
+  length: 'fenn',
   pace: 'balanced',
   sfxOn: false,
   roomSound: false,
@@ -322,13 +325,17 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, analysisDone, clipKey, analysisVersion]);
 
+  const analysedClips = () => clips.map((c) => ({ ...c, analysis: analysisCache.current.get(c.src) ?? null }));
   const buildPlanFor = (planLength: typeof length): ViralEditPlan | null => {
     if (clips.length === 0) return null;
     try {
-      return buildViralEditPlan(
+      // The Fenn edit scores itself and keeps its best cut (fennScore.ts)
+      const build = (input: BuildViralPlanInput, options: BuildViralPlanOptions) =>
+        planLength === 'fenn' ? bestFennEdit(input, options).plan : buildViralEditPlan(input, options);
+      return build(
         {
           listing,
-          clips: clips.map((c) => ({ ...c, analysis: analysisCache.current.get(c.src) ?? null })),
+          clips: analysedClips(),
         },
         {
           style,
@@ -357,6 +364,10 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
   // The teaser: the same edit cut to ~13 s (only when asked for, and when the main video isn't already the teaser)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const teaserPlan = useMemo<ViralEditPlan | null>(() => (exportTeaserToo && length !== 'teaser' ? buildPlanFor('teaser') : null), [exportTeaserToo, ...planDeps]);
+
+  // Fenn's score, once every clip has been checked (before that the number would only reflect missing data)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const fennScore = useMemo(() => (plan && analysisDone ? scoreEdit(plan, analysedClips()) : null), [plan, analysisDone]);
 
   const planKey = useMemo(() => (plan ? JSON.stringify(plan) : ''), [plan]);
 
@@ -724,6 +735,42 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
         </>
       )}
 
+      {/* Fenn's score: the audit rubric, out of 20. Under 18 it names the one fix that helps most. */}
+      {fennScore &&
+        (fennScore.score >= FENN_PASS || !fennScore.fix ? (
+          <p
+            data-testid="fenn-score"
+            className="text-[10px] font-semibold text-[#485B4A] bg-[#E8EFE9] border border-[#7A907C]/50 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+            <span>
+              <span className="font-extrabold tabular-nums">Fenn's score {fennScore.score}/20.</span>{' '}
+              {fennScore.score >= FENN_PASS ? 'Ready to post.' : 'Good to post.'}
+            </span>
+          </p>
+        ) : (
+          <div data-testid="fenn-score" className="p-2.5 rounded-xl bg-[#D06C4E]/10 border border-[#D06C4E]/40 flex items-start gap-2">
+            <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5 text-[#9A4A33]" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-extrabold text-[#9A4A33] tabular-nums">Fenn's score {fennScore.score}/20</p>
+              <p className="text-[10px] font-semibold text-[#9A4A33] leading-snug">
+                {fennScore.fix.tip} You can still post this version.
+              </p>
+            </div>
+            {onRetakeShot && fennScore.fix.slotNumber != null && !retakeWarnings.some((w) => w.slotNumber === fennScore.fix!.slotNumber) && (
+              <button
+                type="button"
+                data-testid="fenn-score-retake"
+                onClick={() => onRetakeShot(fennScore.fix!.slotNumber!)}
+                className="shrink-0 min-h-10 px-2.5 rounded-lg bg-[#B85B3F] hover:bg-[#A9513A] text-white text-[10px] font-extrabold flex items-center gap-1 active:scale-95"
+              >
+                <RotateCcw className="w-3 h-3" />
+                Retake
+              </button>
+            )}
+          </div>
+        ))}
+
       {/* Quality warnings */}
       {retakeWarnings.length > 0 && (
         <div className="space-y-1.5" data-testid="viral-editor-warnings">
@@ -830,7 +877,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
         {/* Length */}
         <div className="space-y-1.5">
           <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#6E655F]">Length</span>
-          <div className="grid grid-cols-2 gap-1.5">
+          <div className="grid grid-cols-3 gap-1.5">
             {(Object.keys(LENGTH_PRESETS) as ViralLength[]).map((id) => (
               <button
                 key={id}
@@ -848,8 +895,10 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
             ))}
           </div>
           <p className="text-[10px] text-[#6E655F] leading-snug">
-            {length === 'full'
-              ? 'Every room gets about 5 seconds, with facts and a perk reveal. Best for TikTok and Reels.'
+            {length === 'fenn'
+              ? 'Slow, steady shots of 3 to 5 seconds, room by room. As long as your good shots. Best for TikTok and Reels.'
+              : length === 'full'
+              ? 'Every room gets about 7 seconds, with facts and a perk reveal.'
               : 'A quick loop of every room. Good for a second post or Stories.'}
           </p>
         </div>
@@ -962,7 +1011,7 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
                     }
                     className="w-full mt-0.5 px-2 py-1 rounded-lg border border-[#2C2724]/15 bg-white text-[10px] font-bold text-[#2C2724] uppercase focus:outline-none focus:border-[#D06C4E]"
                   />
-                  {shot.role === 'tour' && length === 'full' && (
+                  {shot.role === 'tour' && length !== 'teaser' && (
                     <input
                       data-testid={`viral-detail-input-${shot.slotNumber}`}
                       value={detailEdits[shot.slotNumber] ?? roomDetail(plan, shot.slotNumber)}
