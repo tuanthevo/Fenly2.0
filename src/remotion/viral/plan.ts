@@ -107,9 +107,10 @@ export const LENGTH_PRESETS: Record<ViralLength, LengthPreset> = {
   fenn: {
     label: 'Fenn',
     approxLabel: '3-5s shots',
-    hook: { baseSec: 1.2, perWordSec: 0.22, minSec: 2.5, maxSec: 3.2 },
-    // headline (~3 s) + facts = one 5 s shot
-    heroFactsSec: 2,
+    // The opener is a 3 s shot like any other: the headline alone. Three facts in the 2 s left of a
+    // 5 s shot could not be read (host's clips, Nov 2026), so the facts go to the rooms and the end card.
+    hook: { baseSec: 1.2, perWordSec: 0.22, minSec: 3, maxSec: 3.4 },
+    heroFactsSec: 0,
     tourSec: 5,
     minTourSec: 3,
     closerSec: 4,
@@ -205,6 +206,8 @@ export const FENN_MOMENT_SEC = 4.5;
 export const FENN_SPLIT_MIN_CLEAN_SEC = 8.5;
 /** A video shorter than this has no mid-video dip to carry viewers through: no re-hook */
 export const REHOOK_MIN_TOTAL_SEC = 15;
+/** ...and the re-hook never lands in the first third of a Fenn edit */
+export const REHOOK_EARLIEST_SHARE = 0.3;
 /** Clean footage a room needs before it is split into two moments */
 export const SPLIT_MIN_CLEAN_SEC = 10;
 /** Clean footage left beside the opener's headline that's worth a moment of its own */
@@ -1013,6 +1016,8 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
       fromFrame: from,
       durationInFrames: Math.min(Math.round(1.2 * fps), Math.max(12, room)),
     };
+    // Fenn: a re-hook in the first third is not a mid-video hook, it only crowds the first room's label
+    if (length === 'fenn' && from < REHOOK_EARLIEST_SHARE * totalFrames) rehook = null;
   }
 
   addPunchIns(shots, cuts, rehook, endCardFrom, fps);

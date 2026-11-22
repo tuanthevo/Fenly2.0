@@ -196,7 +196,7 @@ test('the Instagram caption follows the caption rules: facts before the cut, no 
   assert.ok(visible.includes('$1,450') && visible.includes('Mission'), visible);
   // captions aren't clickable: the link lives in the bio (the share kit has a "bio link" button)
   assert.doesNotMatch(caption, /https?:|fenly\.app|www\./);
-  const tags = caption.match(/#\w+/g) ?? [];
+  const tags: string[] = caption.match(/#\w+/g) ?? [];
   assert.ok(tags.length >= 1 && tags.length <= 5, tags.join(' '));
   for (const dead of ['#viral', '#fyp', '#explorepage', '#foryou', '#sfhousing']) assert.ok(!tags.includes(dead), dead);
   assert.equal(new Set(tags).size, tags.length);

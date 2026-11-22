@@ -801,6 +801,7 @@ test('Fenn: a long camera-roll clip gives 3-5 s shots, and nothing is padded to 
   assert.deepEqual(checkPlan(plan), []);
   plan.shots.forEach((_, i) => assert.ok(onScreen(plan, i) <= 5 + 0.05, `shot ${i} is on screen ${onScreen(plan, i)} s`));
   assert.ok(sec(plan) < 30);
+  if (plan.rehook) assert.ok(plan.rehook.fromFrame >= 0.3 * plan.totalFrames, 're-hook in the first third');
 });
 
 test('Fenn: under 3 s of clean footage gives a shorter shot at real time, never a slowed one', () => {

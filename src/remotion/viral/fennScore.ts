@@ -102,7 +102,8 @@ export function scoreEdit(plan: ViralEditPlan, clips: ViralClipInput[]): FennSco
 
   // 5. Reading time
   let tight = 0;
-  if (plan.hookExitFrame / fps < readSec(hook) * READ_SLACK) tight++;
+  // The headline gates everything after it: one that cannot be read costs both points
+  if (plan.hookExitFrame / fps < readSec(hook) * READ_SLACK) tight += 2;
   shots.forEach((s, i) => {
     const visibleEnd = Math.round(onScreenSec(i) * fps);
     if (s.role !== 'hook' && s.tag && (visibleEnd - s.tagInFrame) / fps < readSec(s.tag) * READ_SLACK) tight++;
@@ -187,7 +188,7 @@ export function scoreEdit(plan: ViralEditPlan, clips: ViralClipInput[]): FennSco
 }
 
 /**
- * Builds the edit, scores it, and tries the other strong openers when the host
+ * Builds the edit, scores it, and tries every other clip as the opener when the host
  * has not picked one; the highest score wins (the plain edit on a tie).
  */
 export function bestFennEdit(input: BuildViralPlanInput, options: BuildViralPlanOptions = {}): { plan: ViralEditPlan; score: FennScore } {
@@ -197,8 +198,7 @@ export function bestFennEdit(input: BuildViralPlanInput, options: BuildViralPlan
   const opener = plan.shots[0]?.slotNumber;
   const others = input.clips
     .filter((c) => c.slotNumber !== opener && c.analysis)
-    .sort((x, y) => (y.analysis!.hookScore ?? 0) - (x.analysis!.hookScore ?? 0))
-    .slice(0, 2);
+    .sort((x, y) => (y.analysis!.hookScore ?? 0) - (x.analysis!.hookScore ?? 0));
   for (const clip of others) {
     const candidate = buildViralEditPlan(input, { ...options, hookSlotNumber: clip.slotNumber });
     const score = scoreEdit(candidate, input.clips);
