@@ -9,8 +9,11 @@
 
 export type ViralStyleId = 'price-hook' | 'guess-rent' | 'pov';
 export type ViralPace = 'snappy' | 'balanced' | 'relaxed';
-/** 'full' is the ~30 s room tour (default); 'teaser' is a ~15 s loop for discovery */
-export type ViralLength = 'full' | 'teaser';
+/**
+ * 'fenn' (default for new videos): slow-moving shots of 3-5 s, as long as the good shots add up to.
+ * 'full' is the older ~30 s room tour; 'teaser' is a ~15 s loop for discovery.
+ */
+export type ViralLength = 'fenn' | 'full' | 'teaser';
 export type ViralCutKind = 'whip-left' | 'whip-right' | 'zoom-through' | 'flash' | 'light-leak';
 export type ViralShotRole = 'hook' | 'tour' | 'closer';
 export type ViralSfxKind = 'whoosh' | 'pop' | 'ding';
@@ -77,6 +80,15 @@ export type ClipWindow = {
   meanMotion?: number;
 };
 
+/** Fenn's shot: the steadiest 3-5 s of a clip's usable footage. */
+export type SteadyWindow = {
+  startSec: number;
+  endSec: number;
+  /** 0 (smooth, even movement) .. 1 (jolts and uneven movement) */
+  shake: number;
+  meanMotion: number;
+};
+
 /** A stretch of usable footage: the room is in view and the camera is steady. */
 export type ClipRange = {
   startSec: number;
@@ -97,6 +109,8 @@ export type ClipAnalysis = {
    * instead of slowing down or showing the wall the clip opened on.
    */
   clean?: ClipRange;
+  /** The steadiest 3-5 s inside `clean` (missing on analyses saved before Fenn) */
+  steady?: SteadyWindow;
   /** Exposure correction in stops for colorCorrection(), -0.25..0.6 */
   exposureBoost: number;
   /**

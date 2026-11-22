@@ -17,7 +17,7 @@
  * edges and slat panels before the room is revealed). Pure functions only;
  * analyzeClipInBrowser.ts does the DOM sampling.
  */
-import type { ClipAnalysis, ClipRange, ClipSample, ClipWindow } from './types';
+import type { ClipAnalysis, ClipRange, ClipSample, ClipWindow, SteadyWindow } from './types';
 
 export const SAMPLE_W = 72;
 export const SAMPLE_H = 128;
@@ -390,11 +390,60 @@ export function sideBand(samples: ClipSample[], range: ClipRange): ClipAnalysis[
   return null;
 }
 
+/** Fenn's shots: slow-moving, 3 to 5 seconds each */
+export const FENN_SHOT_MIN_SEC = 3;
+export const FENN_SHOT_MAX_SEC = 5;
+/** Above this the steadiest window still jolts: ask for a slower retake (the host's 13 real clips measure 0.05-0.34) */
+export const SHAKE_RETAKE = 0.45;
+/** Mean frame-to-frame change above this reads as a fast sweep, not a slow move */
+export const FAST_MOTION = 0.11;
+
+/** 0 (smooth, even movement) .. 1: jolts between samples, and movement that speeds up and stops. */
+export function shakeOf(samples: ClipSample[]): { shake: number; meanMotion: number } {
+  const after = samples.slice(1);
+  if (after.length === 0) return { shake: 0, meanMotion: 0 };
+  const meanCorr = after.reduce((a, s) => a + s.corr, 0) / after.length;
+  const meanMotion = after.reduce((a, s) => a + s.motion, 0) / after.length;
+  const motionStd = Math.sqrt(after.reduce((a, s) => a + (s.motion - meanMotion) ** 2, 0) / after.length);
+  const shake = 0.6 * (1 - clamp((meanCorr - 0.6) / 0.35, 0, 1)) + 0.4 * clamp(motionStd / 0.04, 0, 1);
+  return { shake: Math.round(shake * 1000) / 1000, meanMotion };
+}
+
+/**
+ * The steadiest stretch of `range`, up to maxSec long (the whole range when it
+ * is shorter). A window that opens on a clear view of the room wins over one
+ * that opens on a wall or door edge. Null only when the range holds under two samples.
+ */
+export function findSteadyWindow(
+  samples: ClipSample[],
+  range: ClipRange,
+  options: { maxSec?: number; sampleFps?: number } = {}
+): SteadyWindow | null {
+  const fps = options.sampleFps ?? DEFAULT_SAMPLE_FPS;
+  const inRange = samples.filter((s) => s.t >= range.startSec - 1e-6 && s.t + 1 / fps <= range.endSec + 1e-6);
+  if (inRange.length < 2) return null;
+  const w = Math.min(inRange.length, Math.max(2, Math.round((options.maxSec ?? FENN_SHOT_MAX_SEC) * fps)));
+  const opensClear = (s: ClipSample) => isUsableFrame(s) && (s.coverage ?? 1) >= OPENING_COVERAGE_MIN;
+  let best: { i: number; cost: number; shake: number; meanMotion: number } | null = null;
+  for (let i = 0; i + w <= inRange.length; i++) {
+    const m = shakeOf(inRange.slice(i, i + w));
+    const cost = m.shake + (opensClear(inRange[i]) ? 0 : 1);
+    if (!best || cost < best.cost - 1e-9) best = { i, cost, ...m };
+  }
+  if (!best) return null;
+  return {
+    startSec: inRange[best.i].t,
+    endSec: inRange[best.i + w - 1].t + 1 / fps,
+    shake: best.shake,
+    meanMotion: best.meanMotion,
+  };
+}
+
 export const WARNING_TIPS = {
   dark: 'This shot is too dark. Turn on every light and open the blinds, then retake it.',
   darkFixed: 'A little dark, so we brightened it for you.',
-  shaky: 'This shot is shaky. Hold the phone with both hands at chest height and walk slower.',
-  blank: 'This shot is mostly wall. Start in the doorway facing into the room, then walk forward.',
+  shaky: 'Try that one slower. Feet planted, both hands on the phone, one slow move.',
+  blank: 'This shot is mostly wall. Stand in the doorway facing into the room.',
   short: 'This clip is short, so we slowed it down a little to fit.',
 } as const;
 
@@ -412,19 +461,25 @@ export function analyzeSamples(
   } else if (exposureBoost >= 0.2) {
     warnings.push({ kind: 'dark', severity: 'fixed', tip: WARNING_TIPS.darkFixed });
   }
+  const clean = findCleanRange(samples, window, durationSec, options);
+  const steady = findSteadyWindow(samples, clean, { sampleFps }) ?? undefined;
   const bestFrame = samples.reduce((a, s) => Math.max(a, frameQuality(s)), 0);
   if (bestFrame < 0.3) {
     // Nothing but wall: "shaky" would be misleading, there is simply nothing to track
     warnings.push({ kind: 'blank', severity: 'retake', tip: WARNING_TIPS.blank });
-  } else if (window.minCorr < 0.45 || window.meanCorr < 0.75) {
+  } else if (
+    window.minCorr < 0.45 ||
+    window.meanCorr < 0.75 ||
+    (steady && (steady.shake > SHAKE_RETAKE || steady.meanMotion > FAST_MOTION))
+  ) {
     warnings.push({ kind: 'shaky', severity: 'retake', tip: WARNING_TIPS.shaky });
   }
-  const clean = findCleanRange(samples, window, durationSec, options);
   return {
     durationSec,
     sampleFps,
     best: window,
     clean,
+    steady,
     reframe: sideBand(samples, clean),
     exposureBoost,
     quality: clamp(window.score, 0, 1),

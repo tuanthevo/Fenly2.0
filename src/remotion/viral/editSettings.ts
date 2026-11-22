@@ -39,7 +39,7 @@ export type ViralEditSettings = {
 
 export const DEFAULT_EDIT_SETTINGS: ViralEditSettings = {
   style: 'price-hook',
-  length: 'full',
+  length: 'fenn',
   pace: 'balanced',
   hookSlot: null,
   hookDraft: null,
@@ -64,7 +64,7 @@ export function sanitizeEditSettings(raw: unknown): ViralEditSettings {
   const volume = Number(s.music?.volume);
   return {
     style: oneOf(s.style, ['price-hook', 'guess-rent', 'pov'] as const, d.style),
-    length: oneOf(s.length, ['full', 'teaser'] as const, d.length),
+    length: oneOf(s.length, ['fenn', 'full', 'teaser'] as const, d.length),
     pace: oneOf(s.pace, ['snappy', 'balanced', 'relaxed'] as const, d.pace),
     hookSlot: Number.isInteger(s.hookSlot) && s.hookSlot >= 1 && s.hookSlot <= 5 ? s.hookSlot : null,
     hookDraft: typeof s.hookDraft === 'string' ? s.hookDraft.slice(0, 80) : null,
@@ -274,7 +274,7 @@ export function applyEditPatch(settings: ViralEditSettings, patch: ViralEditPatc
 }
 
 const PACES: ViralPace[] = ['snappy', 'balanced', 'relaxed'];
-const LENGTHS: ViralLength[] = ['full', 'teaser'];
+const LENGTHS: ViralLength[] = ['fenn', 'full', 'teaser'];
 const STYLES: ViralStyleId[] = ['price-hook', 'guess-rent', 'pov'];
 
 /**

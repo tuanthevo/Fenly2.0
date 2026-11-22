@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   GUIDED_SHOTS,
   GUIDED_RECORDING_MS,
+  GUIDED_PRE_SHOT_REMINDER,
   MIN_SHOTS_TO_PROCEED,
   createGuidedShotSlots,
   checkCameraRollClip,
@@ -69,4 +70,18 @@ test('Quick Tour: 3 shots of 5 s (room, shared space, bathroom), extras add clos
   assert.doesNotMatch(instructionFor(ALL[0], 5), /7 sec/);
   // every shot states its length, so quick mode never shows "7 sec"
   for (const shot of ALL) assert.match(shot.instruction, /\(\d+ sec\)/, shot.name);
+});
+
+test('no filming copy tells the host to walk (walking shakes the camera)', async () => {
+  const { WARNING_TIPS } = await import('../remotion/viral/clipSignals');
+  const copy = [
+    ...GUIDED_SHOTS.flatMap((s) => [s.instruction, s.movementCue]),
+    GUIDED_PRE_SHOT_REMINDER,
+    ...Object.values(WARNING_TIPS),
+  ];
+  for (const text of copy) assert.doesNotMatch(text, /\b(walk\w*|steps?)\b/i, text);
+});
+
+test('neighbouring shots use different moves', () => {
+  for (let i = 0; i + 1 < GUIDED_SHOTS.length; i++) assert.notEqual(GUIDED_SHOTS[i].move, GUIDED_SHOTS[i + 1].move);
 });
