@@ -52,7 +52,7 @@ export function buildSharePosts(
         spec && `${spec}`,
         extras && `Includes: ${extras}`,
         '',
-        `Watch the 30-second video tour and apply here: ${url('facebook')}`,
+        `Watch the short video tour and apply here: ${url('facebook')}`,
         'Happy to answer questions in the comments or by message.'
       ),
     },
@@ -73,18 +73,25 @@ export function buildSharePosts(
       caption: lines(
         `${headline}. Full tour + apply: link in bio`,
         url('tiktok'),
-        [hashtag(area), '#sfhousing', '#roomforrent', '#sfrooms'].join(' ')
+        [...new Set([hashtag(area), '#roomforrent', '#bayarearooms', '#bayareahousing'])].join(' ')
       ),
     },
     instagram: {
+      // The video carries the hook, so the caption is the facts and one ask (/ig-caption, job A):
+      // rent, place and date inside the 125 characters shown before "... more"; no link (captions
+      // aren't clickable, the share kit copies the bio link separately); at most 5 hashtags, used
+      // as topic labels (Instagram's cap since Dec 2025)
       caption: lines(
-        `${headline}. Tour + apply: link in bio`,
-        url('instagram'),
-        [hashtag(area), '#sfhousing', '#roomforrent', '#bayarearooms'].join(' ')
+        `${headline}. Tour and apply: link in bio`,
+        '',
+        spec,
+        extras && `Includes: ${extras}`,
+        '',
+        [...new Set([hashtag(area), '#roomforrent', '#bayarearooms', '#bayareahousing'])].join(' ')
       ),
     },
     group_chat: {
-      text: `My room in ${area} is opening up${moveIn ? ` (${moveIn === 'now' ? 'now' : moveIn})` : ''}${rent ? `, ${rent}/mo` : ''}. 30-sec tour + apply: ${url('group_chat')} Know anyone looking?`,
+      text: `My room in ${area} is opening up${moveIn ? ` (${moveIn === 'now' ? 'now' : moveIn})` : ''}${rent ? `, ${rent}/mo` : ''}. Short video tour + apply: ${url('group_chat')} Know anyone looking?`,
     },
   };
 }
