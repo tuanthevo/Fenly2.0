@@ -393,8 +393,8 @@ export function sideBand(samples: ClipSample[], range: ClipRange): ClipAnalysis[
 export const WARNING_TIPS = {
   dark: 'This shot is too dark. Turn on every light and open the blinds, then retake it.',
   darkFixed: 'A little dark, so we brightened it for you.',
-  shaky: 'This shot is shaky. Hold the phone with both hands at chest height and walk slower.',
-  blank: 'This shot is mostly wall. Start in the doorway facing into the room, then walk forward.',
+  shaky: 'This shot is shaky. Plant your feet, hold the phone with both hands and move slower.',
+  blank: 'This shot is mostly wall. Stand in the doorway facing into the room.',
   short: 'This clip is short, so we slowed it down a little to fit.',
 } as const;
 
