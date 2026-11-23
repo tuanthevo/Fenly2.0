@@ -2,6 +2,8 @@
  * "Delete listing" on the edit screen: a quiet button at the very end of the
  * form (far from Save and Close) and a confirm sheet that says what is removed.
  * Deleting is for good, so the sheet opens with focus on the way out.
+ * Draft rows in "Your rooms" use the same sheet behind a small trash button
+ * (`variant="icon"`).
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -16,9 +18,12 @@ interface DeleteListingProps {
   mediaType: MediaType;
   disabled?: boolean;
   onDeleted: () => void;
+  /** 'icon': a 40 px trash button for a list row; `name` says which room it deletes */
+  variant?: 'button' | 'icon';
+  name?: string;
 }
 
-export const DeleteListing: React.FC<DeleteListingProps> = ({ listingId, status, mediaType, disabled, onDeleted }) => {
+export const DeleteListing: React.FC<DeleteListingProps> = ({ listingId, status, mediaType, disabled, onDeleted, variant = 'button', name }) => {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,17 +62,31 @@ export const DeleteListing: React.FC<DeleteListingProps> = ({ listingId, status,
   };
 
   return (
-    <div className="pt-5 mt-2 border-t border-[#2C2724]/10">
-      <button
-        ref={openerRef}
-        type="button"
-        disabled={disabled}
-        onClick={() => setOpen(true)}
-        data-testid="fill-delete-listing"
-        className="w-full min-h-11 rounded-xl border border-[#9A4A33]/35 hover:bg-[#D06C4E]/10 text-[#9A4A33] text-xs font-extrabold flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-50"
-      >
-        <Trash2 className="w-4 h-4" aria-hidden="true" /> {copy.confirm}
-      </button>
+    <div className={variant === 'icon' ? 'shrink-0' : 'pt-5 mt-2 border-t border-[#2C2724]/10'}>
+      {variant === 'icon' ? (
+        <button
+          ref={openerRef}
+          type="button"
+          disabled={disabled}
+          onClick={() => setOpen(true)}
+          aria-label={name ? `${copy.confirm}: ${name}` : copy.confirm}
+          data-testid={`fill-delete-${listingId}`}
+          className="w-10 h-10 rounded-xl hover:bg-[#D06C4E]/10 text-[#6E655F] hover:text-[#9A4A33] flex items-center justify-center active:scale-90 transition-all disabled:opacity-50"
+        >
+          <Trash2 className="w-4 h-4" aria-hidden="true" />
+        </button>
+      ) : (
+        <button
+          ref={openerRef}
+          type="button"
+          disabled={disabled}
+          onClick={() => setOpen(true)}
+          data-testid="fill-delete-listing"
+          className="w-full min-h-11 rounded-xl border border-[#9A4A33]/35 hover:bg-[#D06C4E]/10 text-[#9A4A33] text-xs font-extrabold flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-50"
+        >
+          <Trash2 className="w-4 h-4" aria-hidden="true" /> {copy.confirm}
+        </button>
+      )}
 
       {open &&
         // Rendered on <body>: inside a scrolling screen, iPhone browsers draw it under the bottom tab bar
@@ -85,6 +104,7 @@ export const DeleteListing: React.FC<DeleteListingProps> = ({ listingId, status,
               <h3 id="delete-listing-title" className="text-base font-extrabold">
                 {copy.title}
               </h3>
+              {name && <p className="text-sm font-bold -mt-2 truncate">{name}</p>}
               <ul id="delete-listing-text" className="space-y-1.5 text-sm leading-snug">
                 {copy.lines.map((line, i) => (
                   <li key={line} className={i === copy.lines.length - 1 ? 'font-extrabold' : 'text-[#6E655F]'}>

@@ -231,7 +231,7 @@ export function registerFillRoutes(app: Express): void {
     if (!db) return;
     const { data, error } = await db
       .from("listings")
-      .select("id, status, title, neighborhood, city, rent_cents, move_out_date, lease_permission, published_at, created_at, updated_at")
+      .select("id, status, title, neighborhood, city, rent_cents, move_out_date, lease_permission, published_at, created_at, updated_at, media_type")
       .eq("owner_id", user.id)
       .neq("status", "archived")
       .order("updated_at", { ascending: false })
