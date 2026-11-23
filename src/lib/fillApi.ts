@@ -111,7 +111,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
 export const fillApi = {
   createDraft: (moveOutDate: string, rentCents: number) =>
     api<{ listing: ListingRow }>('/api/listings', { method: 'POST', body: { moveOutDate, rentCents } }),
-  listMine: () => api<{ listings: Pick<ListingRow, 'id' | 'status' | 'title' | 'neighborhood' | 'rent_cents' | 'move_out_date' | 'lease_permission' | 'published_at' | 'updated_at'>[] }>('/api/listings/mine'),
+  listMine: () => api<{ listings: Pick<ListingRow, 'id' | 'status' | 'title' | 'neighborhood' | 'rent_cents' | 'move_out_date' | 'lease_permission' | 'published_at' | 'updated_at' | 'media_type'>[] }>('/api/listings/mine'),
   get: (id: string) => api<{ listing: ListingRow; media: MediaRow[]; links: LinkRow[]; photos?: PhotoRow[] }>(`/api/listings/${id}`),
   patch: (id: string, patch: Record<string, unknown>) =>
     api<{ listing: ListingRow }>(`/api/listings/${id}`, { method: 'PATCH', body: patch }),
