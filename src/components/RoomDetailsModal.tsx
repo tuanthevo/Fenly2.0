@@ -196,7 +196,7 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-xs text-[#2C2724]">{mate.name}{mate.age != null ? `, ${mate.age}` : ''}</span>
-                        <span className="text-[11px] text-[#485B4A] bg-[#E8EFE9] px-2 py-0.5 rounded-full border border-[#7A907C]/30 font-semibold">
+                        <span className="text-xs text-[#485B4A] bg-[#E8EFE9] px-2 py-0.5 rounded-full border border-[#7A907C]/30 font-semibold">
                           {mate.role}
                         </span>
                       </div>
@@ -222,6 +222,18 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
             </div>
           )}
 
+          {/* Staying safe: said here, where a renter decides, not only on the shared page */}
+          <div className="p-4 rounded-xl bg-[#EBF0EC] border border-[#7A907C]/40 space-y-1.5" data-testid="details-safety">
+            <h4 className="text-sm font-extrabold text-[#2C2724] flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-[#485B4A]" aria-hidden="true" /> Staying safe
+            </h4>
+            <ul className="text-sm text-[#2C2724] leading-snug space-y-1 list-disc pl-5">
+              <li>Never pay a deposit before you have seen the room.</li>
+              <li>Keep messages in Fenn. Your phone number stays private.</li>
+              {view.host.verified ? <li>Verified means the host confirmed a phone number or passed an ID check.</li> : <li>This host has not verified a phone number or ID yet.</li>}
+            </ul>
+          </div>
+
           {/* Host Card */}
           <div className="p-4 rounded-xl bg-white border border-[#2C2724]/15 flex items-center justify-between gap-3">
             <button type="button" className="flex items-center gap-3 min-w-0 text-left" onClick={() => onViewHostProfile(room.host)}>
@@ -230,7 +242,7 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
                 <span className="font-bold text-sm text-[#2C2724] flex items-center gap-1.5 flex-wrap">
                   <span>{room.host.name}</span>
                   {view.host.verified && (
-                    <span className="inline-flex items-center gap-1 text-[11px] bg-[#E8EFE9] text-[#485B4A] border border-[#7A907C]/40 px-2 py-0.5 rounded-full font-bold">
+                    <span className="inline-flex items-center gap-1 text-xs bg-[#E8EFE9] text-[#485B4A] border border-[#7A907C]/40 px-2 py-0.5 rounded-full font-bold">
                       <Check className="w-2.5 h-2.5 stroke-[2.5]" />
                       <span>Verified</span>
                     </span>

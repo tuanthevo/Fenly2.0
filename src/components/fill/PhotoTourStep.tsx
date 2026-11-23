@@ -112,7 +112,7 @@ export const PhotoTourStep: React.FC<PhotoTourStepProps> = ({ listingId, listing
           ) : null}
         </div>
         <div>
-          <label htmlFor="photo-hook" className="text-[11px] font-bold text-[#6E655F] block mb-1">
+          <label htmlFor="photo-hook" className="text-xs font-bold text-[#6E655F] block mb-1">
             Headline (leave empty for "{plan?.hook.text ?? 'What $X gets you in your area'}")
           </label>
           <input id="photo-hook" className={input} maxLength={MAX_HOOK_CHARS} value={hook} onChange={(e) => setHook(e.target.value)} placeholder="What $1,450/mo gets you in Mission District" data-testid="photo-hook-input" />
@@ -140,7 +140,7 @@ export const PhotoTourStep: React.FC<PhotoTourStepProps> = ({ listingId, listing
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-sm font-extrabold">Order and captions</h3>
           {draft.assistBusy && (
-            <span className="text-[11px] font-bold text-[#A9513A] flex items-center gap-1" role="status">
+            <span className="text-xs font-bold text-[#A9513A] flex items-center gap-1" role="status">
               <Sparkles className="w-3.5 h-3.5" /> Fenn is looking at your photos
             </span>
           )}
@@ -151,7 +151,7 @@ export const PhotoTourStep: React.FC<PhotoTourStepProps> = ({ listingId, listing
             <li key={p.key} className="flex items-start gap-2.5">
               <img src={p.url} alt={`Photo ${i + 1}`} className="w-16 h-16 rounded-lg object-cover shrink-0" />
               <div className="flex-1 min-w-0">
-                <label htmlFor={`caption-${p.key}`} className="text-[11px] font-bold text-[#6E655F] block mb-1">
+                <label htmlFor={`caption-${p.key}`} className="text-xs font-bold text-[#6E655F] block mb-1">
                   {i + 1}. {PHOTO_SHOTS.find((s) => s.slot === p.slot)?.name ?? 'Extra photo'}
                 </label>
                 <input
@@ -165,7 +165,7 @@ export const PhotoTourStep: React.FC<PhotoTourStepProps> = ({ listingId, listing
                   aria-describedby={longCalloutParts(p.caption).length ? `caption-hint-${p.key}` : undefined}
                 />
                 {longCalloutParts(p.caption).length > 0 && (
-                  <p id={`caption-hint-${p.key}`} className="text-[11px] font-bold text-[#A9513A] mt-1" role="status">
+                  <p id={`caption-hint-${p.key}`} className="text-xs font-bold text-[#A9513A] mt-1" role="status">
                     A label fits 3 words and 22 letters on screen. Shorten: {longCalloutParts(p.caption).map((part) => `"${part}"`).join(', ')}
                   </p>
                 )}
@@ -182,20 +182,20 @@ export const PhotoTourStep: React.FC<PhotoTourStepProps> = ({ listingId, listing
           ))}
         </ol>
         {issues.length > 0 && (
-          <div className="p-2.5 rounded-xl bg-[#D06C4E]/10 border border-[#D06C4E]/40 text-[11px] text-[#9A4A33] font-bold flex gap-1.5" role="alert">
+          <div className="p-2.5 rounded-xl bg-[#D06C4E]/10 border border-[#D06C4E]/40 text-xs text-[#9A4A33] font-bold flex gap-1.5" role="alert">
             <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
             <span>Describe the room, not who should live there. Please change: {issues.map((p) => `"${p}"`).join(', ')}</span>
           </div>
         )}
         <label className="flex items-start gap-2 text-xs font-bold cursor-pointer min-h-10 items-center">
-          <input type="checkbox" className="w-4 h-4 accent-[#D06C4E]" checked={draft.approved} onChange={(e) => draft.setApproved(e.target.checked)} data-testid="photo-captions-approved" />
+          <input type="checkbox" className="w-5 h-5 shrink-0 accent-[#B85B3F]" checked={draft.approved} onChange={(e) => draft.setApproved(e.target.checked)} data-testid="photo-captions-approved" />
           <span>I checked these captions and they're accurate.</span>
         </label>
       </div>
 
       {exporting !== null && (
         <div className="space-y-1" role="status" data-testid="photo-export-progress">
-          <p className="text-[11px] font-bold text-[#6E655F] flex items-center gap-1.5">
+          <p className="text-xs font-bold text-[#6E655F] flex items-center gap-1.5">
             <Loader2 className="w-3.5 h-3.5 animate-spin text-[#D06C4E]" /> Making your tour… {Math.round(exporting * 100)}%
           </p>
           <div className="h-1.5 rounded-full bg-[#2C2724]/10 overflow-hidden">

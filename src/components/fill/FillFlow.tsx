@@ -93,7 +93,7 @@ const primaryBtn =
   'w-full py-3 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] disabled:opacity-50 text-white text-sm font-extrabold flex items-center justify-center gap-2 active:scale-95 transition-all';
 const secondaryBtn =
   'w-full min-h-10 py-2.5 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/15 text-[#2C2724] text-xs font-extrabold flex items-center justify-center gap-1.5 active:scale-95 transition-all';
-const label = 'text-[11px] font-bold text-[#6E655F] block mb-1';
+const label = 'text-xs font-bold text-[#6E655F] block mb-1';
 
 const OUTSIDE_AREA =
   'Fenn is in Northern California for now. Type a Northern California city or ZIP code.';
@@ -747,13 +747,19 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
             </button>
           </div>
           {step !== 'share' && (
-            <div className="flex gap-1" aria-label={`Step ${stepIndex + 1} of ${steps.length}`}>
-              {steps.map((s, i) => (
-                <span
-                  key={s.id}
-                  className={`h-1 flex-1 rounded-full ${i <= stepIndex ? 'bg-[#D06C4E]' : 'bg-[#2C2724]/10'}`}
-                />
-              ))}
+            <div className="space-y-1.5">
+              <div className="flex gap-1" aria-hidden="true">
+                {steps.map((s, i) => (
+                  <span
+                    key={s.id}
+                    className={`h-1 flex-1 rounded-full ${i <= stepIndex ? 'bg-[#D06C4E]' : 'bg-[#2C2724]/10'}`}
+                  />
+                ))}
+              </div>
+              <p className="text-xs font-bold text-[#6E655F]" data-testid="fill-progress-label">
+                {stepIndex + 1} of {steps.length} <span className="text-[#2C2724]">{steps[stepIndex]?.label}</span>
+                {steps[stepIndex + 1] ? <span className="font-semibold"> · next: {steps[stepIndex + 1].label}</span> : null}
+              </p>
             </div>
           )}
         </div>
@@ -807,7 +813,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                     </div>
                     <p
                       id="fill-deposit-hint"
-                      className={`text-[11px] -mt-2 ${depositRule.error ? 'text-[#A9513A] font-bold' : 'text-[#6E655F]'}`}
+                      className={`text-xs -mt-2 ${depositRule.error ? 'text-[#A9513A] font-bold' : 'text-[#6E655F]'}`}
                       role={depositRule.error || depositRule.note ? 'status' : undefined}
                     >
                       {depositRule.error ?? depositRule.note ?? 'Optional. Enter 0 if there is no deposit.'}
@@ -839,7 +845,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                           {areaBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Find'}
                         </button>
                       </form>
-                      {areaNote && <p className="text-[11px] text-[#6E655F] font-semibold mb-2" role="status">{areaNote}</p>}
+                      {areaNote && <p className="text-xs text-[#6E655F] font-semibold mb-2" role="status">{areaNote}</p>}
                       <label className={label} htmlFor="fill-city">City (we show the area, never the address)</label>
                       <div className="flex gap-2">
                         <select
@@ -908,7 +914,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                     </div>
                     <div>
                       <span className={label}>What's included</span>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-2">
                         {FILL_AMENITIES.map((a) => {
                           const on = amenities.includes(a);
                           return (
@@ -917,7 +923,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                               type="button"
                               aria-pressed={on}
                               onClick={() => setAmenities((prev) => (on ? prev.filter((x) => x !== a) : [...prev, a]))}
-                              className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all ${
+                              className={`min-h-10 px-3.5 rounded-full text-xs font-bold border transition-all ${
                                 on ? 'bg-[#2C2724] text-[#F9F7F3] border-[#2C2724]' : 'bg-white text-[#2C2724] border-[#2C2724]/25 hover:bg-[#F2EFE9]'
                               }`}
                             >
@@ -972,8 +978,8 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                         <li>If it needs the landlord's OK, ask in writing (text or email) so you have a record.</li>
                         <li>Once they say yes, come back and pick the first option. Your draft is saved.</li>
                       </ol>
-                      <p className="text-[11px] text-[#6E655F]">Rules differ by city and lease. This is general info, not legal advice.</p>
-                      <div className="p-2.5 rounded-xl bg-[#F9F7F3] border border-[#2C2724]/10 text-[11px] leading-relaxed">{LANDLORD_MESSAGE}</div>
+                      <p className="text-xs text-[#6E655F]">Rules differ by city and lease. This is general info, not legal advice.</p>
+                      <div className="p-2.5 rounded-xl bg-[#F9F7F3] border border-[#2C2724]/10 text-xs leading-relaxed">{LANDLORD_MESSAGE}</div>
                       <button type="button" className={secondaryBtn} onClick={() => void navigator.clipboard?.writeText(LANDLORD_MESSAGE)}>
                         <Copy className="w-3.5 h-3.5" /> Copy message for my landlord
                       </button>
@@ -985,7 +991,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                           Film the tour now
                         </button>
                       </div>
-                      <p className="text-[10px] text-[#6E655F]">You can film and write everything now; publishing waits until this is confirmed.</p>
+                      <p className="text-xs text-[#6E655F]">You can film and write everything now; publishing waits until this is confirmed.</p>
                     </div>
                   )}
                 </div>
@@ -1010,7 +1016,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                   <PhotoShotCapture draft={draft} onError={setError} />
                   {uploadProgress !== null && <Progress value={uploadProgress} text="Saving your photos" />}
                   {busy === 'tour' && uploadProgress === null && (
-                    <p className="text-[11px] font-bold text-[#6E655F] flex items-center gap-1.5" role="status">
+                    <p className="text-xs font-bold text-[#6E655F] flex items-center gap-1.5" role="status">
                       <Loader2 className="w-3.5 h-3.5 animate-spin text-[#D06C4E]" /> Fenn is looking at your photos…
                     </p>
                   )}
@@ -1059,7 +1065,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                         type="button"
                         onClick={() => void writeWithAi()}
                         disabled={aiBusy}
-                        className="min-h-10 px-2.5 rounded-xl hover:bg-[#F2EFE9] text-[#A9513A] text-[11px] font-bold flex items-center gap-1 disabled:opacity-60"
+                        className="min-h-10 px-2.5 rounded-xl hover:bg-[#F2EFE9] text-[#A9513A] text-xs font-bold flex items-center gap-1 disabled:opacity-60"
                       >
                         {aiBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                         {title ? 'Rewrite with AI' : 'Write it for me'}
@@ -1088,7 +1094,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                       }}
                     />
                     {(liveIssues.length > 0 || issues.length > 0) && (
-                      <div className="p-2.5 rounded-xl bg-[#D06C4E]/10 border border-[#D06C4E]/40 text-[11px] text-[#9A4A33] font-bold flex gap-1.5" role="alert">
+                      <div className="p-2.5 rounded-xl bg-[#D06C4E]/10 border border-[#D06C4E]/40 text-xs text-[#9A4A33] font-bold flex gap-1.5" role="alert">
                         <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
                         <span>
                           Describe the room, not who should live there. Please change:{' '}
@@ -1096,10 +1102,10 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                         </span>
                       </div>
                     )}
-                    <label className="flex items-start gap-2 text-xs font-bold cursor-pointer">
+                    <label className="flex items-center gap-3 min-h-11 text-xs font-bold cursor-pointer">
                       <input
                         type="checkbox"
-                        className="mt-0.5 w-4 h-4 accent-[#D06C4E]"
+                        className="w-5 h-5 shrink-0 accent-[#B85B3F]"
                         checked={approved}
                         onChange={(e) => setApproved(e.target.checked)}
                         data-testid="fill-copy-approved"
@@ -1225,11 +1231,11 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                           </span>
                         ) : null}
                       </p>
-                      <p className="text-[11px] text-[#6E655F]">
+                      <p className="text-xs text-[#6E655F]">
                         {areaLabel({ city, neighborhood: neighborhood || null })}
                         {formatMoveIn(moveOut, today) ? ` · Move in ${formatMoveIn(moveOut, today)}` : ''}
                       </p>
-                      <p className="text-[11px] text-[#6E655F]">Your link shows the area only. The exact address stays private.</p>
+                      <p className="text-xs text-[#6E655F]">Your link shows the area only. The exact address stays private.</p>
                     </div>
                   </div>
                   {problems.length > 0 && (
@@ -1264,9 +1270,12 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
 
               {step === 'share' && listing && published && (
                 <div className="space-y-3">
-                  <div className={`${card} flex items-center gap-2.5 bg-[#EBF0EC] border-[#7A907C]/40`}>
-                    <CheckCircle2 className="w-5 h-5 text-[#485B4A] shrink-0" />
-                    <p className="text-xs font-bold text-[#485B4A]">Your room is live. Post it where people are looking.</p>
+                  <div className={`${card} flex items-center gap-3 bg-[#EBF0EC] border-[#7A907C]/40`}>
+                    <CheckCircle2 className="w-7 h-7 text-[#485B4A] shrink-0" />
+                    <div>
+                      <h3 className="text-base font-extrabold text-[#2C2724]">Your room is live</h3>
+                      <p className="text-sm text-[#485B4A] mt-0.5">Share the link once to get your first applicants.</p>
+                    </div>
                   </div>
                   <ShareKit
                     listingId={listing.id}
@@ -1303,7 +1312,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
 const Suggestion: React.FC<{ text: string; label?: string; onUse: () => void }> = ({ text, label = 'Use', onUse }) => (
   <div className="flex items-center gap-2">
     <p className="flex-1 text-xs font-bold text-[#2C2724] leading-snug">{text}</p>
-    <button type="button" onClick={onUse} className="min-h-10 px-3 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/15 text-[11px] font-extrabold shrink-0">
+    <button type="button" onClick={onUse} className="min-h-10 px-3 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/15 text-xs font-extrabold shrink-0">
       {label}
     </button>
   </div>
@@ -1311,7 +1320,7 @@ const Suggestion: React.FC<{ text: string; label?: string; onUse: () => void }> 
 
 const Progress: React.FC<{ value: number; text: string }> = ({ value, text }) => (
   <div className="space-y-1" data-testid="fill-upload-progress">
-    <p className="text-[11px] font-bold text-[#6E655F] flex items-center gap-1.5">
+    <p className="text-xs font-bold text-[#6E655F] flex items-center gap-1.5">
       <Loader2 className="w-3.5 h-3.5 animate-spin text-[#D06C4E]" /> {text}… {Math.round(value * 100)}%
     </p>
     <div className="h-1.5 rounded-full bg-[#2C2724]/10 overflow-hidden">
@@ -1331,11 +1340,11 @@ const Stepper: React.FC<{ label: string; value: number; min: number; max: number
   <div>
     <span className={label}>{text}</span>
     <div className="flex items-center rounded-xl border border-[#2C2724]/15 bg-white overflow-hidden">
-      <button type="button" aria-label={`Fewer ${text.toLowerCase()}`} className="px-2.5 py-2 font-black" onClick={() => onChange(Math.max(min, value - step))}>
+      <button type="button" aria-label={`Fewer ${text.toLowerCase()}`} className="min-w-10 min-h-10 font-black" onClick={() => onChange(Math.max(min, value - step))}>
         −
       </button>
       <span className="flex-1 text-center text-sm font-extrabold tabular-nums">{value}</span>
-      <button type="button" aria-label={`More ${text.toLowerCase()}`} className="px-2.5 py-2 font-black" onClick={() => onChange(Math.min(max, value + step))}>
+      <button type="button" aria-label={`More ${text.toLowerCase()}`} className="min-w-10 min-h-10 font-black" onClick={() => onChange(Math.min(max, value + step))}>
         +
       </button>
     </div>

@@ -1633,13 +1633,24 @@ export default function App() {
                         {savedOnly ? 'See all rooms' : 'Clear filters'}
                       </button>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('fill')}
-                        className="min-h-11 px-5 bg-white border border-[#2C2724] font-extrabold text-sm rounded-xl"
-                      >
-                        Moving out? Fill your room
-                      </button>
+                      <div className="flex flex-col items-stretch gap-2 w-full max-w-xs pt-1">
+                        {/* A renter with nothing to watch still has a next move: alerts live on the Passport */}
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('passport')}
+                          data-testid="find-empty-alerts"
+                          className="min-h-12 px-5 bg-[#B85B3F] hover:bg-[#A9513A] text-white font-extrabold text-base rounded-xl transition-colors"
+                        >
+                          Get an alert for new rooms
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('fill')}
+                          className="min-h-11 px-5 bg-white hover:bg-[#F2EFE9] border border-[#2C2724] font-extrabold text-sm rounded-xl transition-colors"
+                        >
+                          Moving out? Fill your room
+                        </button>
+                      </div>
                     )}
                   </div>
                 );
@@ -1728,7 +1739,7 @@ export default function App() {
         {/* SCREEN 5: Messages (Protected In-App Chat & Anti-Leakage Shield) */}
         {activeTab === 'messages' && findMode && (
           <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden">
-            <OnboardingBanner tab="messages" />
+            {auth.user && <OnboardingBanner tab="messages" />}
             <InboxView
               signedIn={Boolean(auth.user)}
               onRequestSignIn={() => setSignInReason('message')}
@@ -1778,7 +1789,7 @@ export default function App() {
         {/* Passport (Fenly 2.0) */}
         {activeTab === 'passport' && (
           <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden">
-            {!reviewOpen && !metricsOpen && findMode && <OnboardingBanner tab="passport" />}
+            {!reviewOpen && !metricsOpen && findMode && auth.user && <OnboardingBanner tab="passport" />}
             {reviewOpen ? (
               <ReviewQueue onBack={closeOverlay} />
             ) : metricsOpen ? (
@@ -1798,7 +1809,6 @@ export default function App() {
             tab: filmed clips and typed text are only saved at each step's Continue, so unmounting lost them */}
         {(activeTab === 'fill' || Boolean(editListingId) || Boolean(fillOverlay && (fillOverlay === 'new' || fillListingId))) && flagsLoaded && supabaseConfigured && (
           <div className={`relative flex-1 min-h-0 w-full flex-col overflow-hidden ${activeTab === 'fill' ? 'flex' : 'hidden'}`}>
-            {!fillOverlay && !editListingId && !applicantsListingId && !statusListingId && <OnboardingBanner tab="fill" />}
             {editListingId ? (
               <FillFlow
                 key={`edit-${editListingId}-${editStartAt ?? 'start'}`}

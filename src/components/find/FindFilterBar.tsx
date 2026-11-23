@@ -7,7 +7,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Loader2, MapPin, Pin, SlidersHorizontal, X } from 'lucide-react';
 import { DEFAULT_RADIUS_MILES, RADIUS_MILES } from '../../geo/bayArea';
 import { lookupBayAreaPlace } from '../../lib/geocode';
-import { EMPTY_FIND_FILTERS, activeFilterCount, cleanPlaceLabel, rentInput, rentRangeError, type FindFilters, type FindNear } from '../../find/findFilters';
+import { EMPTY_FIND_FILTERS, MUST_HAVE_OPTIONS, activeFilterCount, cleanPlaceLabel, rentInput, rentRangeError, type FindFilters, type FindNear } from '../../find/findFilters';
 
 const dollarsText = (cents: number | null) => (cents == null ? '' : String(Math.round(cents / 100)));
 
@@ -28,7 +28,7 @@ const chip = (on: boolean) =>
   }`;
 const input =
   'w-full bg-white border border-[#2C2724]/15 rounded-xl px-3 py-2.5 text-sm text-[#2C2724] focus:outline-none focus:border-[#A9513A]';
-const sectionLabel = 'text-[11px] font-bold text-[#6E655F] block mb-1.5';
+const sectionLabel = 'text-xs font-bold text-[#6E655F] block mb-1.5';
 
 export const FindFilterBar: React.FC<FindFilterBarProps> = ({ filters, onChange, savedOnly, onToggleSaved, savedCount, total, onBack, extraActions }) => {
   const [open, setOpen] = useState(false);
@@ -43,10 +43,10 @@ export const FindFilterBar: React.FC<FindFilterBarProps> = ({ filters, onChange,
           </button>
         )}
         <div className="flex-1 min-w-0">
-          <h1 className="text-sm font-extrabold text-[#2C2724] leading-tight truncate" data-testid="find-title">
+          <h1 className="text-base font-extrabold text-[#2C2724] leading-tight line-clamp-2 text-balance" data-testid="find-title">
             Rooms in {place}
           </h1>
-          <div className="text-[10px] font-bold text-[#6E655F] truncate">
+          <div className="text-xs font-bold text-[#6E655F] truncate">
             {total} {total === 1 ? 'room' : 'rooms'}
             {savedOnly ? ' saved' : filters.near ? ` within ${filters.near.miles} mi` : ''}
           </div>
@@ -104,7 +104,8 @@ const FilterSheet: React.FC<{ filters: FindFilters; onClose: () => void; onApply
   const rentError = min.error ?? max.error ?? rentRangeError(min.cents, max.cents);
 
   useEffect(() => {
-    inputRef.current?.focus();
+    // On a phone, focusing the box would raise the keyboard over the other filters
+    if (!window.matchMedia?.('(pointer: coarse)').matches) inputRef.current?.focus();
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -185,25 +186,25 @@ const FilterSheet: React.FC<{ filters: FindFilters; onClose: () => void; onApply
               }}
             />
             <button type="submit" disabled={busy || !query.trim()} className="min-h-10 px-3 rounded-xl bg-white border border-[#2C2724]/15 hover:bg-[#F2EFE9] text-xs font-bold shrink-0 disabled:opacity-50">
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Find'}
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Look up'}
             </button>
           </form>
           {note ? (
-            <p className={`mt-1.5 text-[11px] font-bold flex items-center gap-1 ${note.bad ? 'text-[#A9513A]' : 'text-[#485B4A]'}`} role="status">
+            <p className={`mt-1.5 text-xs font-bold flex items-center gap-1 ${note.bad ? 'text-[#A9513A]' : 'text-[#485B4A]'}`} role="status">
               {!note.bad && <MapPin className="w-3.5 h-3.5 shrink-0" />}
               {note.text}
             </p>
           ) : draft.near ? (
-            <p className="mt-1.5 text-[11px] font-bold text-[#485B4A] flex items-center gap-1">
+            <p className="mt-1.5 text-xs font-bold text-[#485B4A] flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5 shrink-0" /> {draft.near.label}
             </p>
           ) : (
-            <p className="mt-1.5 text-[11px] text-[#6E655F]">Leave empty to see the whole Bay Area.</p>
+            <p className="mt-1.5 text-xs text-[#6E655F]">Leave empty to see the whole Bay Area.</p>
           )}
           {draft.near && (
             <button
               type="button"
-              className="mt-1 min-h-10 text-[11px] font-bold text-[#A9513A] underline underline-offset-2"
+              className="mt-1 min-h-10 text-xs font-bold text-[#A9513A] underline underline-offset-2"
               onClick={() => {
                 setDraft((d) => ({ ...d, near: null }));
                 setQuery('');
@@ -266,7 +267,7 @@ const FilterSheet: React.FC<{ filters: FindFilters; onClose: () => void; onApply
               />
             </div>
           </div>
-          <p id="find-rent-hint" className={`mt-1.5 text-[11px] ${rentError ? 'font-bold text-[#A9513A]' : 'text-[#6E655F]'}`} role={rentError ? 'alert' : undefined}>
+          <p id="find-rent-hint" className={`mt-1.5 text-xs ${rentError ? 'font-bold text-[#A9513A]' : 'text-[#6E655F]'}`} role={rentError ? 'alert' : undefined}>
             {rentError ?? 'Leave either one empty for no limit.'}
           </p>
         </section>
@@ -280,6 +281,26 @@ const FilterSheet: React.FC<{ filters: FindFilters; onClose: () => void; onApply
             value={draft.moveInBy ?? ''}
             onChange={(e) => setDraft((d) => ({ ...d, moveInBy: e.target.value || null }))}
           />
+        </section>
+
+        <section>
+          <span className={sectionLabel} id="find-must-have-label">Must have</span>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-labelledby="find-must-have-label">
+            {MUST_HAVE_OPTIONS.map((option) => {
+              const on = (draft.mustHave ?? []).includes(option);
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  aria-pressed={on}
+                  className={chip(on)}
+                  onClick={() => setDraft((d) => ({ ...d, mustHave: on ? (d.mustHave ?? []).filter((x) => x !== option) : [...(d.mustHave ?? []), option] }))}
+                >
+                  {option}
+                </button>
+              );
+            })}
+          </div>
         </section>
 
         <div className="grid grid-cols-2 gap-2 pt-1">

@@ -12,6 +12,7 @@ import type { ShareChannel } from '../fill/types';
 import type { PhotoSlot } from '../fill/photoShots';
 import type { PhotoAssist } from '../fill/photoAssist';
 
+import { errorText } from './errorText';
 export type ListingRow = {
   id: string;
   owner_id: string;
@@ -74,7 +75,7 @@ export class ApiError extends Error {
     public status: number,
     public body: Record<string, any>
   ) {
-    super(body?.message || body?.error || `Request failed (${status})`);
+    super(errorText(body, status));
   }
   get fairHousing(): FairHousingIssue[] | null {
     return this.body?.error === 'fair_housing' ? (this.body.issues as FairHousingIssue[]) : null;
@@ -203,7 +204,7 @@ export async function saveMediaRows(
   const supabase = await getSupabase();
   if (!supabase) throw new Error('Sign-in is not set up.');
   const { error } = await supabase.from('listing_media').upsert(rows, { onConflict: 'bucket,path' });
-  if (error) throw new Error(`Couldn't save the video to your listing: ${error.message}`);
+  if (error) throw new Error(`Couldn't save the video to your listing. Try again.`);
 }
 
 /** Saves the listing's photo rows (owner-only through RLS). The same storage path again updates its row. */
@@ -214,7 +215,7 @@ export async function savePhotoRows(listingId: string, rows: PhotoRow[]): Promis
     rows.map(({ id: _id, signedUrl: _url, ...row }) => ({ ...row, listing_id: listingId })),
     { onConflict: 'storage_path' }
   );
-  if (error) throw new Error(`Couldn't save your photos: ${error.message}`);
+  if (error) throw new Error(`Couldn't save your photos. Try again.`);
 }
 
 /** Removes photos the host retook or deleted: the files and their rows. */

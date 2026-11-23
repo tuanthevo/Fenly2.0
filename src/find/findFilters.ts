@@ -20,10 +20,15 @@ export type FindFilters = {
   maxRentCents: number | null;
   /** YYYY-MM-DD: rooms free on or before this date */
   moveInBy: string | null;
+  /** Room features the renter needs (from MUST_HAVE_OPTIONS); a room must list every one */
+  mustHave?: string[];
 };
 
-export const FIND_FILTER_KEYS: (keyof FindFilters)[] = ['near', 'minRentCents', 'maxRentCents', 'moveInBy'];
-export const EMPTY_FIND_FILTERS: FindFilters = { near: null, minRentCents: null, maxRentCents: null, moveInBy: null };
+/** Features of the room a renter can require. About the room only, never about people (fair housing). */
+export const MUST_HAVE_OPTIONS = ['Private bath', 'Furnished', 'In-unit laundry', 'Parking', 'Pets OK'] as const;
+
+export const FIND_FILTER_KEYS: (keyof FindFilters)[] = ['near', 'minRentCents', 'maxRentCents', 'moveInBy', 'mustHave'];
+export const EMPTY_FIND_FILTERS: FindFilters = { near: null, minRentCents: null, maxRentCents: null, moveInBy: null, mustHave: [] };
 
 const MIN_RENT_DOLLARS = 100;
 const MAX_RENT_DOLLARS = 20000;
@@ -75,7 +80,9 @@ export function parseFindQuery(query: Record<string, unknown>): FindFilters {
   if (minRentCents != null && maxRentCents != null && minRentCents > maxRentCents) [minRentCents, maxRentCents] = [maxRentCents, minRentCents];
   const by = str(query.moveInBy);
   const moveInBy = /^\d{4}-\d{2}-\d{2}$/.test(by) && !Number.isNaN(Date.parse(by)) ? by : null;
-  return { near, minRentCents, maxRentCents, moveInBy };
+  const asked = str(query.has).split(',').map((s) => s.trim());
+  const mustHave = MUST_HAVE_OPTIONS.filter((option) => asked.includes(option));
+  return { near, minRentCents, maxRentCents, moveInBy, mustHave };
 }
 
 export function findQueryString(filters: FindFilters): string {
@@ -90,6 +97,7 @@ export function findQueryString(filters: FindFilters): string {
   if (filters.minRentCents != null) params.set('minRent', String(Math.round(filters.minRentCents / 100)));
   if (filters.maxRentCents != null) params.set('maxRent', String(Math.round(filters.maxRentCents / 100)));
   if (filters.moveInBy) params.set('moveInBy', filters.moveInBy);
+  if (filters.mustHave?.length) params.set('has', filters.mustHave.join(','));
   return params.toString();
 }
 
@@ -103,7 +111,7 @@ export function toIsoDate(text: string | null | undefined, today: string): strin
   return new Date(t).toISOString().slice(0, 10);
 }
 
-export type FilterableRoom = { city: string | null; neighborhood: string | null; rentCents: number | null; availableFrom: string | null };
+export type FilterableRoom = { city: string | null; neighborhood: string | null; rentCents: number | null; availableFrom: string | null; amenities?: string[] | null };
 
 /** Miles from the room's area (neighborhood or city center) to a point; null when we can't place the room. */
 export function roomDistanceMiles(room: Pick<FilterableRoom, 'city' | 'neighborhood'>, point: { lat: number; lng: number }): number | null {
@@ -119,12 +127,13 @@ export function matchesFindFilters(room: FilterableRoom, filters: FindFilters): 
   if (filters.minRentCents != null && (room.rentCents == null || room.rentCents < filters.minRentCents)) return false;
   if (filters.maxRentCents != null && (room.rentCents == null || room.rentCents > filters.maxRentCents)) return false;
   if (filters.moveInBy && room.availableFrom && room.availableFrom > filters.moveInBy) return false;
+  if (filters.mustHave?.some((feature) => !(room.amenities ?? []).includes(feature))) return false;
   return true;
 }
 
-/** Filters in use: the place, the rent range (once, min and/or max) and the move-in date. */
+/** Filters in use: the place, the rent range (once, min and/or max), the move-in date and the must-haves (once). */
 export function activeFilterCount(filters: FindFilters): number {
-  return [filters.near, filters.minRentCents ?? filters.maxRentCents, filters.moveInBy].filter((v) => v != null).length;
+  return [filters.near, filters.minRentCents ?? filters.maxRentCents, filters.moveInBy, filters.mustHave?.length ? true : null].filter((v) => v != null).length;
 }
 
 /** A published listing as GET /api/find returns it. */

@@ -148,14 +148,14 @@ const DaysLeftCard: React.FC<{ daysLeft: number | null; moveOut: string | null; 
         }`}
       >
         <span className="text-xl font-black leading-none">{daysLeft === null ? '?' : Math.max(0, daysLeft)}</span>
-        <span className="text-[9px] font-extrabold uppercase">days</span>
+        <span className="text-xs font-extrabold uppercase">days</span>
       </div>
       <div className="min-w-0">
         <div className="text-sm font-extrabold text-[#2C2724] flex items-center gap-1.5">
           <CalendarClock className="w-4 h-4 text-[#D06C4E]" />
           {daysLeft === null ? 'Add the date you need it filled' : daysLeft < 0 ? 'Fill-by date has passed' : 'left to fill the room'}
         </div>
-        <div className="text-[11px] text-[#6E655F]">
+        <div className="text-xs text-[#6E655F]">
           {moveOut ? `Fill by ${moveOut}` : ''}
           {rent ? ` · ${formatRentCents(rent)}/mo` : ''}
         </div>
@@ -167,18 +167,18 @@ const DaysLeftCard: React.FC<{ daysLeft: number | null; moveOut: string | null; 
 const Totals: React.FC<{ summary: FillSummary }> = ({ summary }) => (
   <div className="grid grid-cols-2 gap-2">
     <div className={cardClass}>
-      <div className="text-[11px] font-bold text-[#6E655F] flex items-center gap-1">
+      <div className="text-xs font-bold text-[#6E655F] flex items-center gap-1">
         <Eye className="w-3.5 h-3.5" /> Views
       </div>
       <div className="text-2xl font-black text-[#2C2724]">{summary.totals.views}</div>
-      <div className="text-[10px] text-[#6E655F]">{summary.totals.uniqueViewers} people</div>
+      <div className="text-xs text-[#6E655F]">{summary.totals.uniqueViewers} people</div>
     </div>
     <div className={cardClass}>
-      <div className="text-[11px] font-bold text-[#6E655F] flex items-center gap-1">
+      <div className="text-xs font-bold text-[#6E655F] flex items-center gap-1">
         <FileCheck className="w-3.5 h-3.5" /> Applications
       </div>
       <div className="text-2xl font-black text-[#D06C4E]">{summary.totals.applications}</div>
-      <div className="text-[10px] text-[#6E655F]">
+      <div className="text-xs text-[#6E655F]">
         {summary.totals.conversion === null ? '—' : `${Math.round(summary.totals.conversion * 100)}% of viewers`}
       </div>
     </div>
@@ -201,9 +201,12 @@ const Nudges: React.FC<{ nudges: Nudge[] }> = ({ nudges }) => (
 const ChannelTable: React.FC<{ summary: FillSummary }> = ({ summary }) => (
   <div className={cardClass}>
     <h3 className="text-xs font-extrabold text-[#2C2724] mb-2">By channel</h3>
+    {summary.rows.length === 0 ? (
+      <p className="text-sm text-[#6E655F]">No views yet. Share your link once and the places people come from show up here.</p>
+    ) : (
     <table className="w-full text-xs">
       <thead>
-        <tr className="text-[10px] uppercase text-[#6E655F]">
+        <tr className="text-xs uppercase text-[#6E655F]">
           <th className="text-left font-extrabold pb-1.5">Channel</th>
           <th className="text-right font-extrabold pb-1.5">Views</th>
           <th className="text-right font-extrabold pb-1.5">Applied</th>
@@ -219,5 +222,6 @@ const ChannelTable: React.FC<{ summary: FillSummary }> = ({ summary }) => (
         ))}
       </tbody>
     </table>
+    )}
   </div>
 );

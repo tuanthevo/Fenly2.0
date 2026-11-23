@@ -121,19 +121,19 @@ export const IntroVideoPicker: React.FC<IntroVideoPickerProps> = ({ value, onCha
 
   return (
     <div className="space-y-2" data-testid="intro-video">
-      <span className="text-[11px] font-bold text-[#6E655F] block">15-second intro video (optional)</span>
+      <span className="text-xs font-bold text-[#6E655F] block">15-second intro video (optional)</span>
       {recording ? (
         <div className="relative rounded-xl overflow-hidden bg-black">
           <video disablePictureInPicture ref={liveRef} muted playsInline className="w-full max-h-64 object-cover -scale-x-100" />
-          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-[#B85B3F] text-white text-[11px] font-black">● {INTRO_MAX_SEC - seconds}s</div>
-          <button type="button" onClick={stop} className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full bg-white text-[#2C2724] text-xs font-extrabold flex items-center gap-1">
+          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-[#B85B3F] text-white text-xs font-black">● {INTRO_MAX_SEC - seconds}s</div>
+          <button type="button" onClick={stop} className="absolute bottom-2 left-1/2 -translate-x-1/2 min-h-10 px-4 rounded-full bg-white text-[#2C2724] text-xs font-extrabold flex items-center gap-1">
             <Square className="w-3 h-3 fill-current" /> Stop
           </button>
         </div>
       ) : previewUrl ? (
         <div className="space-y-1.5">
           <video disablePictureInPicture src={previewUrl} controls playsInline className="w-full max-h-64 rounded-xl bg-black" />
-          <button type="button" onClick={() => onChange(null)} className="text-[11px] font-bold text-[#9A4A33] flex items-center gap-1">
+          <button type="button" onClick={() => onChange(null)} className="text-xs font-bold text-[#9A4A33] flex items-center gap-1">
             <Trash2 className="w-3 h-3" /> Remove
           </button>
         </div>
@@ -148,7 +148,7 @@ export const IntroVideoPicker: React.FC<IntroVideoPickerProps> = ({ value, onCha
         </div>
       )}
       {!recording && !previewUrl && (
-        <p className="text-[10px] text-[#6E655F] flex items-center gap-1">
+        <p className="text-xs text-[#6E655F] flex items-center gap-1">
           <Video className="w-3 h-3" /> Say hi, what you do and your routine. Only this room’s host and housemates see it.
         </p>
       )}
@@ -163,7 +163,7 @@ export const IntroVideoPicker: React.FC<IntroVideoPickerProps> = ({ value, onCha
           if (file) void pick(file);
         }}
       />
-      {error && <p className="text-[11px] font-bold text-[#9A4A33]">{error}</p>}
+      {error && <p className="text-xs font-bold text-[#9A4A33]">{error}</p>}
     </div>
   );
 };

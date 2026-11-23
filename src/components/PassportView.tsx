@@ -197,19 +197,30 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
   if (!user) {
     return (
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#F9F7F3]" data-testid="passport-signed-out">
-        <div className={cardClass + ' space-y-3'}>
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-[#EBF0EC] text-[#7A907C] border border-[#7A907C]/40 flex items-center justify-center">
-              <ShieldCheck className="w-4 h-4" />
-            </div>
-            <h2 className="font-extrabold text-base text-[#2C2724]">Your Renter Passport</h2>
-          </div>
-          <p className="text-sm text-[#6E655F] leading-relaxed">{TAB_VALUE.passport.line}</p>
+        <div className="px-1 pt-1">
+          <h2 className="text-2xl font-extrabold leading-tight text-[#2C2724]">Your renter profile, made once</h2>
+          <p className="text-sm text-[#6E655F] mt-1.5">{TAB_VALUE.passport.line}</p>
+        </div>
+        <div className="p-4 rounded-2xl bg-white border border-[#2C2724]/10 space-y-4">
+          <ul className="space-y-3 text-sm text-[#2C2724]">
+            <li>
+              <span className="font-extrabold block">Fill it in once</span>
+              <span className="text-[#6E655F]">Move-in date, budget and a short hello. About 3 minutes.</span>
+            </li>
+            <li>
+              <span className="font-extrabold block">Apply to any room in one tap</span>
+              <span className="text-[#6E655F]">Your Passport is the application. No forms to repeat.</span>
+            </li>
+            <li>
+              <span className="font-extrabold block">Badges, not paperwork</span>
+              <span className="text-[#6E655F]">Hosts see "Phone verified" or "ID verified". They never see your documents.</span>
+            </li>
+          </ul>
           {configured ? (
             <button
               type="button"
               onClick={onRequestSignIn}
-              className="w-full py-2.5 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-sm font-extrabold shadow-warm-sm active:scale-95 transition-all"
+              className="w-full min-h-12 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-base font-extrabold active:scale-95 transition-all"
             >
               Sign in to start your Passport
             </button>
@@ -289,9 +300,9 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
         />
         <div className="min-w-0 flex-1">
           <div className="font-extrabold text-sm text-[#2C2724] truncate">{displayName || 'Your Passport'}</div>
-          <div className="text-[11px] text-[#6E655F] truncate">{user.email ?? user.phone}</div>
+          <div className="text-xs text-[#6E655F] truncate">{user.email ?? user.phone}</div>
         </div>
-        <span className="text-[11px] bg-[#E8EFE9] text-[#485B4A] border border-[#7A907C]/40 px-2.5 py-0.5 rounded-full font-bold shrink-0">
+        <span className="text-xs bg-[#E8EFE9] text-[#485B4A] border border-[#7A907C]/40 px-2.5 py-0.5 rounded-full font-bold shrink-0">
           Level {passport?.level ?? 0}
         </span>
       </div>
@@ -307,11 +318,11 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
               }`}
             >
               {on ? <BadgeCheck className="w-4 h-4 mx-auto" /> : <Icon className="w-4 h-4 mx-auto opacity-70" />}
-              <div className="text-[10px] font-bold leading-tight">{label}</div>
+              <div className="text-xs font-bold leading-tight">{label}</div>
             </div>
           ))}
         </div>
-        <p className="text-[10px] text-[#6E655F]">
+        <p className="text-xs text-[#6E655F]">
           Sign in with your phone to get the phone badge. Hosts can ask shortlisted applicants for an ID check. They see a badge, never your document.
         </p>
       </div>
@@ -331,11 +342,11 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
         return (
           <div className={cardClass + ' space-y-1.5'} data-testid="passport-level1">
             <h3 className="text-xs font-extrabold text-[#2C2724]">Finish Level 1 ({6 - missing.length}/6)</h3>
-            <p className="text-[10px] text-[#6E655F]">Hosts see Level 1 applicants first. Fill these in, then save below.</p>
+            <p className="text-xs text-[#6E655F]">Hosts see Level 1 applicants first. Fill these in, then save below.</p>
             {(['phone', 'photo', 'bio', 'move_in', 'budget', 'lifestyle'] as const).map((item) => {
               const done = !missing.includes(item);
               return (
-                <div key={item} className={`text-[11px] font-bold flex items-center gap-1.5 ${done ? 'text-[#485B4A]' : 'text-[#2C2724]'}`}>
+                <div key={item} className={`text-xs font-bold flex items-center gap-1.5 ${done ? 'text-[#485B4A]' : 'text-[#2C2724]'}`}>
                   {done ? <BadgeCheck className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5 text-[#6E655F]" />}
                   {LEVEL1_ITEM_TEXT[item]}
                 </div>
@@ -350,11 +361,11 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
           <h3 className="text-xs font-extrabold text-[#2C2724] flex items-center gap-1.5">
             <IdCard className="w-4 h-4 text-[#D06C4E]" /> Verify your ID
           </h3>
-          <p className="text-[11px] text-[#6E655F] leading-relaxed">
+          <p className="text-xs text-[#6E655F] leading-relaxed">
             The host of the room in {idRequests[0].area ?? 'the Bay Area'} shortlisted you and asked for an ID check. Take a clear photo of your
             driver&apos;s license, state ID or passport. We check it once and don&apos;t keep the photo; hosts only see a badge.
           </p>
-          <p className="text-[10px] text-[#8A5A14] bg-[#FBF1DE] rounded-lg px-2 py-1">Early version: an automated document check, not yet a full identity verification.</p>
+          <p className="text-xs text-[#8A5A14] bg-[#FBF1DE] rounded-lg px-2 py-1">Early version: an automated document check, not yet a full identity verification.</p>
           <button
             type="button"
             disabled={idBusy}
@@ -375,10 +386,10 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
               if (file) void verifyId(file);
             }}
           />
-          {idMessage && <p className="text-[11px] font-bold text-[#485B4A]">{idMessage}</p>}
+          {idMessage && <p className="text-xs font-bold text-[#485B4A]">{idMessage}</p>}
         </div>
       )}
-      {idMessage && (passport?.id_verified || idRequests.length === 0) && <p className="text-[11px] font-bold text-[#485B4A] px-1">{idMessage}</p>}
+      {idMessage && (passport?.id_verified || idRequests.length === 0) && <p className="text-xs font-bold text-[#485B4A] px-1">{idMessage}</p>}
 
       {loading || !passport ? (
         <div className={cardClass + ' text-xs text-[#6E655F] flex items-center gap-2'}>
@@ -389,16 +400,16 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
         <div className={cardClass + ' space-y-3'}>
           <h3 className="text-xs font-extrabold text-[#2C2724]">Application profile</h3>
           <label className="block space-y-1">
-            <span className="text-[11px] font-bold text-[#6E655F]">Name hosts see</span>
+            <span className="text-xs font-bold text-[#6E655F]">Name hosts see</span>
             <input className={inputClass} value={displayName} maxLength={80} onChange={(e) => setDisplayName(e.target.value)} />
           </label>
           <label className="block space-y-1">
-            <span className="text-[11px] font-bold text-[#6E655F]">Short bio (what you do, your routine)</span>
+            <span className="text-xs font-bold text-[#6E655F]">Short bio (what you do, your routine)</span>
             <textarea className={inputClass + ' min-h-[70px]'} value={bio} maxLength={500} onChange={(e) => setBio(e.target.value)} />
           </label>
           <div className="grid grid-cols-2 gap-2">
             <label className="block space-y-1">
-              <span className="text-[11px] font-bold text-[#6E655F]">Move in from</span>
+              <span className="text-xs font-bold text-[#6E655F]">Move in from</span>
               <input
                 type="date"
                 className={inputClass}
@@ -407,7 +418,7 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
               />
             </label>
             <label className="block space-y-1">
-              <span className="text-[11px] font-bold text-[#6E655F]">Length of stay</span>
+              <span className="text-xs font-bold text-[#6E655F]">Length of stay</span>
               <select
                 className={inputClass}
                 value={passport.stay_length ?? ''}
@@ -420,17 +431,17 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
               </select>
             </label>
             <label className="block space-y-1">
-              <span className="text-[11px] font-bold text-[#6E655F]">Budget from ($/mo)</span>
+              <span className="text-xs font-bold text-[#6E655F]">Budget from ($/mo)</span>
               <input inputMode="numeric" className={inputClass} value={budgetMin} onChange={(e) => setBudgetMin(e.target.value)} />
             </label>
             <label className="block space-y-1">
-              <span className="text-[11px] font-bold text-[#6E655F]">Budget up to ($/mo)</span>
+              <span className="text-xs font-bold text-[#6E655F]">Budget up to ($/mo)</span>
               <input inputMode="numeric" className={inputClass} value={budgetMax} onChange={(e) => setBudgetMax(e.target.value)} />
             </label>
           </div>
           {LIFESTYLE_QUESTIONS.map((question) => (
             <div key={question.key} className="space-y-1">
-              <span className="text-[11px] font-bold text-[#6E655F]">{question.label}</span>
+              <span className="text-xs font-bold text-[#6E655F]">{question.label}</span>
               <div className="flex flex-wrap gap-1.5">
                 {question.options.map((option) => {
                   const selected = passport.lifestyle?.[question.key] === option;
@@ -445,7 +456,7 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
                           lifestyle: { ...(passport.lifestyle ?? {}), [question.key]: option },
                         })
                       }
-                      className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all ${
+                      className={`px-2.5 py-1 rounded-full text-xs font-bold border transition-all ${
                         selected
                           ? 'bg-[#2C2724] text-[#F9F7F3] border-[#2C2724]'
                           : 'bg-white text-[#2C2724] border-[#2C2724]/25 hover:bg-[#F2EFE9]'
@@ -477,7 +488,7 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
         <Mail className="w-4 h-4 text-[#6E655F] shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="text-xs font-extrabold">Email me</div>
-          <div className="text-[10px] text-[#6E655F]">New applicants, decisions and move-out reminders</div>
+          <div className="text-xs text-[#6E655F]">New applicants, decisions and move-out reminders</div>
         </div>
         <button
           type="button"
@@ -521,12 +532,12 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
       >
         <LogOut className="w-3.5 h-3.5" /> Sign out
       </button>
-      <p className="text-center text-[11px] text-[#6E655F]">
+      <p className="text-center text-xs text-[#6E655F]">
         <a href="/privacy.html" className="inline-flex items-center min-h-10 px-2 underline font-bold">Privacy</a>
         <span aria-hidden="true">·</span>
         <a href="/terms.html" className="inline-flex items-center min-h-10 px-2 underline font-bold">Terms</a>
       </p>
-      <p className="text-center text-[10px] text-[#6E655F]" data-testid="build-stamp">
+      <p className="text-center text-xs text-[#6E655F]" data-testid="build-stamp">
         Fenn {__APP_VERSION__} · build {__BUILD_ID__} ·{' '}
         {new Date(__BUILD_TIME__).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
       </p>

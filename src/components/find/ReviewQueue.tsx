@@ -54,7 +54,7 @@ export const ReviewQueue: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       ) : (
         flags?.map((f) => (
           <div key={f.id} className="p-3 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm space-y-2">
-            <div className="flex items-center gap-1.5 flex-wrap text-[10px] font-extrabold">
+            <div className="flex items-center gap-1.5 flex-wrap text-xs font-extrabold">
               <span className={`px-2 py-0.5 rounded-full ${SEVERITY[f.severity]}`}>{f.severity}</span>
               <span className="px-2 py-0.5 rounded-full bg-[#F2EFE9]">{f.category.replace('_', ' ')}</span>
               <span className="px-2 py-0.5 rounded-full bg-[#F2EFE9]">{f.targetType}</span>
@@ -65,11 +65,11 @@ export const ReviewQueue: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             {f.target ? (
               <div className="text-xs bg-[#F9F7F3] rounded-xl p-2.5 border border-[#2C2724]/10">
                 <div className="font-extrabold">{f.target.title}</div>
-                <div className="text-[10px] text-[#6E655F]">{f.target.sub}</div>
+                <div className="text-xs text-[#6E655F]">{f.target.sub}</div>
                 <p className="mt-1 whitespace-pre-wrap break-words">{f.target.text}</p>
               </div>
             ) : (
-              <p className="text-[11px] text-[#6E655F]">The item was deleted.</p>
+              <p className="text-xs text-[#6E655F]">The item was deleted.</p>
             )}
             <div className="flex gap-2">
               <button type="button" disabled={busy === f.id} onClick={() => void resolve(f, 'clear')} className="flex-1 py-2 rounded-xl bg-white border border-[#2C2724]/25 text-xs font-bold flex items-center justify-center gap-1">

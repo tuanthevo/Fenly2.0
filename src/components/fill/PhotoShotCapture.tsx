@@ -141,7 +141,7 @@ export const PhotoShotCapture: React.FC<PhotoShotCaptureProps> = ({ draft, onErr
             <p className="text-sm text-[#2C2724] mt-1 leading-snug">{shot.instruction}</p>
           </div>
           <span
-            className={`px-2 py-1 rounded-full text-[11px] font-bold shrink-0 ${
+            className={`px-2 py-1 rounded-full text-xs font-bold shrink-0 ${
               shot.required ? 'bg-[#D06C4E]/10 text-[#A9513A]' : 'bg-[#F2EFE9] text-[#6E655F]'
             }`}
           >

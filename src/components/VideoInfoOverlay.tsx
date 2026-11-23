@@ -47,12 +47,9 @@ export const VideoInfoOverlay: React.FC<VideoInfoOverlayProps> = ({
         </button>
 
         {room.host.verified && (
-          <span
-            className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#EBF0EC] text-[#7A907C] border border-[#7A907C]/40 shadow-xs"
-            title="Verified Host"
-            aria-label="Verified Host"
-          >
-            <Check className="w-3 h-3 stroke-[2.5] text-[#7A907C]" />
+          <span className="inline-flex items-center gap-1 h-6 px-2 rounded-full bg-[#EBF0EC] text-[#485B4A] border border-[#7A907C]/40 text-xs font-extrabold">
+            <Check className="w-3 h-3 stroke-[2.5]" aria-hidden="true" />
+            {room.host.phoneVerified ? 'Phone verified' : 'Verified'}
           </span>
         )}
 
@@ -73,7 +70,7 @@ export const VideoInfoOverlay: React.FC<VideoInfoOverlayProps> = ({
           className="ml-0.5 text-xs sm:text-sm font-black text-[#2C2724] bg-[#F9F7F3] px-2.5 py-0.5 rounded-xl border border-[#2C2724]/25 shadow-warm-sm"
         >
           ${room.price.toLocaleString()}
-          <span className="text-[10px] font-bold text-[#2C2724]/70">/mo</span>
+          <span className="text-xs font-bold text-[#2C2724]/70">/mo</span>
         </span>
       </div>
 
@@ -81,7 +78,7 @@ export const VideoInfoOverlay: React.FC<VideoInfoOverlayProps> = ({
       <div className="flex items-center gap-1.5 mb-2 flex-wrap">
         <span
           data-testid="feed-tag-bedbath"
-          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#2C2724]/75 backdrop-blur-md border border-[#F9F7F3]/25 text-[#F9F7F3] text-[10px] font-extrabold"
+          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#2C2724]/75 backdrop-blur-md border border-[#F9F7F3]/25 text-[#F9F7F3] text-xs font-extrabold"
         >
           <BedDouble className="w-3 h-3 text-[#D06C4E]" />
           <span>{bedBathTag}</span>
@@ -89,7 +86,7 @@ export const VideoInfoOverlay: React.FC<VideoInfoOverlayProps> = ({
 
         <span
           data-testid="feed-tag-neighborhood"
-          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#2C2724]/75 backdrop-blur-md border border-[#F9F7F3]/25 text-[#F9F7F3] text-[10px] font-extrabold"
+          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#2C2724]/75 backdrop-blur-md border border-[#F9F7F3]/25 text-[#F9F7F3] text-xs font-extrabold"
         >
           <MapPin className="w-3 h-3 text-[#D06C4E]" />
           <span>{room.neighborhood}</span>
@@ -99,7 +96,7 @@ export const VideoInfoOverlay: React.FC<VideoInfoOverlayProps> = ({
       {/* Room Title Only (Description is shown in Listing Details) */}
       <h2
         onClick={onOpenDetails}
-        className="font-extrabold text-sm sm:text-base text-[#F9F7F3] hover:underline transition-colors text-shadow-subtle cursor-pointer mb-3 line-clamp-2"
+        className="font-extrabold text-base text-[#F9F7F3] hover:underline transition-colors text-shadow-subtle cursor-pointer mb-3 line-clamp-2 text-balance"
       >
         {room.title}
       </h2>
@@ -109,15 +106,15 @@ export const VideoInfoOverlay: React.FC<VideoInfoOverlayProps> = ({
         <button
           type="button"
           onClick={onOpenDetails}
-          className="min-h-11 py-2.5 px-3.5 rounded-xl bg-[#F9F7F3]/95 hover:bg-white text-[#2C2724] border border-[#2C2724] font-extrabold text-xs transition-all active:scale-95 shrink-0"
+          className="min-h-12 py-2.5 px-4 rounded-xl bg-[#F9F7F3]/95 hover:bg-white text-[#2C2724] border border-[#2C2724] font-extrabold text-sm transition-all active:scale-95 shrink-0"
         >
-          Listing Details
+          Details
         </button>
 
         <button
           type="button"
           onClick={onRequestToBook || onOpenDetails}
-          className="flex-1 min-h-11 py-2.5 px-3.5 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white font-extrabold text-xs shadow-warm-sm transition-all active:scale-95 text-center"
+          className="flex-1 min-h-12 py-2.5 px-4 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white font-extrabold text-base shadow-warm-sm transition-all active:scale-95 text-center"
         >
           Apply
         </button>
