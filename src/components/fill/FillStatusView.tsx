@@ -19,7 +19,7 @@ export const FillStatusView: React.FC<{ listingId: string; onBack: () => void; o
   const [data, setData] = useState<StatusData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [kit, setKit] = useState<{ links: LinkRow[]; posts: SharePosts; caption: string | null; videoUrl: string | null } | null>(null);
+  const [kit, setKit] = useState<{ links: LinkRow[]; posts: SharePosts; caption: string | null; videoUrl: string | null; noVideo: boolean } | null>(null);
   const [kitLoading, setKitLoading] = useState(false);
 
   const load = useCallback(async () => {
@@ -48,6 +48,7 @@ export const FillStatusView: React.FC<{ listingId: string; onBack: () => void; o
         posts: published.posts,
         caption: details.listing.caption,
         videoUrl: details.media.find((m) => m.kind === 'video_full')?.signedUrl ?? null,
+        noVideo: details.listing.media_type === 'photos' && !details.media.some((m) => m.kind === 'video_full'),
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't open the share kit.");
@@ -95,7 +96,7 @@ export const FillStatusView: React.FC<{ listingId: string; onBack: () => void; o
       {error && <p className="text-xs font-bold text-[#9A4A33] p-3 rounded-xl bg-[#D06C4E]/10">{error}</p>}
 
       {kit ? (
-        <ShareKit listingId={listingId} links={kit.links} posts={kit.posts} caption={kit.caption} videoUrl={kit.videoUrl} />
+        <ShareKit listingId={listingId} links={kit.links} posts={kit.posts} caption={kit.caption} videoUrl={kit.videoUrl} noVideo={kit.noVideo} />
       ) : loading && !data ? (
         <div className="flex justify-center py-10 text-[#6E655F]">
           <Loader2 className="w-5 h-5 animate-spin" />

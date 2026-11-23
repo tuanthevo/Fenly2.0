@@ -12,6 +12,7 @@ import {
   rawClipPath,
   slotFromRawPath,
 } from './listingRules';
+import type { PhotoSlot } from './photoShots';
 
 const NOW = new Date('2026-11-17T20:00:00Z');
 
@@ -146,4 +147,50 @@ test('security deposit: optional, at most two months of rent, a note past one mo
   assert.equal(depositCheck(145000, 200000).error, undefined);
   assert.ok(depositCheck(145000, 300000).error, 'over two months: blocked');
   assert.deepEqual(depositCheck(0, 50000), {}, 'no rent yet: nothing to compare');
+});
+
+/* ---------- photo listings (media_type) ---------- */
+
+const FOUR = { slots: ['doorway', 'center', 'corner', 'storage'] as PhotoSlot[], captionsApproved: true };
+
+test('sanitizeListingPatch: switching media_type changes nothing else in the draft', () => {
+  const toPhotos = sanitizeListingPatch({ media_type: 'photos' }, NOW);
+  assert.deepEqual(toPhotos, { ok: true, patch: { media_type: 'photos' } });
+  const toVideo = sanitizeListingPatch({ media_type: 'video' }, NOW);
+  assert.deepEqual(toVideo, { ok: true, patch: { media_type: 'video' } });
+  // In particular the host's approval of the text survives the switch
+  assert.equal(toPhotos.ok && 'copy_approved_at' in toPhotos.patch, false);
+  const bad = sanitizeListingPatch({ media_type: 'slideshow' }, NOW);
+  assert.equal(bad.ok, false);
+});
+
+test('publishProblems: a photo listing needs its required shots, approved captions and a cover, not a video', () => {
+  const photos = { ...READY, media_type: 'photos' };
+  assert.deepEqual(publishProblems(photos, ['thumbnail'], FOUR), []);
+  assert.deepEqual(publishProblems(photos, ['video_full', 'thumbnail'], FOUR), []);
+  assert.deepEqual(publishProblems(photos, [], { slots: ['doorway', 'center', 'corner'], captionsApproved: false }), [
+    'missing_photos',
+    'captions_not_approved',
+    'missing_thumbnail',
+  ]);
+  assert.deepEqual(publishProblems(photos, ['thumbnail']), ['missing_photos', 'captions_not_approved']);
+});
+
+test('publishProblems: a video listing ignores photos, and a listing with no media_type is a video listing', () => {
+  assert.deepEqual(publishProblems({ ...READY, media_type: 'video' }, ['thumbnail'], FOUR), ['missing_video']);
+  assert.deepEqual(publishProblems(READY, ['thumbnail'], FOUR), ['missing_video']);
+});
+
+test('resumeStep follows the chosen media type and keeps the other type\'s work', () => {
+  const approved = { status: 'draft', lease_permission: 'can_replace', title: 'T', description: 'D', copy_approved_at: 'x' };
+  const photos = { ...approved, media_type: 'photos' };
+  // Three clips filmed, then switched to photos: the photo shots are what is missing
+  assert.equal(resumeStep(photos, ['raw_clip'], 3, { slots: ['doorway'], captionsApproved: false }), 'tour');
+  assert.equal(resumeStep(photos, [], 0, { ...FOUR, captionsApproved: false }), 'video');
+  assert.equal(resumeStep(photos, [], 0, FOUR), 'video');
+  assert.equal(resumeStep(photos, ['thumbnail'], 0, FOUR), 'publish');
+  assert.equal(resumeStep({ ...photos, copy_approved_at: null }, [], 0, FOUR), 'details');
+  // Switched back to video: the clips still count, the photos are ignored
+  assert.equal(resumeStep({ ...approved, media_type: 'video' }, ['raw_clip'], 3, FOUR), 'video');
+  assert.equal(resumeStep({ ...approved, media_type: 'video' }, [], 0, FOUR), 'tour');
 });

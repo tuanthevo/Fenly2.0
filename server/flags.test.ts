@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getFlags, requireFlag } from "./flags";
+import { getFlags, requireFlag, requireFlagOrAdmin } from "./flags";
 import { DEFAULT_FLAGS, resolveFlags } from "../src/config/featureFlags";
 
 function fakeRes() {
@@ -41,4 +41,24 @@ test("requireFlag 404s while the flag is off and passes through when on", () => 
   });
   assert.equal(called, true);
   assert.equal(on.statusCode, 200);
+});
+
+test("requireFlagOrAdmin: off for everyone but admins until the flag is on", () => {
+  const run = (flagOn: boolean, admin: boolean) => {
+    const res = fakeRes();
+    let called = false;
+    requireFlagOrAdmin(
+      "photo_listings",
+      () => resolveFlags(DEFAULT_FLAGS, { photo_listings: flagOn }),
+      () => admin
+    )({} as never, res as never, () => {
+      called = true;
+    });
+    return { called, status: res.statusCode, body: res.body };
+  };
+  assert.deepEqual(run(false, false), { called: false, status: 404, body: { error: "feature_off", feature: "photo_listings" } });
+  assert.equal(run(false, true).called, true);
+  assert.equal(run(true, false).called, true);
+  assert.equal(getFlags({}).photo_listings, false);
+  assert.equal(getFlags({ FENLY_FLAGS: "photo_listings" }).photo_listings, true);
 });

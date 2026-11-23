@@ -28,6 +28,7 @@ runs as the signed-out demo (Passport says "Sign-in isn't set up").
    stay", the same choices as the host's lease term).
 8. Then `supabase/migrations/0006_listing_square_feet.sql` (room size on listings).
 9. Then `supabase/migrations/0007_room_alerts.sql` ("New rooms that match" alerts on the Passport).
+10. Then `supabase/migrations/0008_photo_listings.sql` (photo listings: `listings.media_type`, the `listing_photos` table and the private `listing-photos` bucket). It only adds things, so the previous app version keeps working on the same database. **Run it before deploying a version that has photo listings:** that version reads `media_type` on every listing, even with the `photo_listings` flag off. Afterwards run `npx tsx scripts/check-photo-rls.ts`: it makes two throwaway accounts and a draft, checks that a stranger and a signed-out visitor cannot read or write the photos, and deletes what it made.
 
 Later schema changes go in a new numbered file (`0002_...sql`); never edit one
 that has already been run.

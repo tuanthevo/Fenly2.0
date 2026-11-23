@@ -47,6 +47,8 @@ export type FunnelRow = {
 export type FunnelReport = {
   days: number;
   rows: FunnelRow[];
+  /** Video vs photo listings (the photo listings experiment); missing on older servers */
+  mediaSplit?: MediaSplitRow[];
   northStar: { filledLaunchArea: number; perWeek: number };
   virality: { rate: number | null; viaLink: number; applications: number };
 };
@@ -137,6 +139,57 @@ export function buildFunnel(i: FunnelInput): FunnelReport {
     northStar: { filledLaunchArea: i.filledLaunchArea, perWeek: round1(i.filledLaunchArea / Math.max(1, i.days / 7)) },
     virality: { rate: ratio(i.applicationsViaSharedLink, i.applications), viaLink: i.applicationsViaSharedLink, applications: i.applications },
   };
+}
+
+/* ---------- video vs photos ---------- */
+
+export type MediaListing = {
+  media_type?: string | null;
+  created_at: string;
+  published_at: string | null;
+  filled_at: string | null;
+  /** Applications this listing has received */
+  applications: number;
+};
+
+export type MediaSplitRow = {
+  mediaType: 'video' | 'photos';
+  /** Times the option was picked on the chooser */
+  chosen: number;
+  /** Listings started in the window that ended up as this kind */
+  started: number;
+  published: number;
+  completionRate: number | null;
+  medianHoursToPublish: number | null;
+  /** Applications per published listing */
+  applicantsPerListing: number | null;
+  filled: number;
+  medianDaysToFill: number | null;
+};
+
+/**
+ * The photo listings experiment: do photos bring more finished listings without fewer
+ * applicants? Listings started in the window, split by kind (no media_type = video).
+ */
+export function buildMediaSplit(input: { chosen: { video: number; photos: number }; listings: MediaListing[] }): MediaSplitRow[] {
+  const HOUR = 3_600_000;
+  return (['video', 'photos'] as const).map((mediaType) => {
+    const started = input.listings.filter((l) => (l.media_type === 'photos' ? 'photos' : 'video') === mediaType);
+    const published = started.filter((l) => l.published_at);
+    const filled = published.filter((l) => l.filled_at);
+    const span = (from: string, to: string) => Date.parse(to) - Date.parse(from);
+    return {
+      mediaType,
+      chosen: input.chosen[mediaType],
+      started: started.length,
+      published: published.length,
+      completionRate: ratio(published.length, started.length),
+      medianHoursToPublish: median(published.map((l) => span(l.created_at, l.published_at!) / HOUR)),
+      applicantsPerListing: published.length ? published.reduce((n, l) => n + l.applications, 0) / published.length : null,
+      filled: filled.length,
+      medianDaysToFill: median(filled.map((l) => span(l.published_at!, l.filled_at!) / (24 * HOUR))),
+    };
+  });
 }
 
 export function parseMetricsDays(value: unknown): 7 | 28 {

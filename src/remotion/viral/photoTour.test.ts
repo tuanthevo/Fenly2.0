@@ -135,3 +135,42 @@ test('photo tours run their text smaller than video tours', () => {
   assert.equal(plan.textScale, PHOTO_TEXT_SCALE);
   assert.ok(PHOTO_TEXT_SCALE < 1 && PHOTO_TEXT_SCALE >= 0.6);
 });
+
+/* ---------- host photo listings: calm cuts, sideways photos, typed headline ---------- */
+
+test('calm tours crossfade between photos, keep the reveal hit and have no sound effects', () => {
+  const plan = buildPhotoTourPlan({ listing, photos: photos(4) }, { calm: true, sfx: false });
+  assert.deepEqual(checkPlan(plan), []);
+  assert.deepEqual(plan.cuts.map((c) => c.kind), ['crossfade', 'crossfade', 'crossfade', 'crossfade', 'crossfade', 'light-leak']);
+  assert.ok(plan.cuts.filter((c) => c.kind === 'crossfade').every((c) => c.durationInFrames <= 12), 'longer fades feel like a slideshow');
+  assert.deepEqual(plan.sfx, []);
+  // Same timing as the default tour: only the look of the cuts changes
+  assert.equal(plan.totalFrames, buildPhotoTourPlan({ listing, photos: photos(4) }).totalFrames);
+});
+
+test('sideways photos pan left or right only, and neighbouring shots still differ', () => {
+  const sideways = photos(4).map((p) => ({ ...p, landscape: true }));
+  const mixed = photos(5).map((p, i) => ({ ...p, landscape: i % 2 === 0 }));
+  for (const variant of [0, 1, 2, 3]) {
+    const all = buildPhotoTourPlan({ listing, photos: sideways }, { variant });
+    for (const s of all.shots) assert.ok(s.photo!.direction === 'left' || s.photo!.direction === 'right', s.id);
+    for (const plan of [all, buildPhotoTourPlan({ listing, photos: mixed }, { variant })]) {
+      for (let i = 1; i < plan.shots.length; i++) assert.notEqual(plan.shots[i].photo!.direction, plan.shots[i - 1].photo!.direction, `variant ${variant} shot ${i}`);
+      for (const s of plan.shots) assert.equal(s.photo!.fromScale, s.photo!.toScale, 'no zoom');
+    }
+    const mixedPlan = buildPhotoTourPlan({ listing, photos: mixed }, { variant });
+    for (const s of mixedPlan.shots) {
+      if (mixed[s.slotNumber - 1].landscape) assert.ok(s.photo!.direction === 'left' || s.photo!.direction === 'right', s.id);
+    }
+  }
+});
+
+test('a headline the host typed replaces the default one, with the price still highlighted', () => {
+  const plan = buildPhotoTourPlan({ listing, photos: photos(4) }, { hookText: 'A sunny room for $1,450/mo' });
+  assert.equal(plan.hook.text, 'A sunny room for $1,450/mo');
+  assert.ok(plan.hook.segments.some((s) => s.em === 'price'));
+  // Text that is unsafe or too long falls back to the default headline
+  for (const bad of ['Perfect for young professionals', 'x'.repeat(80)]) {
+    assert.equal(buildPhotoTourPlan({ listing, photos: photos(4) }, { hookText: bad }).hook.text, 'What $1,450/mo gets you in Mission District');
+  }
+});

@@ -9,15 +9,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { currentUser, optionalUser, requireUser } from "./auth.js";
 import { getAdminClient } from "./supabase.js";
 import { track } from "./track.js";
-import { adminDb, dbError, isUuid, signedUrls, userDb } from "./routeKit.js";
-import { parseFindQuery, roomDistanceMiles, type FindListing } from "../src/find/findFilters.js";
+import { adminDb, dbError, isAdminUser, isUuid, signedUrls, userDb } from "./routeKit.js";
+import { getFlags } from "./flags.js";
+import { parseFindQuery, roomDistanceMiles, visibleMediaTypes, type FindListing } from "../src/find/findFilters.js";
 import { cleanChapters } from "../src/find/videoChapters.js";
 
 const FEED_LIMIT = 40;
 /** Rooms scanned when filtering by distance (the radius is checked here, not in SQL) */
 const NEAR_SCAN_LIMIT = 500;
 const FEED_COLUMNS =
-  "id, owner_id, status, title, description, neighborhood, city, rent_cents, deposit_cents, available_from, lease_term, beds, baths, square_feet, amenities, house_rules, published_at, chapters:viral_edit->chapters";
+  "id, owner_id, status, title, description, neighborhood, city, rent_cents, deposit_cents, available_from, lease_term, beds, baths, square_feet, amenities, house_rules, published_at, media_type, chapters:viral_edit->chapters";
 
 type Row = Record<string, any>;
 
@@ -25,6 +26,12 @@ type Row = Record<string, any>;
 export async function buildFindListings(admin: SupabaseClient, rows: Row[]): Promise<FindListing[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
+  // Photo listings: the host's photos, for "See all photos" and for playing the tour when it has no MP4
+  const photoIds = rows.filter((r) => r.media_type === "photos").map((r) => r.id);
+  const photoRows: Row[] = photoIds.length
+    ? ((await admin.from("listing_photos").select("listing_id, slot, position, storage_path, width, height, caption").in("listing_id", photoIds).order("position")).data ?? [])
+    : [];
+  const photoFiles = await signedUrls(admin, "listing-photos", photoRows.map((p) => p.storage_path), 6 * 3600);
   const [media, members] = await Promise.all([
     admin.from("listing_media").select("listing_id, kind, bucket, path").in("listing_id", ids).in("kind", ["video_full", "video_teaser", "thumbnail"]),
     admin.from("house_members").select("listing_id, user_id").in("listing_id", ids),
@@ -70,6 +77,10 @@ export async function buildFindListings(admin: SupabaseClient, rows: Row[]): Pro
     videoUrl: videoPaths[i] ? videos.get(videoPaths[i]!) ?? null : null,
     thumbUrl: thumbPaths[i] ? thumbs.get(thumbPaths[i]!) ?? null : null,
     publishedAt: r.published_at ?? null,
+    mediaType: r.media_type === "photos" ? ("photos" as const) : ("video" as const),
+    photos: photoRows
+      .filter((p) => p.listing_id === r.id && photoFiles.has(p.storage_path))
+      .map((p) => ({ url: photoFiles.get(p.storage_path)!, slot: p.slot, caption: p.caption ?? null, width: p.width ?? null, height: p.height ?? null })),
     host: { id: r.owner_id, ...person(r.owner_id) },
     housemates: (members.data ?? [])
       .filter((m) => m.listing_id === r.id && m.user_id !== r.owner_id)
@@ -105,8 +116,8 @@ export function registerFindRoutes(app: Express): void {
     if (filters.moveInBy) query = query.or(`available_from.is.null,available_from.lte.${filters.moveInBy}`);
     const { data, error } = await query;
     if (error) return dbError(res, error, "find feed");
-    let rows = (data ?? []) as Row[];
     const viewer = currentUser(res);
+    let rows = visibleMediaTypes((data ?? []) as Row[], getFlags().photo_listings || isAdminUser(viewer));
     if (viewer) {
       const blocked = await blockedWith(admin, viewer.id);
       rows = rows.filter((r) => !blocked.has(r.owner_id));

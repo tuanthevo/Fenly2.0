@@ -14,7 +14,7 @@ export type ViralPace = 'snappy' | 'balanced' | 'relaxed';
  * 'full' is the older ~30 s room tour; 'teaser' is a ~15 s loop for discovery.
  */
 export type ViralLength = 'fenn' | 'full' | 'teaser';
-export type ViralCutKind = 'whip-left' | 'whip-right' | 'zoom-through' | 'flash' | 'light-leak';
+export type ViralCutKind = 'whip-left' | 'whip-right' | 'zoom-through' | 'crossfade' | 'flash' | 'light-leak';
 export type ViralShotRole = 'hook' | 'tour' | 'closer';
 export type ViralSfxKind = 'whoosh' | 'pop' | 'ding';
 
