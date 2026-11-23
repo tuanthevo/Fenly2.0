@@ -30,10 +30,12 @@ import {
   defaultHook,
   endCardCopy,
   hookFontSizeFor,
+  hookFromText,
   listingFacts,
   placeLabel,
   priceLabel,
   rehookText,
+  sanitizeHookText,
   specsLine,
   violatesFairHousing,
 } from './copy';
@@ -59,6 +61,8 @@ export type PhotoTourPhoto = {
   tag: string;
   /** Optional second callout for the look-around beat, e.g. "Walk-in closet" */
   detail?: string;
+  /** A sideways photo (wider than tall): it pans left or right only, since an up/down pan would crop more of it */
+  landscape?: boolean;
 };
 
 export type PhotoTourInput = {
@@ -75,6 +79,10 @@ export type PhotoTourOptions = {
   sfx?: boolean;
   /** Varies pan directions and drift so every listing's video moves differently */
   variant?: number;
+  /** Host photo listings: photos crossfade into each other instead of whip and zoom cuts (the reveal keeps its hit) */
+  calm?: boolean;
+  /** A headline the host typed; unsafe or too-long text falls back to the style's default */
+  hookText?: string;
 };
 
 /** Photo tours play in the feed card under the listing overlay, so their text runs at 64% (0.8 x 0.8). */
@@ -132,6 +140,9 @@ export function closerTagFromLabel(label: string): string {
 /** The four camera moves; each shot moves one way only (no bob, sway or zoom). */
 export const PAN_DIRECTIONS: PanDirection[] = ['right', 'up', 'left', 'down'];
 
+/** Sideways photos slide along their width only. */
+export const SIDEWAYS_DIRECTIONS: PanDirection[] = ['right', 'left'];
+
 /** Pan speed: 0.5 = half the original full sweep (less ground covered in the same shot length). */
 export const PAN_SPEED = 0.5;
 
@@ -180,7 +191,8 @@ export function buildPhotoTourPlan(input: PhotoTourInput, options: PhotoTourOpti
   const listing = input.listing;
   const n = photos.length;
 
-  const hook = defaultHook(style, listing);
+  const typedHook = sanitizeHookText(options.hookText);
+  const hook = typedHook && !violatesFairHousing(typedHook) ? hookFromText(typedHook, listing) : defaultHook(style, listing);
   const hookSec = photoHookSec(hook.text);
   const facts = (input.facts ?? []).map(safeTag).filter(Boolean).slice(0, 3);
   const closerTag = n >= 2 ? safeTag(photos[n - 1].tag) : safeTag(photos[0].tag);
@@ -229,6 +241,7 @@ export function buildPhotoTourPlan(input: PhotoTourInput, options: PhotoTourOpti
   for (let i = 0; i < beats.length - 1; i++) {
     const next = beats[i + 1];
     if (next.role === 'closer' && next.photo !== beats[i].photo) cutKinds.push(enableEffects ? 'light-leak' : 'flash');
+    else if (options.calm) cutKinds.push('crossfade');
     else if (next.photo === beats[i].photo) cutKinds.push((beats[i].photo + variant) % 2 === 0 ? 'whip-left' : 'whip-right');
     else cutKinds.push('zoom-through');
   }
@@ -238,6 +251,7 @@ export function buildPhotoTourPlan(input: PhotoTourInput, options: PhotoTourOpti
   const endCardFrames = Math.round(PHOTO_TIMING.endCardSec * fps);
   const shots: ViralShot[] = [];
   let cursor = 0;
+  let lastDirection: PanDirection | null = null;
   beats.forEach((beat, i) => {
     const primary = Math.round(beat.sec * fps);
     const inOverlap = i > 0 ? overlapOf(cutKinds[i - 1]) : 0;
@@ -256,7 +270,11 @@ export function buildPhotoTourPlan(input: PhotoTourInput, options: PhotoTourOpti
     }));
     const p = photos[beat.photo];
     // Directions take turns, so neighbouring shots never repeat a move
-    const motion = panMotion(PAN_DIRECTIONS[(variant + i) % PAN_DIRECTIONS.length], beat.move);
+    const cycle = p.landscape ? SIDEWAYS_DIRECTIONS : PAN_DIRECTIONS;
+    let direction = cycle[(variant + i) % cycle.length];
+    if (direction === lastDirection) direction = cycle[(variant + i + 1) % cycle.length];
+    lastDirection = direction;
+    const motion = panMotion(direction, beat.move);
     shots.push({
       id: `photo-${beat.photo + 1}-${beat.move}`,
       slotNumber: beat.photo + 1,
