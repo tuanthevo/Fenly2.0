@@ -115,6 +115,8 @@ export const fillApi = {
   get: (id: string) => api<{ listing: ListingRow; media: MediaRow[]; links: LinkRow[]; photos?: PhotoRow[] }>(`/api/listings/${id}`),
   patch: (id: string, patch: Record<string, unknown>) =>
     api<{ listing: ListingRow }>(`/api/listings/${id}`, { method: 'PATCH', body: patch }),
+  /** Deletes the listing for good: its files, links, applications and messages */
+  remove: (id: string) => api<Record<string, never>>(`/api/listings/${id}`, { method: 'DELETE' }),
   publish: (id: string) =>
     api<{ listing: ListingRow; links: LinkRow[]; posts: SharePosts }>(`/api/listings/${id}/publish`, { method: 'POST', body: {} }),
   status: (id: string) =>

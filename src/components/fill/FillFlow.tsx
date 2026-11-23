@@ -21,6 +21,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { GuidedShotCapture } from '../GuidedShotCapture';
+import { DeleteListing } from './DeleteListing';
 import type { RecordedViralSlotMedia } from '../GuidedViralTourStudio';
 import type { ViralVideoResult } from '../ViralVideoEditor';
 import type { ViralListingInfo } from '../../remotion/viral/types';
@@ -120,9 +121,11 @@ interface FillFlowProps {
   mode?: 'create' | 'edit';
   /** Edit mode: open at the video editor instead of the basics ("Edit video" on the status page) */
   startAt?: 'video';
+  /** Edit mode: the host deleted the listing for good; without this there is no Delete button */
+  onDeleted?: () => void;
 }
 
-export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onClose, onOpenStatus, onDraftCreated, mode = 'create', startAt }) => {
+export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onClose, onOpenStatus, onDraftCreated, mode = 'create', startAt, onDeleted }) => {
   const editing = mode === 'edit' && Boolean(requestedId);
   const steps = editing ? EDIT_STEPS : STEPS;
   // Only the id this flow opened with is loaded; later id changes come from this flow itself
@@ -1283,6 +1286,11 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                 <p className="text-xs font-bold text-[#9A4A33] p-3 rounded-xl bg-[#D06C4E]/10 border border-[#D06C4E]/30" role="alert">
                   {error}
                 </p>
+              )}
+
+              {/* Last thing on the edit form, away from Save and Close */}
+              {editing && onDeleted && listing && (step === 'start' || step === 'details') && (
+                <DeleteListing listingId={listing.id} status={listing.status} mediaType={mediaTypeOf(listing)} disabled={busy !== null} onDeleted={onDeleted} />
               )}
             </>
           )}

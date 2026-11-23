@@ -44,7 +44,7 @@ Redeploy after changing variables.
 
 ## 4. Legal and trust (plan Part 7)
 - [ ] **Policies:** replace the placeholders `public/privacy.html` and `public/terms.html` with lawyer-reviewed versions. They are linked from the sign-in sheet and Passport.
-- [ ] **Delete requests (CCPA):** there is no self-serve delete yet; requests come by email. Deleting a user or a listing in the database removes its rows, but not its files in Storage. Before deleting, call `removeUserListingFiles(admin, userId)` or `removeListingFiles(admin, listingId)` from `server/listingFiles.ts` (videos, raw clips, covers and photos), then delete the rows.
+- [ ] **Delete requests (CCPA):** a host can delete one listing themselves (Edit, then "Delete listing"; files included). There is no self-serve account delete yet; those requests come by email. Deleting a user or a listing in the database removes its rows, but not its files in Storage. Before deleting, call `removeUserListingFiles(admin, userId)` or `removeListingFiles(admin, listingId)` from `server/listingFiles.ts` (videos, raw clips, covers and photos), then delete the rows.
 - [ ] **Company:** entity set up; the contact and privacy email used in the policies works.
 - [ ] **Fair housing:** a lawyer reviews the lifestyle questions (`src/find/lifestyle.ts`) and the listing copy rules.
 - [ ] **ID check:** keep `id_check` off, or replace the demo check in `server/idCheck.ts` with a vendor (Stripe Identity, Persona) before showing ID badges publicly.
