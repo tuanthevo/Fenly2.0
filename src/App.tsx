@@ -1806,6 +1806,7 @@ export default function App() {
                 startAt={editStartAt}
                 listingId={editListingId}
                 onClose={() => openFillStatus(editListingId, true)}
+                onDeleted={() => navigate((prev) => ({ ...prev, tab: 'fill', overlay: null }), { replace: true })}
                 onOpenStatus={(id) => openFillStatus(id, true)}
               />
             ) : fillOverlay && (fillOverlay === 'new' || fillListingId) ? (

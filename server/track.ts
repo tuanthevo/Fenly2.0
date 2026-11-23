@@ -26,6 +26,7 @@ export const EVENT_NAMES = [
   "tour_recorded",
   "media_option_chosen", // Fill: "Record a video" or "Take photos" (props.media_type)
   "listing_published",
+  "listing_deleted", // the host deleted it for good (props.status, props.media_type)
   "link_shared",
   "link_opened",
   "application_submitted",

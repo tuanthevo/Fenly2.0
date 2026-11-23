@@ -4,7 +4,7 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, CalendarClock, Clapperboard, Eye, FileCheck, Lightbulb, Loader2, Pencil, RefreshCw, Share2 } from 'lucide-react';
-import { fillApi, type LinkRow } from '../../lib/fillApi';
+import { ApiError, fillApi, type LinkRow } from '../../lib/fillApi';
 import { channelLabel } from '../../fill/attribution';
 import { formatRentCents } from '../../fill/publicListing';
 import type { SharePosts } from '../../fill/sharePosts';
@@ -28,7 +28,8 @@ export const FillStatusView: React.FC<{ listingId: string; onBack: () => void; o
     try {
       setData(await fillApi.status(listingId));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't load the status.");
+      // A deleted listing (Back after "Delete listing" lands here): say so instead of "not_found"
+      setError(e instanceof ApiError && e.status === 404 ? "This listing isn't here any more. It was deleted." : e instanceof Error ? e.message : "Couldn't load the status.");
     } finally {
       setLoading(false);
     }
@@ -71,7 +72,7 @@ export const FillStatusView: React.FC<{ listingId: string; onBack: () => void; o
         <h2 className="flex-1 min-w-0 text-base font-extrabold text-[#2C2724] truncate">
           {kit ? 'Share kit' : data?.listing.title || 'Fill status'}
         </h2>
-        {!kit && onEdit && (
+        {!kit && onEdit && data && (
           <button
             type="button"
             onClick={onEdit}

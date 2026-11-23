@@ -34,6 +34,7 @@ import { daysUntil, fillNudges, summarizeByChannel, todayIn } from "../src/fill/
 import { canProceedWithPhotos, isPhotoSlot, type PhotoSlot } from "../src/fill/photoShots.js";
 import { getFlags } from "./flags.js";
 import { isAdminUser } from "./routeKit.js";
+import { removeListingFiles } from "./listingFiles.js";
 import { SHARE_CHANNELS, isShareChannel, type FillListingInfo, type ShareChannel } from "../src/fill/types.js";
 
 const LISTING_COLUMNS =
@@ -306,6 +307,30 @@ export function registerFillRoutes(app: Express): void {
     const textChanged = (["title", "description", "house_rules"] as const).some((k) => k in patch && (patch[k] ?? null) !== (listing[k] ?? null));
     const underReview = (data as ListingRow).status === "published" && textChanged ? await moderateListing(data as ListingRow) : false;
     res.json({ listing: data, underReview });
+  });
+
+  // Delete for good (the edit screen's "Delete listing"). Ownership is checked through the
+  // user's client; the files and the row then go with the admin client, because Storage is
+  // not reached by a database cascade and the owner's delete policy covers drafts only.
+  app.delete("/api/listings/:id", requireUser(), async (req, res) => {
+    const user = currentUser(res)!;
+    const db = userDb(res);
+    if (!db) return;
+    const listing = await ownListing(db, res, req.params.id, user.id);
+    if (!listing) return;
+    const admin = getAdminClient();
+    if (!admin) return res.status(503).json({ error: "supabase_not_configured" });
+    try {
+      // Files first, while their paths can still be read
+      await removeListingFiles(admin, listing.id);
+    } catch (error) {
+      console.error("delete listing files:", error instanceof Error ? error.message : error);
+      return res.status(500).json({ error: "delete_failed", message: "We couldn't delete the listing. Try again." });
+    }
+    const { error } = await admin.from("listings").delete().eq("id", listing.id).eq("owner_id", user.id);
+    if (error) return dbError(res, error, "delete listing");
+    await track("listing_deleted", { status: listing.status, media_type: mediaTypeOf(listing) }, { userId: user.id });
+    res.status(204).end();
   });
 
   // Publish: lease check, approved copy, video + cover, fair housing; then links and posts.
