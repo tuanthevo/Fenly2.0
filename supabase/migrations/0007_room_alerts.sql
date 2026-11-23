@@ -33,3 +33,4 @@ alter table public.passports
 grant update (alert_rooms, alert_place, alert_lat, alert_lng, alert_miles) on public.passports to authenticated;
 
 notify pgrst, 'reload schema';
+g  hh
