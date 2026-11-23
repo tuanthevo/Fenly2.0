@@ -25,6 +25,8 @@ export interface FillListingInfo {
   amenities: string[];
   leaseTerm: string | null;
   caption?: string | null;
+  /** 'photos' = a tour made from the host's photos; anything else is a video listing */
+  mediaType?: 'video' | 'photos';
 }
 
 export interface ListingLinkRow {

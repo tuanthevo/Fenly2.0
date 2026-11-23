@@ -14,6 +14,7 @@ import {
   rentRangeError,
   toIsoDate,
   toRoomListing,
+  visibleMediaTypes,
   type FindListing,
 } from './findFilters';
 import { similarRooms } from './similarRooms';
@@ -232,4 +233,46 @@ test('moderation: scam phrases, flags, hiding and warnings', () => {
   assert.equal(shouldHideListing(fh), false);
   assert.equal(warningFor(fh), null);
   assert.deepEqual(moderationFlags({ offPlatform: false, fairHousingPhrases: [], scamPhrases: [] }, { scam: false, fairHousing: false, harassment: false, confidence: 0.1, reason: '' }), []);
+});
+
+/* ---------- photo listings in Find ---------- */
+
+const FIND_BASE: FindListing = {
+  id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  title: 'Room',
+  description: null,
+  neighborhood: 'Mission',
+  city: 'San Francisco',
+  rentCents: 145000,
+  depositCents: null,
+  availableFrom: '2026-12-01',
+  leaseTerm: '6 months',
+  beds: 1,
+  baths: 1,
+  amenities: [],
+  houseRules: null,
+  status: 'published',
+  videoUrl: 'https://x/full.mp4',
+  thumbUrl: 'https://x/thumb.jpg',
+  publishedAt: null,
+  host: { id: 'h', firstName: 'Hana', photoUrl: null, phoneVerified: true, idVerified: false },
+  housemates: [],
+};
+
+test('toRoomListing carries the media type and the photos; a listing without one is a video listing', () => {
+  const photos = [{ url: 'https://x/a.jpg', slot: 'doorway' as const, caption: 'Bright bedroom', width: 2400, height: 1800 }];
+  const photoRoom = toRoomListing({ ...FIND_BASE, mediaType: 'photos', photos }, '2026-11-22');
+  assert.equal(photoRoom.mediaType, 'photos');
+  assert.deepEqual(photoRoom.photos, photos);
+  // With its exported MP4 it plays like any tour video
+  assert.equal(photoRoom.tourFormat, 'viral_edit');
+  const videoRoom = toRoomListing(FIND_BASE, '2026-11-22');
+  assert.equal(videoRoom.mediaType, 'video');
+  assert.deepEqual(videoRoom.photos, []);
+});
+
+test('while photo listings are off, only people allowed to use them see them in Find', () => {
+  const rows = [{ id: 1, media_type: 'video' }, { id: 2, media_type: 'photos' }, { id: 3 }];
+  assert.deepEqual(visibleMediaTypes(rows, false).map((r) => r.id), [1, 3]);
+  assert.deepEqual(visibleMediaTypes(rows, true).map((r) => r.id), [1, 2, 3]);
 });

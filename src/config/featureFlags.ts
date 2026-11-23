@@ -17,6 +17,7 @@ export const FEATURE_FLAGS = [
   'demo_listings', // 1.0 mock rooms in the Find feed after the real ones
   'photo_tour', // demo rooms in Find play their photos as a moving tour (Remotion) instead of the slideshow
   'id_check', // Passport Level 2 ID check (demo provider until a vendor is wired in server/idCheck.ts)
+  'photo_listings', // Fill: hosts can take guided photos instead of filming (admins see it while the flag is off)
   'intro_video', // 15-second intro video when applying (hidden by the host, Nov 2026; hosts still see intros already sent)
 ] as const;
 
@@ -35,6 +36,7 @@ export const DEFAULT_FLAGS: Readonly<FeatureFlags> = Object.freeze({
   id_check: false,
   photo_tour: false,
   intro_video: false,
+  photo_listings: false,
 });
 
 export function isFeatureFlag(value: string): value is FeatureFlag {
@@ -78,6 +80,14 @@ export function resolveFlags(
 
 export function isEnabled(flags: Partial<FeatureFlags> | null | undefined, flag: FeatureFlag): boolean {
   return flags?.[flag] === true;
+}
+
+/**
+ * Photo listings are an experiment: while the flag is off only admins (FENLY_ADMIN_EMAILS)
+ * can make and see them, and everyone else gets exactly the video-only app.
+ */
+export function canUsePhotoListings(flags: Partial<FeatureFlags> | null | undefined, isAdmin: boolean): boolean {
+  return isEnabled(flags, 'photo_listings') || isAdmin;
 }
 
 /** Old tabs reachable from the menu, and the flag that shows each. */

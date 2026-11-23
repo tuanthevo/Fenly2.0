@@ -24,6 +24,7 @@ p{font-size:14px;line-height:1.55;color:var(--muted);margin:8px 0}
 .cta a{display:block;max-width:448px;margin:0 auto;text-align:center;background:var(--accent);color:#fff;font-weight:800;font-size:15px;padding:14px;border-radius:14px;text-decoration:none}
 .cta a:active{background:var(--accent-dark)}
 .cta a.secondary{background:var(--card);color:var(--ink);border:1px solid var(--ink)}
+.made{position:absolute;left:10px;bottom:10px;margin:0;padding:4px 9px;border-radius:999px;background:rgba(44,39,36,.72);color:#fff;font-size:11px;font-weight:700;line-height:1.3;pointer-events:none}
 .brand{font-weight:900;color:var(--accent);text-decoration:none;font-size:15px}
 header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 header span{font-size:11px;color:var(--muted);font-weight:700}
@@ -85,9 +86,13 @@ export function renderListingPage(input: ListingPageInput): string {
     .filter(Boolean)
     .join(" · ");
   const filled = input.status === "filled";
+  const photos = listing.mediaType === "photos";
+  const tour = photos ? "Photo tour" : "Video tour";
+  // Photo tours say so on the picture itself, so nobody takes moving photos for filmed video
+  const madeFrom = photos ? `<p class="made">${escapeHtml("Made from the host's photos")}</p>` : "";
 
   const media = input.videoUrl
-    ? `<video disablepictureinpicture src="${escapeHtml(input.videoUrl)}"${input.posterUrl ? ` poster="${escapeHtml(input.posterUrl)}"` : ""} playsinline muted autoplay loop controls preload="none" aria-label="Video tour of the room in ${escapeHtml(area)}"></video>`
+    ? `<video disablepictureinpicture src="${escapeHtml(input.videoUrl)}"${input.posterUrl ? ` poster="${escapeHtml(input.posterUrl)}"` : ""} playsinline muted autoplay loop controls preload="none" aria-label="${tour} of the room in ${escapeHtml(area)}"></video>`
     : input.posterUrl
       ? `<img src="${escapeHtml(input.posterUrl)}" alt="Room in ${escapeHtml(area)}" fetchpriority="high">`
       : "";
@@ -99,8 +104,8 @@ export function renderListingPage(input: ListingPageInput): string {
     : "";
 
   const body = `<main>
-<header><a class="brand" href="${escapeHtml(input.findHref)}">Fenn</a><span>Video tour · area shown, exact address after you're accepted</span></header>
-${media ? `<div class="video">${media}</div>` : ""}
+<header><a class="brand" href="${escapeHtml(input.findHref)}">Fenn</a><span>${tour} · area shown, exact address after you're accepted</span></header>
+${media ? `<div class="video">${media}${madeFrom}</div>` : ""}
 <h1>${escapeHtml(title)}</h1>
 <div class="facts">
 ${rent ? `<span class="chip price">${escapeHtml(rent)}/mo</span>` : ""}

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_FLAGS,
+  canUsePhotoListings,
   fallbackTab,
   FEATURE_FLAGS,
   isEnabled,
@@ -60,4 +61,12 @@ test('a hidden tab falls back: Home -> Fill, other old tabs -> Find; allowed tab
   assert.equal(fallbackTab('house_os', DEFAULT_FLAGS), 'listings');
   assert.equal(fallbackTab('passport', DEFAULT_FLAGS), 'passport');
   assert.equal(fallbackTab('home', resolveFlags(DEFAULT_FLAGS, { home_extras: true })), 'home');
+});
+
+test('photo listings: off by default, admins only until the flag is on', () => {
+  assert.equal(DEFAULT_FLAGS.photo_listings, false);
+  assert.equal(canUsePhotoListings(DEFAULT_FLAGS, false), false);
+  assert.equal(canUsePhotoListings(DEFAULT_FLAGS, true), true);
+  assert.equal(canUsePhotoListings(resolveFlags(DEFAULT_FLAGS, parseFlagList('photo_listings')), false), true);
+  assert.equal(canUsePhotoListings(null, false), false);
 });

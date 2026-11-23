@@ -57,6 +57,7 @@ import { registerHostRoutes } from "./hostRoutes.js";
 import { registerInboxRoutes } from "./inboxRoutes.js";
 import { registerPassportRoutes } from "./passportRoutes.js";
 import { registerAdminRoutes } from "./adminRoutes.js";
+import { registerPhotoRoutes } from "./photoRoutes.js";
 
 const app = express();
 
@@ -1384,6 +1385,7 @@ registerHostRoutes(app);
 registerInboxRoutes(app);
 registerPassportRoutes(app);
 registerAdminRoutes(app);
+registerPhotoRoutes(app);
 registerUnsubscribeRoutes(app);
 
 // Unknown /api routes get a JSON 404 instead of falling through to the React app.

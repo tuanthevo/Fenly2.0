@@ -291,3 +291,14 @@ test('nearestNeighborhood prefills from location, only inside the city', async (
   assert.equal(nearestNeighborhood(37.8044, -122.2712), null); // Oakland
   assert.equal(nearestNeighborhood(Number.NaN, 1), null);
 });
+
+test('share posts for a photo listing say "photo tour"; a video listing keeps "video tour"', () => {
+  const urls = { direct: 'https://fenly.app/r/dirCode1' };
+  const video = allPostTexts(buildSharePosts(LISTING, urls, '2026-11-17')).join('\n');
+  const photos = allPostTexts(buildSharePosts({ ...LISTING, mediaType: 'photos' }, urls, '2026-11-17')).join('\n');
+  assert.ok(video.includes('video tour') && !video.includes('photo tour'));
+  assert.ok(photos.includes('photo tour'));
+  assert.equal(/video/i.test(photos), false, 'a photo listing never promises a video');
+  // Nothing else changes: same facts, same links
+  assert.equal(photos.replace(/See the short photo tour/g, 'Watch the short video tour').replace(/[Pp]hoto tour/g, (m) => (m[0] === 'P' ? 'Video tour' : 'video tour')), video);
+});

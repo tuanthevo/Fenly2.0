@@ -41,6 +41,9 @@ export function buildSharePosts(
   const spec = details(listing);
   const extras = perks(listing);
   const url = (channel: ShareChannel) => urls[channel] ?? urls.direct ?? '';
+  // A photo listing never promises a video
+  const photos = listing.mediaType === 'photos';
+  const tour = photos ? 'photo tour' : 'video tour';
   const headline = `Room for rent in ${area}${rent ? `, ${rent}/mo` : ''}, ${when}`;
 
   const lines = (...items: (string | false | null | undefined)[]) => items.filter(Boolean).join('\n');
@@ -52,7 +55,7 @@ export function buildSharePosts(
         spec && `${spec}`,
         extras && `Includes: ${extras}`,
         '',
-        `Watch the short video tour and apply here: ${url('facebook')}`,
+        `${photos ? 'See' : 'Watch'} the short ${tour} and apply here: ${url('facebook')}`,
         'Happy to answer questions in the comments or by message.'
       ),
     },
@@ -66,7 +69,7 @@ export function buildSharePosts(
         spec && `- ${spec}`,
         extras && `- ${extras}`,
         '',
-        `Video tour + apply: ${url('reddit')}`
+        `${photos ? 'Photo' : 'Video'} tour + apply: ${url('reddit')}`
       ),
     },
     tiktok: {
@@ -91,7 +94,7 @@ export function buildSharePosts(
       ),
     },
     group_chat: {
-      text: `My room in ${area} is opening up${moveIn ? ` (${moveIn === 'now' ? 'now' : moveIn})` : ''}${rent ? `, ${rent}/mo` : ''}. Short video tour + apply: ${url('group_chat')} Know anyone looking?`,
+      text: `My room in ${area} is opening up${moveIn ? ` (${moveIn === 'now' ? 'now' : moveIn})` : ''}${rent ? `, ${rent}/mo` : ''}. Short ${tour} + apply: ${url('group_chat')} Know anyone looking?`,
     },
   };
 }
