@@ -3,7 +3,7 @@
  * channel, nudges, and a way back into the share kit.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, CalendarClock, Eye, FileCheck, Lightbulb, Loader2, Pencil, RefreshCw, Share2 } from 'lucide-react';
+import { ArrowLeft, CalendarClock, Clapperboard, Eye, FileCheck, Lightbulb, Loader2, Pencil, RefreshCw, Share2 } from 'lucide-react';
 import { fillApi, type LinkRow } from '../../lib/fillApi';
 import { channelLabel } from '../../fill/attribution';
 import { formatRentCents } from '../../fill/publicListing';
@@ -15,7 +15,7 @@ type StatusData = Awaited<ReturnType<typeof fillApi.status>>;
 
 const cardClass = 'p-4 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm';
 
-export const FillStatusView: React.FC<{ listingId: string; onBack: () => void; onEdit?: () => void }> = ({ listingId, onBack, onEdit }) => {
+export const FillStatusView: React.FC<{ listingId: string; onBack: () => void; onEdit?: () => void; onEditVideo?: () => void }> = ({ listingId, onBack, onEdit, onEditVideo }) => {
   const [data, setData] = useState<StatusData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,6 +115,21 @@ export const FillStatusView: React.FC<{ listingId: string; onBack: () => void; o
             {kitLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
             Share again
           </button>
+          {/* Straight to the part the host wants to change: the facts and text, or the video */}
+          {(onEdit || onEditVideo) && (
+            <div className="grid grid-cols-2 gap-2">
+              {onEdit && (
+                <button type="button" onClick={onEdit} data-testid="fill-status-edit-details" className="min-h-11 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/25 text-[#2C2724] text-xs font-extrabold flex items-center justify-center gap-1.5 active:scale-95">
+                  <Pencil className="w-3.5 h-3.5" /> Edit details
+                </button>
+              )}
+              {onEditVideo && (
+                <button type="button" onClick={onEditVideo} data-testid="fill-status-edit-video" className="min-h-11 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/25 text-[#2C2724] text-xs font-extrabold flex items-center justify-center gap-1.5 active:scale-95">
+                  <Clapperboard className="w-3.5 h-3.5" /> Edit video
+                </button>
+              )}
+            </div>
+          )}
         </>
       ) : null}
     </div>

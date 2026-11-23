@@ -81,7 +81,7 @@ hashtags, used as topic labels.
 
 ## Section timing (full tour, balanced pace, 5 guided 7 s shots ≈ 35 s when every shot is clean)
 
-Targets after the November 2026 updates: 30-45 s (rooms aim for 7 s, the perk for 5 s, the end card 3.5 s). Rooms still shrink to their clean footage, so real clips with doorways or edges give shorter tours. Long clips are no longer thrown away: a room with 10 s+ of clean footage plays as **two moments** of ~5.5 s from different parts of the clip, joined by a zoom cut (whips stay for room changes); the opener's room gets a tour moment after the headline when there's 4 s+ footage left; a closer that isn't the perk gets a moment before its reveal. Extra moments are dropped, last first, past 45 s. Host test (5 phone clips, 7-20 s): 35.4 s → 43.5 s; Quick Tour with 3 of them: 21.5 s → 31.0 s. The table below describes the beats; the exact targets live in `plan.ts` `LENGTH_PRESETS`.
+Targets after the November 2026 updates: 30-45 s (rooms aim for 7 s, the perk for 5 s, the end card 3.5 s). Rooms still shrink to their clean footage, so real clips with doorways or edges give shorter tours. Long clips are no longer thrown away: a room with 10 s+ of clean footage plays as **two moments** of ~5.5 s from different parts of the clip, joined by a zoom cut (whips stay for room changes); the opener's room gets a tour moment after the headline when there's 4 s+ footage left; a closer that isn't the perk gets a moment before its reveal. Tours are capped at 50 s: past it, rooms and the closer first play faster (same footage, up to 1.35x, the opener stays real time), and only then are extra moments dropped, last first (host's call, Nov 2026). Rooms split into two moments from 8 s of clean footage, which 10 s recordings give. Host test (5 phone clips, 7-20 s): 35.4 s → 43.5 s; Quick Tour with 3 of them: 21.5 s → 31.0 s. The table below describes the beats; the exact targets live in `plan.ts` `LENGTH_PRESETS`.
 
 | Section | Length | Speed | What's on screen | Why |
 | --- | --- | --- | --- | --- |
@@ -96,17 +96,30 @@ Targets after the November 2026 updates: 30-45 s (rooms aim for 7 s, the perk fo
 Pace scales the sections: snappy ×0.85, relaxed ×1.15. The teaser keeps the
 hook (≈2.3 s) and runs ~2.2 s rooms at 1.0-1.25x with no ramps (≈13 s); it
 never splits rooms.
-Guided shots record 7 s so each room has ~5 s of clean footage after the
-tap-to-record shake.
+Host's length rule (Nov 2026): with 3+ clips a tour runs **30-50 s**
+(`plan.ts` `MIN_TOUR_TOTAL_SEC`, `MAX_TOUR_TOTAL_SEC`; `grade.ts` blocks export
+outside it). The plan never stretches footage (no slow motion, no walls or
+people), so the floor comes from filming: guided and Quick Tour shots record
+**15 s** (was 7 s and 5 s). Real clips keep ~55-70% clean footage after the
+tap-to-record shake and doorways; 3 × 10 s gave ~24 s. Test clips: 3 × 15 s ≈ 36 s,
+4 × 15 s ≈ 47 s, 5 × 15 s ≈ 50 s at 1.05x, 5 × 20 s ≈ 49 s at 1.15x (sped up to
+fit 50 s, every moment kept). A tour under 30 s asks the host to film the rooms
+with the least usable footage again. Later the same month: hosts are told "at least
+10 sec" per shot and phones film in the native camera (no auto-stop); rooms with
+14 s+ of clean footage get a third moment (`THIRD_MIN_CLEAN_SEC`), so 3 × 15 s ≈ 41 s
+and 3 × 18 s+ ≈ 48-49 s. `QUIET_MAX_SEC` is 3 s (was 3.2) with up to 3 punch-ins per
+shot, matching the grader's change-rate row. Three clips of exactly 10 s still give
+~24 s, under the 30 s rule.
 
 ### Fenly 2.0 Quick Tour (Fill tab)
 
-The Fill flow films 3 shots of 5 s (room, shared space, bathroom; `guidedShots.ts`
-`shotsForMode('quick')`), with 2 optional extras (closet, perk) for a fuller
-tour. Rooms shrink to their clean footage, so 3 shots give a ~15-18 s "full"
-tour; the full ~25-30 s tour needs the extras. The editor also exports the
-~13 s teaser from the same edit (`ViralVideoEditor` `exportTeaserToo`) and both
-go to Supabase Storage. Audit (Nov 2026, 3 sample shots via the app export):
+The Fill flow films 3 shots of 15 s (room, shared space, bathroom; `guidedShots.ts`
+`shotsForMode('quick')`; 5 s until Nov 2026), with 2 optional extras (closet,
+perk) for a fuller tour. With 15 s shots each room gets two moments, so 3 shots
+give a ~36 s tour; the extras take it to ~47-50 s. Fill exports only the full tour
+(the ~13 s teaser code stays behind `exportTeaserToo`; nothing played it). The
+editor grades every edit on `references/audit.md` (`grade.ts`) and exports only
+at 18/20 or more. Audit (Nov 2026, 3 sample shots via the app export):
 17.3 s, 14 MB at 1080x1920, about 16/20 on `references/audit.md`; the softest
 rows were the hook leaving at ~2.7 s (reading floor ~3.0 s for 7 words + a
 price) and one 4.5 s stretch with a single callout in the last room.
@@ -121,7 +134,7 @@ price) and one 4.5 s stretch with a single callout in the last room.
 | Sections shrink to the clean footage a clip has instead of slowing to a crawl or showing a wall | `plan.ts` `fitSource`, `clipSignals.ts` `findCleanRange` |
 | Room speed matched to camera movement | `plan.ts` `motionMatchedRate` (uses the analysis' `meanMotion`) |
 | Speed ramps (off since Nov 2026; `LengthPreset.ramp` is null, the renderer still supports them) | `FenlyViralTour.tsx` `ShotFootage` (two back-to-back segments of the same clip) |
-| Long clips play as two moments of one room, zoom cut between them, 45 s cap | `plan.ts` `planSegments`, `MOMENT_SEC`, `SPLIT_MIN_CLEAN_SEC`, `MAX_TOUR_TOTAL_SEC`; the editor lists one row per room (`editableShots`, `roomDetail`) |
+| Long clips play as two moments of one room, zoom cut between them, 50 s cap reached by speeding rooms up to 1.35x before dropping moments | `plan.ts` `planSegments`, `MOMENT_SEC`, `SPLIT_MIN_CLEAN_SEC`, `MAX_TOUR_TOTAL_SEC`, `MAX_FIT_RATE`; the editor lists one row per room (`editableShots`, `roomDetail`) |
 | Video text at 80% (photo tours 64%); story bar at 52 px (the top edge; the Find feed shows no other progress bar on a tour video) | `plan.ts` `VIDEO_TEXT_SCALE`, `overlays.tsx` `STORY_BAR_TOP` |
 | Something new at least every 3.2 s: a quiet stretch gets a gentle punch-in (1.06x over 10 frames) at its middle, never on the opener, a photo shot or a shot already zoomed past 1.15x to crop a wall. Host test (5 clips, with AI copy): longest quiet stretch 4.9 s → 3.0 s | `plan.ts` `QUIET_MAX_SEC`, `changeFrames`, `addPunchIns`; `FenlyViralTour.tsx` `ShotLayer` |
 | Gemini scans a small frame about every 1.2 s of each clip (up to 14 per clip; the browser analysis covers the first 20 s of a clip, so long camera-roll clips keep their later footage): what's in view and whether a person is in shot. Room tags and details go only on footage that shows the thing, within ~1.3 s of when they're read; a moment with nothing nameable gets a listing fact. Real clips: "Modern kitchen" over the living room became "Sectional sofa" | `aiCopy.ts` `scanTimes`, `server/frameNotes.ts`, `plan.ts` `labelInView`, `LABEL_MAX_GAP_SEC` |

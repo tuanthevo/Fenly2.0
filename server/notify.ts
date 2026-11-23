@@ -7,6 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAdminClient } from "./supabase.js";
 import { buildEmail, type EmailPayload, type NotificationKind, type Email } from "./emails.js";
+import { unsubscribeUrl } from "./unsubscribe.js";
 
 export type NotifyInput = {
   userId: string;
@@ -26,7 +27,17 @@ export async function sendEmail(to: string, email: Email, env: NodeJS.ProcessEnv
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to: [to], subject: email.subject, html: email.html, text: email.text }),
+      body: JSON.stringify({
+        from,
+        to: [to],
+        subject: email.subject,
+        html: email.html,
+        text: email.text,
+        // Mail apps show their own Unsubscribe button from these (RFC 8058 one-click)
+        ...(email.unsubscribeUrl
+          ? { headers: { "List-Unsubscribe": `<${email.unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } }
+          : {}),
+      }),
     });
     if (res.ok) return "sent";
     const body = await res.text().catch(() => "");
@@ -63,7 +74,8 @@ export async function notify(input: NotifyInput, admin: SupabaseClient | null = 
     let status: "sent" | "skipped" | "failed" = "skipped";
     let emailError: string | null = null;
     if (to && profile?.notify_email !== false) {
-      const result = await sendEmail(to, buildEmail(input.kind, input.payload, input.appUrl));
+      const footer = { unsubscribeUrl: unsubscribeUrl(input.appUrl, input.userId), postalAddress: process.env.FENLY_POSTAL_ADDRESS };
+      const result = await sendEmail(to, buildEmail(input.kind, input.payload, input.appUrl, footer));
       if (typeof result === "object") {
         status = "failed";
         emailError = result.failed;

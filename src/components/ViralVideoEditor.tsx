@@ -38,9 +38,12 @@ import { LOOK_CONTROLS, LOOK_PRESETS, autoLook, presetOf, type LookPresetId } fr
 import {
   checkBrowserCanExport,
   exportViralVideo,
+  preloadExporter,
   shareOrDownloadVideo,
   videoFileName,
 } from '../remotion/viral/exportVideo';
+import { isStaleCodeError, STALE_CODE_MESSAGE } from '../utils/staleCode';
+import { bestGradeFix, gradeFixCandidates, gradePlan, PASS_SCORE, type PlanGrade } from '../remotion/viral/grade';
 import type {
   BuildViralPlanInput,
   BuildViralPlanOptions,
@@ -326,8 +329,9 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
   }, [mode, analysisDone, clipKey, analysisVersion]);
 
   const analysedClips = () => clips.map((c) => ({ ...c, analysis: analysisCache.current.get(c.src) ?? null }));
-  const buildPlanFor = (planLength: typeof length): ViralEditPlan | null => {
+  const buildPlanFor = (planLength: typeof length, over: Partial<ViralEditSettings> = {}): ViralEditPlan | null => {
     if (clips.length === 0) return null;
+    const { style, pace, hookSlot, hookDraft, tagEdits, detailEdits } = { ...settings, ...over };
     try {
       // The Fenn edit scores itself and keeps its best cut (fennScore.ts)
       const build = (input: BuildViralPlanInput, options: BuildViralPlanOptions) =>
@@ -367,9 +371,32 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
 
   // Fenn's score, once every clip has been checked (before that the number would only reflect missing data)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const fennScore = useMemo(() => (plan && analysisDone ? scoreEdit(plan, analysedClips()) : null), [plan, analysisDone]);
+  const fennScore = useMemo(() => (plan && analysisDone && length === 'fenn' ? scoreEdit(plan, analysedClips()) : null), [plan, analysisDone, length]);
 
   const planKey = useMemo(() => (plan ? JSON.stringify(plan) : ''), [plan]);
+
+  // The older presets are graded on the 20-point audit rubric (grade.ts) and must score PASS_SCORE to export.
+  // The Fenn edit shows Fenn's score instead and never blocks the export (host approved, Nov 22, 2026).
+  const gated = length !== 'fenn';
+  const gradeClips = useMemo(
+    () => clips.map((c) => ({ ...c, analysis: analysisCache.current.get(c.src) ?? null })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [clips, analysisVersion]
+  );
+  const grade = useMemo<PlanGrade | null>(
+    () => (plan ? gradePlan(plan, gradeClips, activeHints?.frames, analysisDone) : null),
+    [plan, gradeClips, activeHints, analysisDone]
+  );
+  // Under 20/20 (the goal; 18 is the floor): the best change the editor can make on its own
+  // (another opener, the standard headline...)
+  const gradeFix = useMemo(() => {
+    if (!grade || grade.total >= grade.max || !analysisDone) return null;
+    return bestGradeFix(grade, gradeFixCandidates(clips.map((c) => c.slotNumber)), (patch) => {
+      const p = buildPlanFor(length, patch);
+      return p ? { plan: p, grade: gradePlan(p, gradeClips, activeHints?.frames, analysisDone) } : null;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grade, analysisDone]);
 
   // Export
   const [exportState, setExportState] = useState<ExportState>({ phase: 'idle' });
@@ -386,8 +413,13 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const playerRef = useRef<PlayerRef>(null);
+  // Fetch the renderer in the background while the host edits
+  useEffect(() => {
+    const id = window.setTimeout(preloadExporter, 1500);
+    return () => window.clearTimeout(id);
+  }, []);
   const handleExport = async () => {
-    if (!plan) return;
+    if (!plan || (gated && !grade?.passed)) return;
     // The preview and the export would decode the same clips at once: pause the preview
     playerRef.current?.pause();
     setExportState({ phase: 'checking' });
@@ -423,7 +455,9 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
       setExportState({
         phase: 'error',
         message:
-          error instanceof Error && /delayRender|timed? ?out/i.test(error.message)
+          isStaleCodeError(error)
+            ? STALE_CODE_MESSAGE
+            : error instanceof Error && /delayRender|timed? ?out/i.test(error.message)
             ? 'Making the video took too long reading one of your clips. Close other apps or tabs and try again; on a computer, iPhone clips export fastest in Safari or Chrome.'
             : error instanceof Error
             ? `${error.message.split('\n')[0].slice(0, 200)} If a clip came from an iPhone, try Safari or Chrome on the phone that filmed it.`
@@ -1161,13 +1195,24 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
         </p>
       </div>
 
+      {/* Video score (grade.ts): the 20-point audit, 18 to export */}
+      {gated && grade && (
+        <VideoScoreCard
+          grade={grade}
+          checking={!analysisDone}
+          fix={gradeFix}
+          onApplyFix={() => gradeFix && update(gradeFix.patch)}
+          onRetakeShot={onRetakeShot}
+        />
+      )}
+
       {/* Export */}
       <div className="space-y-2">
         {(exportState.phase === 'idle' || exportState.phase === 'error' || exportStale) && (
           <button
             type="button"
             data-testid="viral-export-btn"
-            disabled={Boolean(analyzing)}
+            disabled={Boolean(analyzing) || (gated && !grade?.passed)}
             onClick={handleExport}
             className="w-full py-3 rounded-xl bg-[#D06C4E] hover:bg-[#b85b3f] text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-warm-sm active:scale-95 disabled:bg-[#2C2724]/15 disabled:text-[#6E655F] disabled:shadow-none"
           >
@@ -1274,6 +1319,94 @@ export const ViralVideoEditor: React.FC<ViralVideoEditorProps> = ({
           </ul>
         )}
       </div>
+    </div>
+  );
+};
+
+/** The video's score on the audit rubric: what holds it back, a one-tap fix, and retakes. */
+const VideoScoreCard: React.FC<{
+  grade: PlanGrade;
+  checking: boolean;
+  fix: { patch: object; grade: PlanGrade } | null;
+  onApplyFix: () => void;
+  onRetakeShot?: (slotNumber: number) => void;
+}> = ({ grade, checking, fix, onApplyFix, onRetakeShot }) => {
+  const [open, setOpen] = useState(false);
+  const weak = grade.rows.filter((r) => r.score < 2);
+  const retakes = [...new Set([...grade.lengthRetakeSlots, ...weak.flatMap((r) => r.retakeSlots)])];
+  return (
+    <div
+      data-testid="viral-score"
+      className={`p-3 rounded-xl border space-y-2 ${grade.passed ? 'bg-[#E8EFE9] border-[#7A907C]/50' : 'bg-[#F9F7F3] border-[#2C2724]/15'}`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className={`text-xs font-extrabold ${grade.passed ? 'text-[#485B4A]' : 'text-[#2C2724]'}`}>
+            {checking ? 'Checking your clips…' : `Video score ${grade.total}/${grade.max} · ${Math.round(grade.lengthSec)} s`}
+          </p>
+          <p className="text-[10px] font-semibold text-[#6E655F]">
+            {checking
+              ? 'The score is ready once every clip is checked.'
+              : grade.passed
+              ? grade.total >= grade.max
+                ? 'Top score. Ready to post.'
+                : `Ready to post. The goal is ${grade.max}/${grade.max}.`
+              : grade.total < PASS_SCORE
+              ? `It needs ${PASS_SCORE}/${grade.max} to go out.`
+              : 'The length needs fixing before it goes out.'}
+          </p>
+        </div>
+        {weak.length > 0 && !checking && (
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            aria-expanded={open}
+            className="min-h-10 px-2 text-[10px] font-extrabold text-[#A9513A] shrink-0"
+          >
+            {open ? 'Hide' : `What to fix (${weak.length})`}
+          </button>
+        )}
+      </div>
+      {!checking && fix && (
+        <button
+          type="button"
+          data-testid="viral-score-fix"
+          onClick={onApplyFix}
+          className="w-full min-h-10 rounded-lg bg-[#B85B3F] hover:bg-[#A9513A] text-white text-[11px] font-extrabold flex items-center justify-center gap-1.5 active:scale-95"
+        >
+          <Sparkles className="w-3.5 h-3.5" /> {grade.passed ? 'Improve it for me' : 'Fix it for me'} ({fix.grade.total}/{fix.grade.max})
+        </button>
+      )}
+      {!checking && (open || (!grade.passed && !fix)) && weak.length > 0 && (
+        <ul className="space-y-1.5">
+          {weak.map((r) => (
+            <li key={r.key} className="text-[10px] leading-snug">
+              <span className="font-extrabold text-[#2C2724]">
+                {r.label} {r.score}/2:
+              </span>{' '}
+              <span className="text-[#6E655F]">{r.note}</span>
+              {r.fix && <span className="block font-semibold text-[#2C2724]">{r.fix}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {!checking && !grade.passed && retakes.length > 0 && onRetakeShot && (
+        <div className="flex flex-wrap gap-1.5">
+          {retakes.map((slot) => (
+            <button
+              key={slot}
+              type="button"
+              onClick={() => onRetakeShot(slot)}
+              className="min-h-10 px-2.5 rounded-lg bg-white border border-[#2C2724]/20 text-[10px] font-extrabold flex items-center gap-1"
+            >
+              <RotateCcw className="w-3 h-3" /> Retake {GUIDED_SHOTS.find((g) => g.slotNumber === slot)?.name ?? `shot ${slot}`}
+            </button>
+          ))}
+        </div>
+      )}
+      {!checking && grade.lengthNote && (
+        <p className={`text-[10px] font-semibold ${grade.lengthOk ? 'text-[#6E655F]' : 'text-[#9A4A33]'}`}>{grade.lengthNote}</p>
+      )}
     </div>
   );
 };

@@ -220,8 +220,12 @@ export function registerAdminRoutes(app: Express): void {
  */
 async function sendRoomAlerts(admin: SupabaseClient, origin: string, today: string): Promise<{ renters: number; sent: number }> {
   try {
+    // Stamped on each renter after their digest, so nothing published during this run is skipped tomorrow
+    const runAt = new Date().toISOString();
     const dayAgo = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-    const [{ data: renters }, { data: fresh }] = await Promise.all([
+    // A late or missed cron must not lose rooms: look back to each renter's last digest, up to 3 days
+    const windowStart = new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString();
+    const [{ data: renters }, { data: fresh }, { data: blocks }] = await Promise.all([
       admin
         .from("passports")
         .select("user_id, alert_rooms, alert_place, alert_lat, alert_lng, alert_miles, alerts_sent_at, budget_max_cents, move_in_from, stay_length")
@@ -232,9 +236,17 @@ async function sendRoomAlerts(admin: SupabaseClient, origin: string, today: stri
         .select("id, owner_id, city, neighborhood, rent_cents, available_from, lease_term, published_at")
         .eq("status", "published")
         .is("hidden_at", null)
-        .gte("published_at", dayAgo)
+        .gte("published_at", windowStart)
         .limit(1000),
+      admin.from("blocks").select("blocker_id, blocked_id").limit(10000),
     ]);
+    // Like Find: never a room from someone the renter blocked, or who blocked them
+    const blockedFor = (userId: string) =>
+      new Set(
+        (blocks ?? [])
+          .filter((b) => b.blocker_id === userId || b.blocked_id === userId)
+          .map((b) => (b.blocker_id === userId ? b.blocked_id : b.blocker_id))
+      );
     if (!renters?.length || !fresh?.length) return { renters: renters?.length ?? 0, sent: 0 };
     const listings: AlertListing[] = fresh.map((l) => ({
       id: l.id,
@@ -255,8 +267,11 @@ async function sendRoomAlerts(admin: SupabaseClient, origin: string, today: stri
     for (const row of renters) {
       const prefs = cleanAlertPrefs(row);
       if (!prefs) continue;
-      const since = row.alerts_sent_at && Date.parse(row.alerts_sent_at) > Date.parse(dayAgo) ? row.alerts_sent_at : dayAgo;
-      const digest = alertDigest(listings, prefs, since);
+      // One digest a day: a second run on the same day leaves the renter (and their window) alone
+      if (row.alerts_sent_at && todayIn(new Date(row.alerts_sent_at)) === today) continue;
+      const since = row.alerts_sent_at && Date.parse(row.alerts_sent_at) > Date.parse(windowStart) ? row.alerts_sent_at : dayAgo;
+      const blocked = blockedFor(prefs.userId);
+      const digest = alertDigest(blocked.size ? listings.filter((l) => !blocked.has(l.ownerId)) : listings, prefs, since);
       if (digest.total === 0) continue;
       await notify(
         {
@@ -273,7 +288,7 @@ async function sendRoomAlerts(admin: SupabaseClient, origin: string, today: stri
         },
         admin
       );
-      await admin.from("passports").update({ alerts_sent_at: new Date().toISOString() }).eq("user_id", prefs.userId);
+      await admin.from("passports").update({ alerts_sent_at: runAt }).eq("user_id", prefs.userId);
       sent++;
     }
     return { renters: renters.length, sent };

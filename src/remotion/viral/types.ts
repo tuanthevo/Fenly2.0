@@ -260,8 +260,8 @@ export type ViralShot = {
    * scale 1 = no reframe.
    */
   reframe: { scale: number; originX: number };
-  /** 2 = a second moment from later in the same clip (long clips; see plan.ts MOMENT_SEC) */
-  part?: 2;
+  /** 2 or 3 = a later moment from the same clip (long clips; see plan.ts MOMENT_SEC, THIRD_MIN_CLEAN_SEC) */
+  part?: 2 | 3;
   /**
    * Local frames where the shot gently punches in (plan.ts QUIET_MAX_SEC): a
    * stretch with no new text or cut gets a small zoom so the eye has something new.

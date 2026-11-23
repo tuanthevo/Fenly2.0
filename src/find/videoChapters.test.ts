@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { chapterJump, chaptersFromPlan, cleanChapters } from './videoChapters';
+import { chapterJump, chaptersFromPlan, cleanChapters, roomStarts } from './videoChapters';
 
 const CHAPTERS = [0, 6.03, 11.53, 17.03, 28.03];
 
@@ -24,4 +24,13 @@ test('swipe left goes to the next room, right to the start of this one or the on
   assert.equal(chapterJump(CHAPTERS, 12, 'prev'), 6.03, 'just started: the room before');
   assert.equal(chapterJump(CHAPTERS, 0.5, 'prev'), 0);
   assert.equal(chapterJump([], 3, 'next'), null, 'videos without chapters do nothing');
+});
+
+test('videos saved before chapters still swipe, in even steps', () => {
+  assert.deepEqual(roomStarts(CHAPTERS, 40), CHAPTERS, 'saved chapters win');
+  assert.deepEqual(roomStarts([], 20), [0, 6, 12]);
+  assert.deepEqual(roomStarts(undefined, 13.9), [0, 6], 'no start within 2 s of the end');
+  assert.deepEqual(roomStarts([], 5), [], 'too short to split');
+  assert.deepEqual(roomStarts([], NaN), [], 'duration not known yet');
+  assert.equal(chapterJump(roomStarts([], 20), 2, 'next'), 6);
 });

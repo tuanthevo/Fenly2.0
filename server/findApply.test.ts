@@ -42,6 +42,9 @@ test("emails: every kind builds, values are escaped, settings link included", ()
   const evil = buildEmail("declined", { area: "<b>x</b>", message: '<script>alert("x")</script>' }, "https://fenly.app");
   assert.ok(!evil.html.includes("<script>"));
   assert.ok(evil.html.includes("&lt;script&gt;"));
+  const reopened = buildEmail("room_reopened", { area: "Mission", firstName: "Sam", path: "/?inbox=1" }, "https://fenly.app");
+  assert.equal(reopened.subject, "The room in Mission is open again");
+  assert.ok(reopened.text.includes("Your application is back with the host"));
   const taken = buildEmail("room_taken", { area: "Mission", similar: [{ area: "Noe Valley", rent: "$1,500", url: "https://fenly.app/r/abcd1234" }] }, "https://fenly.app");
   assert.ok(taken.text.includes("Noe Valley, $1,500/mo: https://fenly.app/r/abcd1234"));
   const rooms = [

@@ -47,7 +47,8 @@ import {
   type FillStep,
 } from '../../fill/listingRules';
 import { FILL_AMENITIES, leaseTermOptions } from '../../fill/neighborhoods';
-import { BAY_AREA_CITIES, BAY_AREA_REGIONS, areaLabel, bayAreaCity, nearestArea } from '../../geo/bayArea';
+import { BAY_AREA_CITIES, BAY_AREA_REGIONS, areaLabel, bayAreaCity, nearestArea, serviceCity } from '../../geo/bayArea';
+import { nearestNorcalCity } from '../../geo/norcal';
 import { lookupBayAreaPlace } from '../../lib/geocode';
 import { chaptersFromPlan } from '../../find/videoChapters';
 import { formatMoveIn, formatRentCents } from '../../fill/publicListing';
@@ -84,7 +85,7 @@ const secondaryBtn =
 const label = 'text-[11px] font-bold text-[#6E655F] block mb-1';
 
 const OUTSIDE_AREA =
-  'Fenn is in the Bay Area for now: San Francisco, the East Bay, the Peninsula and the South Bay. Pick the closest city below.';
+  'Fenn is in Northern California for now. Type a Northern California city or ZIP code.';
 
 const LANDLORD_MESSAGE =
   "Hi, I'm planning to move out on [date]. Would you be OK with me finding a replacement roommate for my room? I'll share applicants with you before anyone signs. Thanks!";
@@ -107,9 +108,11 @@ interface FillFlowProps {
    * Each step saves on Continue; the lease check, the tour and publishing are skipped.
    */
   mode?: 'create' | 'edit';
+  /** Edit mode: open at the video editor instead of the basics ("Edit video" on the status page) */
+  startAt?: 'video';
 }
 
-export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onClose, onOpenStatus, onDraftCreated, mode = 'create' }) => {
+export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onClose, onOpenStatus, onDraftCreated, mode = 'create', startAt }) => {
   const editing = mode === 'edit' && Boolean(requestedId);
   const steps = editing ? EDIT_STEPS : STEPS;
   // Only the id this flow opened with is loaded; later id changes come from this flow itself
@@ -172,8 +175,8 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
     setMoveOut(row.move_out_date ?? '');
     setRent(row.rent_cents ? String(Math.round(row.rent_cents / 100)) : '');
     setDeposit(row.deposit_cents == null ? '' : String(Math.round(row.deposit_cents / 100)));
-    // A saved city outside the launch area (or none yet) leaves the picker empty
-    const savedCity = bayAreaCity(row.city);
+    // A saved city outside Northern California (or none yet) leaves the picker empty
+    const savedCity = serviceCity(row.city);
     setCity(savedCity?.name ?? '');
     setNeighborhood(savedCity && row.neighborhood ? row.neighborhood : '');
     setBeds(row.beds ?? 1);
@@ -216,7 +219,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
           const clip: RecordedViralSlotMedia = {
             slotNumber: slot,
             videoUrl: url,
-            thumbnailUrl: frame?.dataUrl ?? GUIDED_SHOTS[slot - 1].sampleThumbnailUrl,
+            thumbnailUrl: frame?.dataUrl ?? '', // never a stock photo: the card shows the clip itself
             source: 'uploaded',
             durationSec: Math.round(((m.duration_ms ?? (frame?.durationSec ?? 5) * 1000) / 1000) * 10) / 10,
             isLandscape: Boolean(m.width && m.height && m.width > m.height),
@@ -249,7 +252,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
         savedClips.current = data.media;
         const thumb = data.media.find((m) => m.kind === 'thumbnail')?.signedUrl;
         if (thumb) setCover(thumb);
-        if (editing) setStep('start');
+        if (editing) setStep(startAt === 'video' ? 'video' : 'start');
         else {
           const rawClips = data.media.filter((m) => m.kind === 'raw_clip' && m.signedUrl && slotFromRawPath(m.path)).length;
           const next = resumeStep(data.listing, data.media.map((m) => m.kind), rawClips);
@@ -300,7 +303,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
       if (!moveOut) throw new Error('Pick the date you need the room filled.');
       if (!(rentCents >= 10000 && rentCents <= 2000000)) throw new Error('Rent must be between $100 and $20,000.');
       if (depositRule.error) throw new Error(depositRule.error);
-      if (!bayAreaCity(city)) throw new Error('Pick the city the room is in.');
+      if (!serviceCity(city)) throw new Error('Pick the city the room is in, or type its ZIP code.');
       const sqft = squareFeet ? Number(squareFeet) : null;
       if (sqft !== null && !(sqft >= 50 && sqft <= 10000)) throw new Error('Room size must be between 50 and 10,000 sq ft, or left blank.');
       let id = listing?.id;
@@ -373,7 +376,9 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const found = nearestArea(pos.coords.latitude, pos.coords.longitude);
+        // A launch-area city (with its neighborhood) when close to one, else the nearest Northern California city
+        const other = nearestNorcalCity(pos.coords.latitude, pos.coords.longitude);
+        const found = nearestArea(pos.coords.latitude, pos.coords.longitude) ?? (other ? { city: other.name, neighborhood: null } : null);
         if (found) {
           setCity(found.city);
           setNeighborhood(found.neighborhood ?? '');
@@ -445,12 +450,15 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
   };
 
   useEffect(() => {
-    if (step === 'details' && !title && !description && !aiTried.current && !clipsLoading) {
+    // The writer looks at a frame from each room: wait until the clips are here (just filmed, or
+    // downloaded again for a resumed draft) so it never writes blind
+    const clipsReady = Object.keys(media).length > 0 || clipsState.status === 'done';
+    if (step === 'details' && !loading && !title && !description && !aiTried.current && clipsReady) {
       aiTried.current = true;
       void writeWithAi();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, clipsLoading]);
+  }, [step, loading, clipsState.status]);
 
   const liveIssues = useMemo(
     () => [...new Set([...fairHousingIssues(title), ...fairHousingIssues(description)])],
@@ -647,7 +655,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                   <div className={`${card} space-y-4`}>
                     <div>
                       <h3 className="text-lg font-extrabold leading-tight">Let's fill your room</h3>
-                      <p className="text-xs text-[#6E655F] mt-1">The basics, then a 15-second tour. About 10 minutes in all.</p>
+                      <p className="text-xs text-[#6E655F] mt-1">The basics, then three shots of 10 seconds or more. About 10 minutes in all.</p>
                     </div>
                     <div>
                       <label className={label} htmlFor="fill-move-out">When do you need to fill the room?</label>
@@ -727,6 +735,8 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                           <option value="" disabled>
                             Pick a city
                           </option>
+                          {/* A city found by ZIP or address outside the listed ones (Sacramento, Santa Cruz...) */}
+                          {city && !bayAreaCity(city) && <option value={city}>{city}</option>}
                           {BAY_AREA_REGIONS.map((region) => (
                             <optgroup key={region} label={region}>
                               {BAY_AREA_CITIES.filter((c) => c.region === region).map((c) => (
@@ -985,12 +995,18 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                         setStep('tour');
                       }}
                       onVideoReady={(result) => void saveVideo(result)}
-                      exportTeaserToo
+                      // No teaser: nothing plays it while the full tour exists, and it added ~13 s of
+                      // rendering plus an upload. Pass exportTeaserToo to bring it back.
                     />
                   </Suspense>
                   {uploadProgress !== null && <Progress value={uploadProgress} text="Uploading your video" />}
                   {mediaKinds.includes('video_full') && busy !== 'video' && (
-                    <button type="button" className={secondaryBtn} onClick={() => setStep('publish')}>
+                    <button
+                      type="button"
+                      className={secondaryBtn}
+                      // A live listing has nothing to publish again: back to its status page
+                      onClick={() => (editing && listing ? onOpenStatus(listing.id) : setStep('publish'))}
+                    >
                       Keep the video I already made
                     </button>
                   )}

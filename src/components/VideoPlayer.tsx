@@ -3,7 +3,7 @@ import { Play, Pause, Heart } from 'lucide-react';
 import { RoomListing } from '../types';
 import { photoTourPlanForRoom } from '../utils/photoTourListing';
 import { useFlag } from '../config/FlagsProvider';
-import { chapterJump } from '../find/videoChapters';
+import { chapterJump, roomStarts } from '../find/videoChapters';
 
 // The photo tour pulls in Remotion: load it only when a card is on screen
 const PhotoTourPlayer = React.lazy(() => import('./PhotoTourPlayer'));
@@ -62,6 +62,8 @@ interface VideoPlayerProps {
   onDoubleTapLike: () => void;
   onNextRoom: () => void;
   onPrevRoom: () => void;
+  /** The browser refused to start the tour with sound, so it plays muted: the feed's mute state follows */
+  onAutoplayMuted?: () => void;
   currentIndex?: number;
   totalRooms?: number;
 }
@@ -239,6 +241,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   onDoubleTapLike,
   onNextRoom,
   onPrevRoom,
+  onAutoplayMuted,
   currentIndex = 0,
   totalRooms = 1,
 }) => {
@@ -304,17 +307,77 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // The tour video's real progress (0-100) for the bottom bar; its own story bar is drawn into the video
   const [videoProgress, setVideoProgress] = useState(0);
 
-  /** Left/right swipe on a tour video: jump to the next room, or back to this/the previous room's start. */
+  /**
+   * Start the tour video. Browsers can refuse to start a video with sound
+   * without a tap; then it plays muted instead of sitting on a paused frame.
+   * If even muted playback is refused (e.g. iPhone Low Power Mode), the card
+   * shows a play button and a tap starts it.
+   */
+  const startPlayback = (video: HTMLVideoElement) => {
+    video.muted = isMuted;
+    video.play().catch((err: unknown) => {
+      if ((err as { name?: string } | null)?.name !== 'NotAllowedError') return; // AbortError: a newer pause won
+      if (!video.muted) {
+        video.muted = true;
+        onAutoplayMuted?.();
+        video.play().catch(() => setIsPlaying(false));
+      } else {
+        setIsPlaying(false);
+      }
+    });
+  };
+
+  /** Left/right swipe: jump to the next room, or back to this/the previous room's start. */
   const jumpRoom = (dir: 'next' | 'prev') => {
+    if (!isViralEdit) {
+      // Photo slideshow: one photo per swipe
+      setSceneIndex((i) => (dir === 'next' ? Math.min(scenes.length - 1, i + 1) : Math.max(0, i - 1)));
+      setSceneProgress(0);
+      return;
+    }
     const video = viralVideoRef.current;
-    if (!isViralEdit || !video) return;
-    const to = chapterJump(room.videoChapters ?? [], video.currentTime, dir);
+    if (!video) return;
+    const to = chapterJump(roomStarts(room.videoChapters, video.duration), video.currentTime, dir);
     if (to == null) return;
     video.currentTime = to;
     setIsPlaying(true);
-    video.play().catch(() => {});
+    startPlayback(video);
   };
   jumpRoomRef.current = jumpRoom;
+
+  // Sideways swipes are read on the whole card (the room info panel and the
+  // side buttons sit on top of the video and would otherwise swallow them).
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const card = containerRef.current?.parentElement;
+    if (!isActive || !card) return;
+    let start: { x: number; y: number } | null = null;
+    const onStart = (e: TouchEvent) => {
+      start = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
+    };
+    const onEnd = (e: TouchEvent) => {
+      const end = e.changedTouches[0];
+      if (!start || !end) return;
+      const dx = start.x - end.clientX;
+      const dy = start.y - end.clientY;
+      start = null;
+      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+        didSwipeRef.current = true;
+        jumpRoomRef.current(dx > 0 ? 'next' : 'prev');
+      }
+    };
+    const onCancel = () => {
+      start = null;
+    };
+    card.addEventListener('touchstart', onStart, { passive: true });
+    card.addEventListener('touchend', onEnd, { passive: true });
+    card.addEventListener('touchcancel', onCancel, { passive: true });
+    return () => {
+      card.removeEventListener('touchstart', onStart);
+      card.removeEventListener('touchend', onEnd);
+      card.removeEventListener('touchcancel', onCancel);
+    };
+  }, [isActive]);
 
   // Listing photos edited into a "walking into the home" short (src/remotion/viral/photoTour.ts).
   // Photos are loaded first and any that fail are skipped, so a dead link never shows as a black frame.
@@ -339,11 +402,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     const video = viralVideoRef.current;
     if (!video) return;
     if (isActive && isPlaying) {
-      video.play().catch(() => {});
+      startPlayback(video);
     } else {
       video.pause();
     }
-  }, [isActive, isPlaying, isViralEdit]);
+    // room.videoUrl: a new source resets the element to paused, so start it again
+  }, [isActive, isPlaying, isViralEdit, room.videoUrl]);
 
   useEffect(() => {
     setSceneIndex(0);
@@ -473,7 +537,18 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     }
 
     lastTapRef.current = now;
-    setIsPlaying((prev) => !prev);
+    const video = viralVideoRef.current;
+    if (isViralEdit && video) {
+      // Follow what the video is really doing, and start it inside the tap so the browser allows it
+      if (video.paused) {
+        setIsPlaying(true);
+        startPlayback(video);
+      } else {
+        setIsPlaying(false);
+      }
+    } else {
+      setIsPlaying((prev) => !prev);
+    }
     setShowPlayIcon(true);
     setTimeout(() => setShowPlayIcon(false), 600);
   };
@@ -513,9 +588,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     touchStartX.current = null;
     touchCurrentX.current = null;
 
+    // Sideways swipes are handled on the whole card (effect above)
     if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY)) {
       didSwipeRef.current = true;
-      jumpRoom(deltaX > 0 ? 'next' : 'prev');
     } else if (deltaY > 35) {
       didSwipeRef.current = true;
       onNextRoom();
@@ -542,6 +617,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   return (
     <div
+      ref={containerRef}
       onClick={handleContainerClick}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
@@ -557,7 +633,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         <video disablePictureInPicture
           ref={viralVideoRef}
           src={room.videoUrl}
-          autoPlay
+          // No autoPlay attribute: only the card on screen plays (effect above); its neighbours just buffer
+          preload="auto"
           loop
           playsInline
           muted={isMuted}
@@ -631,6 +708,15 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           );
         })}
       </div>
+
+      {/* Paused tour video (by a tap, or the browser refused to start it): a play button until it plays */}
+      {isViralEdit && isActive && !isPlaying && !showPlayIcon && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30" data-testid="video-paused">
+          <div className="w-16 h-16 rounded-2xl bg-[#2C2724]/75 backdrop-blur-md text-[#F9F7F3] flex items-center justify-center shadow-warm border border-[#F9F7F3]/20">
+            <Play className="w-8 h-8 fill-[#F9F7F3] ml-1" />
+          </div>
+        </div>
+      )}
 
       {/* Center Play / Pause Indicator */}
       {showPlayIcon && (

@@ -18,8 +18,8 @@ test('Guided 5-shot list has the 5 shots in order with 7s recording', () => {
     GUIDED_SHOTS.map((s) => s.name),
     ['Bedroom Hook', 'Kitchen & Shared Space', 'Bathroom Peek', 'Closet & Storage', 'Standout Perk']
   );
-  assert.equal(GUIDED_RECORDING_MS, 7000);
-  assert.ok(GUIDED_SHOTS.every((s) => s.instruction.includes(`(${GUIDED_RECORDING_MS / 1000} sec)`)));
+  assert.equal(GUIDED_RECORDING_MS, 15000);
+  assert.ok(GUIDED_SHOTS.every((s) => s.instruction.includes('(at least 10 sec)')), 'hosts are told at least 10 seconds per shot');
   const slots = createGuidedShotSlots();
   assert.equal(slots.length, 5);
   assert.equal(slots[0].title, 'Shot 1: Bedroom Hook');
@@ -59,17 +59,18 @@ test('at least 3 shots are needed to proceed, and the next empty shot is tracked
   assert.equal(nextShotToCapture({ 1: {}, 2: {}, 3: {}, 4: {}, 5: {} }), null);
 });
 
-test('Quick Tour: 3 shots of 5 s (room, shared space, bathroom), extras add closet and perk', async () => {
+test('Quick Tour: 3 shots of 15 s (room, shared space, bathroom), extras add closet and perk', async () => {
   const { shotsForMode, recordingMsFor, instructionFor, GUIDED_SHOTS: ALL } = await import('./guidedShots');
   assert.deepEqual(shotsForMode('quick').map((s) => s.slotNumber), [1, 2, 3]);
   assert.deepEqual(shotsForMode('quick', true).map((s) => s.slotNumber), [1, 2, 3, 4, 5]);
   assert.equal(shotsForMode('guided').length, 5);
-  assert.equal(recordingMsFor('quick'), 5000);
-  assert.equal(recordingMsFor('guided'), 7000);
+  assert.equal(recordingMsFor('quick'), 15000);
+  assert.equal(recordingMsFor('guided'), 15000);
   assert.match(instructionFor(ALL[0], 5), /\(5 sec\)/);
-  assert.doesNotMatch(instructionFor(ALL[0], 5), /7 sec/);
-  // every shot states its length, so quick mode never shows "7 sec"
-  for (const shot of ALL) assert.match(shot.instruction, /\(\d+ sec\)/, shot.name);
+  assert.doesNotMatch(instructionFor(ALL[0], 5), /15 sec/);
+  // every shot states its length, so the shown length always matches the recording
+  for (const shot of ALL) assert.match(shot.instruction, /\(at least \d+ sec\)/, shot.name);
+  assert.match(instructionFor(ALL[0], 15), /\(15 sec\)/, 'the in-app recorder states its exact length');
 });
 
 test('no filming copy tells the host to walk (walking shakes the camera)', async () => {

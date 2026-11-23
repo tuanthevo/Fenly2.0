@@ -2,14 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { lookupLocally, placeFromGeocode, zipCouldBeBayArea } from './placeLookup';
 
-test('names and SF ZIPs resolve without the network; other ZIPs ask Maps or are turned away', () => {
+test('names and Northern California ZIPs resolve without the network; ZIPs elsewhere are turned away', () => {
   assert.deepEqual(
     (({ kind, city, neighborhood, label }) => ({ kind, city, neighborhood, label }))(lookupLocally('Oakland') as any),
     { kind: 'found', city: 'Oakland', neighborhood: null, label: 'Oakland' }
   );
   assert.equal((lookupLocally('rockridge') as any).city, 'Oakland');
   assert.equal((lookupLocally('94110') as any).neighborhood, 'Mission');
-  assert.equal(lookupLocally('94612'), null, 'an Oakland ZIP goes to Maps');
+  assert.deepEqual((({ city, neighborhood }) => ({ city, neighborhood }))(lookupLocally('94612') as any), { city: 'Oakland', neighborhood: 'Uptown' }, 'an Oakland ZIP finds Oakland and its nearest neighborhood');
   assert.equal(lookupLocally('123 Main St, Fremont'), null, 'an address goes to Maps');
   assert.deepEqual(lookupLocally('10001'), { kind: 'outside' });
   assert.deepEqual(lookupLocally('  '), { kind: 'unknown' });

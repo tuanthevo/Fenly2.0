@@ -110,21 +110,39 @@ const FilterSheet: React.FC<{ filters: FindFilters; onClose: () => void; onApply
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const findPlace = async () => {
+  /** Looks the typed place up and puts it in the draft. Returns it, or null when it wasn't found. */
+  const findPlace = async (): Promise<FindNear | null> => {
     const text = query.trim();
-    if (!text || busy) return;
+    if (!text || busy) return null;
     setBusy(true);
     setNote(null);
     const result = await lookupBayAreaPlace(text);
     setBusy(false);
     if (result.kind === 'outside') {
-      return setNote({ text: 'Fenn is in the Bay Area for now: San Francisco, the East Bay, the Peninsula and the South Bay.', bad: true });
+      setNote({ text: 'Fenn is in Northern California for now. Try a Northern California city or ZIP code.', bad: true });
+      return null;
     }
-    if (result.kind === 'unknown') return setNote({ text: "We couldn't find that. Try a city name or a 5-digit ZIP code.", bad: true });
+    if (result.kind === 'unknown') {
+      setNote({ text: "We couldn't find that. Try a city name or a 5-digit ZIP code.", bad: true });
+      return null;
+    }
     const near: FindNear = { label: cleanPlaceLabel(result.label) || result.city, lat: result.lat, lng: result.lng, miles };
     setDraft((d) => ({ ...d, near }));
     setQuery(near.label);
     setNote({ text: result.label !== result.city ? `${result.label}, ${result.city}` : result.city, bad: false });
+    return near;
+  };
+
+  /** "Show rooms": a place typed but not looked up yet is looked up first; an emptied box clears the place. */
+  const showRooms = async () => {
+    const text = query.trim();
+    let near = draft.near ?? null;
+    if (!text) near = null;
+    else if (text !== (draft.near?.label ?? '')) {
+      near = await findPlace();
+      if (!near) return; // the note says why; the sheet stays open
+    }
+    onApply({ ...draft, near, minRentCents: min.cents, maxRentCents: max.cents });
   };
 
   return (
@@ -274,7 +292,7 @@ const FilterSheet: React.FC<{ filters: FindFilters; onClose: () => void; onApply
           </button>
           <button
             type="button"
-            onClick={() => onApply({ ...draft, minRentCents: min.cents, maxRentCents: max.cents })}
+            onClick={() => void showRooms()}
             disabled={Boolean(rentError)}
             data-testid="find-filters-apply"
             className="min-h-11 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] disabled:opacity-50 text-white text-sm font-extrabold"

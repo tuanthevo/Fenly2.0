@@ -277,17 +277,41 @@ export default function App() {
   const [reportTarget, setReportTarget] = useState<{ id: string; hostId: string | null } | null>(null);
   const [inboxThreadId, setInboxThreadId] = useState<string | null>(null);
   const [findNotice, setFindNotice] = useState<string | null>(null);
+  // Fetched again each time Find opens, so edits made in Fill (price, deposit, size...) show up
+  const findTabOpen = activeTab === 'listings';
+  const mediaSignedAt = useRef(new Map<string, number>());
   useEffect(() => {
-    if (!findMode) return;
+    if (!findMode || !findTabOpen) return;
     let alive = true;
     const load = savedOnly && auth.user ? findApi.savedListings() : findApi.feed(findFilters);
     load
-      .then((data) => alive && setFindListings(data.listings))
+      .then((data) => {
+        if (!alive) return;
+        // Each fetch signs new media URLs. A room already on screen keeps the URL it is playing
+        // (same file, only the signature differs), so its video doesn't reload and freeze.
+        const file = (url: string | null) => (url ? url.split('?')[0] : null);
+        setFindListings((prev) =>
+          data.listings.map((l) => {
+            const old = prev.find((o) => o.id === l.id);
+            // Signed URLs last 6 hours: after 5, take the fresh ones
+            const signedAt = mediaSignedAt.current.get(l.id);
+            if (!old || !signedAt || Date.now() - signedAt > 5 * 3600_000) {
+              mediaSignedAt.current.set(l.id, Date.now());
+              return l;
+            }
+            return {
+              ...l,
+              videoUrl: file(old.videoUrl) === file(l.videoUrl) ? old.videoUrl : l.videoUrl,
+              thumbUrl: file(old.thumbUrl) === file(l.thumbUrl) ? old.thumbUrl : l.thumbUrl,
+            };
+          })
+        );
+      })
       .catch(() => alive && setFindListings([]));
     return () => {
       alive = false;
     };
-  }, [findMode, findFilters, savedOnly, auth.user]);
+  }, [findMode, findTabOpen, findFilters, savedOnly, auth.user]);
   // Saved rooms follow the account once signed in (rooms saved while signed out are synced up)
   useEffect(() => {
     if (!findMode || !auth.user) return;
@@ -429,7 +453,10 @@ export default function App() {
   const fillListingId = fillOverlay && fillOverlay !== 'new' && isListingId(fillOverlay) ? fillOverlay : null;
   // Editing a live listing (from its status page): "edit:<id>"
   const editOverlay = nav.overlay?.startsWith('edit:') ? nav.overlay.slice('edit:'.length) : null;
-  const editListingId = editOverlay && isListingId(editOverlay) ? editOverlay : null;
+  // "edit:<id>" opens at the basics; "edit:<id>:video" opens the video editor directly
+  const [editIdPart, editStartPart] = (editOverlay ?? '').split(':');
+  const editListingId = editIdPart && isListingId(editIdPart) ? editIdPart : null;
+  const editStartAt = editStartPart === 'video' ? 'video' : undefined;
   const statusListingId =
     nav.overlay?.startsWith('status:') && isListingId(nav.overlay.slice('status:'.length))
       ? nav.overlay.slice('status:'.length)
@@ -500,6 +527,13 @@ export default function App() {
       // ignore
     }
     setApplyTarget({ listingId, via: viaForListing(parseStoredVia(stored), listingId, Date.now()) });
+  };
+  // Every "Request to Book" button: real (database) rooms open the 2.0 apply sheet;
+  // the 1.0 demo rooms keep the 1.0 application form. Drafting a lease waits until after testing.
+  const requestToBook = (room: RoomListing) => {
+    const dbId = dbListingId(room.id);
+    if (dbId) openDbApply(dbId);
+    else openApplication();
   };
 
   // Deep links from emails and invites: ?house=<token>, ?inbox=<application id>, ?passport=..., ?applicants=<id>, ?fill=<id>
@@ -1486,6 +1520,7 @@ export default function App() {
                         isActive={idx === currentRoomIndex}
                         isMuted={isMuted}
                         onToggleMute={() => setIsMuted((prev) => !prev)}
+                        onAutoplayMuted={() => setIsMuted(true)}
                         onDoubleTapLike={() => handleToggleLike(room.id)}
                         onNextRoom={handleNextRoom}
                         onPrevRoom={handlePrevRoom}
@@ -1531,9 +1566,7 @@ export default function App() {
                         }}
                         onRequestToBook={() => {
                           setCurrentRoomIndex(idx);
-                          const dbId = dbListingId(room.id);
-                          if (dbId) openDbApply(dbId);
-                          else openApplication();
+                          requestToBook(room);
                         }}
                         isPinned={pinnedRoomIds.has(room.id)}
                         onTogglePin={() => handleTogglePin(room.id)}
@@ -1734,7 +1767,7 @@ export default function App() {
               onRequestToBookRoom={(room) => {
                 const idx = rooms.findIndex((r) => r.id === room.id);
                 if (idx !== -1) setCurrentRoomIndex(idx);
-                openApplication();
+                requestToBook(room);
               }}
               onOpenRenterLandlordHub={() => setActiveTab('home')}
               onOpenMessages={() => setActiveTab('messages')}
@@ -1761,13 +1794,16 @@ export default function App() {
         )}
 
         {/* Fenly 2.0 Fill tab (with Supabase): fill a room, drafts, live listings' status */}
-        {activeTab === 'fill' && flagsLoaded && supabaseConfigured && (
-          <div className="relative flex-1 min-h-0 w-full flex flex-col overflow-hidden">
+        {/* While Fill my room (or an edit) is open it stays mounted, hidden, when the host visits another
+            tab: filmed clips and typed text are only saved at each step's Continue, so unmounting lost them */}
+        {(activeTab === 'fill' || Boolean(editListingId) || Boolean(fillOverlay && (fillOverlay === 'new' || fillListingId))) && flagsLoaded && supabaseConfigured && (
+          <div className={`relative flex-1 min-h-0 w-full flex-col overflow-hidden ${activeTab === 'fill' ? 'flex' : 'hidden'}`}>
             {!fillOverlay && !editListingId && !applicantsListingId && !statusListingId && <OnboardingBanner tab="fill" />}
             {editListingId ? (
               <FillFlow
-                key={`edit-${editListingId}`}
+                key={`edit-${editListingId}-${editStartAt ?? 'start'}`}
                 mode="edit"
+                startAt={editStartAt}
                 listingId={editListingId}
                 onClose={() => openFillStatus(editListingId, true)}
                 onOpenStatus={(id) => openFillStatus(id, true)}
@@ -1788,6 +1824,7 @@ export default function App() {
                 listingId={statusListingId}
                 onBack={closeOverlay}
                 onEdit={() => navigate((prev) => ({ ...prev, tab: 'fill', overlay: `edit:${statusListingId}` }))}
+                onEditVideo={() => navigate((prev) => ({ ...prev, tab: 'fill', overlay: `edit:${statusListingId}:video` }))}
               />
             ) : (
               <FillHome
@@ -1829,7 +1866,7 @@ export default function App() {
               onStartApplicationForRoom={(room) => {
                 const idx = rooms.findIndex((r) => r.id === room.id);
                 if (idx !== -1) setCurrentRoomIndex(idx);
-                openApplication();
+                requestToBook(room);
               }}
               onOpenDirectMessages={(convId) => {
                 if (convId) setActiveConversationId(convId);
@@ -1933,7 +1970,7 @@ export default function App() {
         room={currentRoom}
         userProfile={userProfile}
         onOpenDirectMessage={() => handleOpenDirectMessage(currentRoom)}
-        onStartApplication={() => openApplication()}
+        onStartApplication={() => requestToBook(currentRoom)}
         onViewHostProfile={handleViewHostProfile}
       />
 

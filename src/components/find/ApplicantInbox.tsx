@@ -7,6 +7,7 @@
  * The fit chips and the summary come from factual fields only (server: FactualApplicant).
  */
 import React, { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ArrowLeft,
   Check,
@@ -15,6 +16,7 @@ import {
   IdCard,
   Loader2,
   MessageCircle,
+  RotateCcw,
   Sparkles,
   Star,
   ThumbsDown,
@@ -63,6 +65,30 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
   const [declining, setDeclining] = useState<ApplicantCard | null>(null);
   const [declineText, setDeclineText] = useState('');
   const [choosing, setChoosing] = useState<ApplicantCard | null>(null);
+  /** Shown after a choice goes through */
+  const [notice, setNotice] = useState<string | null>(null);
+  /** Reopen a filled room: confirm sheet open, and the request running */
+  const [reopening, setReopening] = useState(false);
+  const [reopenBusy, setReopenBusy] = useState(false);
+
+  const reopen = async () => {
+    setReopenBusy(true);
+    setActionError(null);
+    try {
+      const { applicantsBack } = await findApi.reopen(listingId);
+      await load();
+      setNotice(
+        applicantsBack > 0
+          ? `Your room is open again. ${applicantsBack} earlier applicant${applicantsBack === 1 ? ' is' : 's are'} back in your list and got a note.`
+          : 'Your room is open again and back in Find.'
+      );
+      setReopening(false);
+    } catch (e) {
+      setActionError(e instanceof ApiError ? e.body?.message ?? e.message : "That didn't work. Try again.");
+    } finally {
+      setReopenBusy(false);
+    }
+  };
   const [invite, setInvite] = useState<{ url: string; copied: boolean } | null>(null);
   const [reporting, setReporting] = useState<ApplicantCard | null>(null);
   const [showClosed, setShowClosed] = useState(false);
@@ -170,7 +196,9 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
       `Passport L${a.badges.level}`,
       `via ${a.channel}`,
     ].filter(Boolean);
-    const hasMore = Boolean(a.introUrl || a.bio || Object.keys(a.lifestyle).length > 0 || canAct);
+    const hasMore = Boolean(
+      a.introUrl || a.bio || Object.keys(a.lifestyle).length > 0 || (canAct && a.status === 'shortlisted' && data.idCheckEnabled && !a.badges.id)
+    );
     const quiet = 'min-h-10 px-2.5 rounded-lg text-xs font-bold hover:bg-[#F2EFE9] flex items-center gap-1 disabled:opacity-60';
     return (
       <div key={a.applicationId} data-testid={`applicant-${a.applicationId}`} className="p-3.5 rounded-2xl bg-white border border-[#2C2724]/10 space-y-2.5">
@@ -228,25 +256,10 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
                 ))}
               </div>
             )}
-            {canAct && (
-              <div className="flex items-center gap-1 flex-wrap">
-                {a.status === 'shortlisted' && data.idCheckEnabled && !a.badges.id && (
-                  <button type="button" disabled={busy || Boolean(a.idCheckRequestedAt)} onClick={() => void act(a, 'request-id')} className={quiet}>
-                    <IdCard className="w-3.5 h-3.5" /> {a.idCheckRequestedAt ? 'ID check asked' : 'Ask for ID check'}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    setDeclining(a);
-                    setDeclineText(declineTemplate(a.firstName, area));
-                  }}
-                  className={quiet}
-                >
-                  <X className="w-3.5 h-3.5" /> Decline
-                </button>
-              </div>
+            {canAct && a.status === 'shortlisted' && data.idCheckEnabled && !a.badges.id && (
+              <button type="button" disabled={busy || Boolean(a.idCheckRequestedAt)} onClick={() => void act(a, 'request-id')} className={quiet}>
+                <IdCard className="w-3.5 h-3.5" /> {a.idCheckRequestedAt ? 'ID check asked' : 'Ask for ID check'}
+              </button>
             )}
           </div>
         )}
@@ -271,12 +284,36 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
               <Star className="w-3.5 h-3.5" /> Shortlist
             </button>
           )}
-          {canAct && (
-            <button type="button" disabled={busy} onClick={() => setChoosing(a)} className={`min-h-10 px-3.5 rounded-lg text-xs font-extrabold bg-[#B85B3F] hover:bg-[#A9513A] text-white flex items-center gap-1 ${a.status === 'submitted' ? '' : 'ml-auto'}`}>
+        </div>
+
+        {/* The host's decision: Decline and Choose side by side */}
+        {canAct && (
+          <div className="flex items-center gap-2" data-testid={`applicant-decide-${a.applicationId}`}>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setActionError(null);
+                setDeclining(a);
+                setDeclineText(declineTemplate(a.firstName, area));
+              }}
+              className="flex-1 min-h-10 px-3 rounded-lg text-xs font-bold bg-white border border-[#2C2724]/25 hover:bg-[#F2EFE9] flex items-center justify-center gap-1 disabled:opacity-60"
+            >
+              <X className="w-3.5 h-3.5" /> Decline
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setActionError(null);
+                setChoosing(a);
+              }}
+              className="flex-1 min-h-10 px-3 rounded-lg text-xs font-extrabold bg-[#B85B3F] hover:bg-[#A9513A] text-white flex items-center justify-center gap-1 disabled:opacity-60"
+            >
               {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Choose
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -329,7 +366,28 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
         </div>
       </div>
 
-      {actionError && <p className="text-xs font-bold text-[#9A4A33]">{actionError}</p>}
+      {notice && (
+        <p role="status" className="p-3 rounded-xl bg-[#EBF0EC] border border-[#7A907C]/40 text-xs font-bold text-[#485B4A] flex items-center gap-1.5">
+          <Check className="w-3.5 h-3.5 shrink-0" /> {notice}
+        </p>
+      )}
+      {isHost && data.listing.status === 'filled' && (
+        <div className="p-3 rounded-xl bg-white border border-[#2C2724]/15 flex items-center justify-between gap-3" data-testid="reopen-room">
+          <p className="text-xs text-[#6E655F] leading-snug">This room is filled. Plans changed?</p>
+          <button
+            type="button"
+            onClick={() => {
+              setActionError(null);
+              setNotice(null);
+              setReopening(true);
+            }}
+            className="min-h-10 px-3 rounded-lg bg-white border border-[#2C2724]/25 hover:bg-[#F2EFE9] text-xs font-extrabold flex items-center gap-1.5 shrink-0"
+          >
+            <RotateCcw className="w-3.5 h-3.5" /> Reopen room
+          </button>
+        </div>
+      )}
+      {actionError && !declining && !choosing && !reopening && <p className="text-xs font-bold text-[#9A4A33]">{actionError}</p>}
 
       {data.applicants.length === 0 ? (
         <div className="p-4 rounded-2xl bg-white border border-[#2C2724]/15 text-center space-y-1">
@@ -360,12 +418,14 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
         </div>
       )}
 
-      {declining && (
+      {/* Sheets render on <body>: inside this scrolling screen, iPhone browsers draw them under the bottom tab bar */}
+      {declining && createPortal(
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-[#2C2724]/60" onClick={() => setDeclining(null)}>
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm bg-[#F9F7F3] border border-[#2C2724] rounded-t-3xl sm:rounded-2xl p-5 space-y-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm max-h-[90dvh] overflow-y-auto bg-[#F9F7F3] border border-[#2C2724] rounded-t-3xl sm:rounded-2xl p-5 space-y-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
             <h3 className="font-extrabold text-sm">Decline {declining.firstName ?? 'this applicant'}</h3>
             <p className="text-[11px] text-[#6E655F]">This message is sent in Inbox and by email. Edit it if you like.</p>
             <textarea value={declineText} maxLength={1000} onChange={(e) => setDeclineText(e.target.value)} className="w-full min-h-[120px] bg-white border border-[#2C2724]/25 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-[#D06C4E]" />
+            {actionError && <p role="alert" className="text-xs font-bold text-[#9A4A33]">{actionError}</p>}
             <div className="flex gap-2">
               <button type="button" onClick={() => setDeclining(null)} className="flex-1 py-2.5 rounded-xl bg-white border border-[#2C2724]/25 text-xs font-bold">Cancel</button>
               <button
@@ -381,31 +441,58 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
-      {choosing && (
-        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-[#2C2724]/60" onClick={() => setChoosing(null)}>
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm bg-[#F9F7F3] border border-[#2C2724] rounded-t-3xl sm:rounded-2xl p-5 space-y-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]" data-testid="choose-confirm">
+      {choosing && createPortal(
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-[#2C2724]/60" onClick={() => { setChoosing(null); setActionError(null); }}>
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm max-h-[90dvh] overflow-y-auto bg-[#F9F7F3] border border-[#2C2724] rounded-t-3xl sm:rounded-2xl p-5 space-y-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]" data-testid="choose-confirm">
             <h3 className="font-extrabold text-sm">Choose {choosing.firstName ?? 'this applicant'}?</h3>
             <p className="text-xs text-[#6E655F] leading-relaxed">
               Your room is marked filled. {open.filter((a) => a !== choosing && a.status !== 'chosen').length} other applicant(s) get a kind note that the room is taken, with similar rooms nearby.
             </p>
+            {actionError && <p role="alert" className="text-xs font-bold text-[#9A4A33]">{actionError}</p>}
             <div className="flex gap-2">
-              <button type="button" onClick={() => setChoosing(null)} className="flex-1 py-2.5 rounded-xl bg-white border border-[#2C2724]/25 text-xs font-bold">Not yet</button>
+              <button type="button" onClick={() => { setChoosing(null); setActionError(null); }} className="flex-1 min-h-10 py-2.5 rounded-xl bg-white border border-[#2C2724]/25 text-xs font-bold">Not yet</button>
               <button
                 type="button"
                 disabled={busyId === choosing.applicationId}
                 onClick={async () => {
-                  if (await act(choosing, 'choose')) setChoosing(null);
+                  if (await act(choosing, 'choose')) {
+                    setNotice(`${choosing.firstName ?? 'Your applicant'} is chosen. Your room is marked filled.`);
+                    setChoosing(null);
+                  }
                 }}
-                className="flex-1 py-2.5 rounded-xl bg-[#B85B3F] text-white text-xs font-extrabold flex items-center justify-center gap-1"
+                className="flex-1 min-h-10 py-2.5 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-xs font-extrabold flex items-center justify-center gap-1 disabled:opacity-60"
               >
                 {busyId === choosing.applicationId && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Choose and fill the room
               </button>
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
+
+      {reopening && createPortal(
+        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-[#2C2724]/60" onClick={() => { setReopening(false); setActionError(null); }}>
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm max-h-[90dvh] overflow-y-auto bg-[#F9F7F3] border border-[#2C2724] rounded-t-3xl sm:rounded-2xl p-5 space-y-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]" data-testid="reopen-confirm">
+            <h3 className="font-extrabold text-sm">Reopen this room?</h3>
+            <p className="text-xs text-[#6E655F] leading-relaxed">
+              Your room goes live again in Find and on its link. The person you chose moves back to your shortlist, and applicants who were told the room was taken get their application back, with a note.
+            </p>
+            {actionError && <p role="alert" className="text-xs font-bold text-[#9A4A33]">{actionError}</p>}
+            <div className="flex gap-2">
+              <button type="button" onClick={() => { setReopening(false); setActionError(null); }} className="flex-1 min-h-10 py-2.5 rounded-xl bg-white border border-[#2C2724]/25 text-xs font-bold">Keep it filled</button>
+              <button
+                type="button"
+                disabled={reopenBusy}
+                onClick={() => void reopen()}
+                className="flex-1 min-h-10 py-2.5 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-xs font-extrabold flex items-center justify-center gap-1 disabled:opacity-60"
+              >
+                {reopenBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Reopen room
+              </button>
+            </div>
+          </div>
+        </div>
+      , document.body)}
 
       {reporting && (
         <ReportSheet

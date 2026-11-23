@@ -8,6 +8,7 @@
  * Pure (no DOM, no network) so the server and the browser share it.
  */
 import { SF_NEIGHBORHOODS } from '../fill/neighborhoods.js';
+import { norcalCity } from './norcal.js';
 
 export const BAY_AREA_REGIONS = ['San Francisco', 'East Bay', 'Peninsula', 'South Bay'] as const;
 export type BayAreaRegion = (typeof BAY_AREA_REGIONS)[number];
@@ -146,13 +147,23 @@ export function bayAreaCity(name: string | null | undefined): BayAreaCity | null
 export function neighborhoodIn(c: BayAreaCity, name: string | null | undefined): Spot | null {
   if (!name || !c.neighborhoods) return null;
   const n = norm(name);
-  return c.neighborhoods.find((h) => norm(h.name) === n || n.startsWith(`${norm(h.name)} `)) ?? null;
+  // Exact, or with a generic ending. "Mission Bay" and "Mission Terrace" are other places, not Mission
+  const base = n.replace(/\s+(district|neighborhood|area)$/, '');
+  return c.neighborhoods.find((h) => norm(h.name) === n || norm(h.name) === base) ?? null;
+}
+
+/**
+ * A city a room can be in: one of the launch-area cities above (with their regions and
+ * neighborhoods), or any other Northern California city (norcal.ts).
+ */
+export function serviceCity(name: string | null | undefined): Spot | null {
+  return bayAreaCity(name) ?? norcalCity(name);
 }
 
 /** Where a listing is, for distances: its neighborhood's center, else its city's. Null when unknown. */
 export function areaCenter(cityName: string | null | undefined, neighborhood: string | null | undefined): Spot | null {
   const c = bayAreaCity(cityName);
-  if (!c) return null;
+  if (!c) return norcalCity(cityName);
   return neighborhoodIn(c, neighborhood) ?? c;
 }
 
