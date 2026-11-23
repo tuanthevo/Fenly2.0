@@ -10,7 +10,7 @@ import { publicOrigin } from "./fillRoutes.js";
 import { adminDb, dbError, isAdminUser, isUuid } from "./routeKit.js";
 import { moveOutReminderDue } from "./emails.js";
 import { daysUntil, todayIn } from "../src/fill/fillStatus.js";
-import { buildFunnel, median, parseMetricsDays } from "./metrics.js";
+import { buildFunnel, median, parseMetricsDays, buildMediaSplit } from "./metrics.js";
 import { bayAreaCity } from "../src/geo/bayArea.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { alertDigest, cleanAlertPrefs, type AlertListing } from "../src/find/roomAlerts.js";
@@ -139,8 +139,26 @@ export function registerAdminRoutes(app: Express): void {
         ? await admin.from("passports").select("user_id", { count: "exact", head: true }).in("user_id", chosenIds).gte("updated_at", sixtyDaysAgo)
         : { count: 0 };
       const filled = filledRows.data ?? [];
-      res.json(
-        buildFunnel({
+      // Video vs photos: listings started in the window. Read on its own so that a database
+      // without migration 0008 (no media_type column) still gets the funnel.
+      let mediaSplit: ReturnType<typeof buildMediaSplit> | undefined;
+      const started = await admin.from("listings").select("id, media_type, created_at, published_at, filled_at").gte("created_at", since).limit(10000);
+      if (!started.error) {
+        const startedIds = (started.data ?? []).map((l) => l.id);
+        const [startedApps, chosenEvents] = await Promise.all([
+          startedIds.length ? admin.from("applications").select("listing_id").in("listing_id", startedIds).limit(50000) : Promise.resolve({ data: [] as Row[] }),
+          admin.from("events").select("props").eq("name", "media_option_chosen").gte("created_at", since).limit(50000),
+        ]);
+        const appsPer = new Map<string, number>();
+        for (const a of startedApps.data ?? []) appsPer.set(a.listing_id, (appsPer.get(a.listing_id) ?? 0) + 1);
+        const picks = (chosenEvents.data ?? []).map((e) => (e.props as { media_type?: string } | null)?.media_type);
+        mediaSplit = buildMediaSplit({
+          chosen: { video: picks.filter((p) => p === "video").length, photos: picks.filter((p) => p === "photos").length },
+          listings: (started.data ?? []).map((l) => ({ ...l, applications: appsPer.get(l.id) ?? 0 })),
+        });
+      }
+      res.json({
+        ...buildFunnel({
           days,
           events: {
             fill_started: fillStarted,
@@ -162,8 +180,9 @@ export function registerAdminRoutes(app: Express): void {
           applicationsViaSharedLink: (apps.data ?? []).filter((a) => a.source_link_id && sharedLinkIds.has(a.source_link_id)).length,
           chosenLongAgo: chosenIds.length,
           chosenStillActive: active ?? 0,
-        })
-      );
+        }),
+        mediaSplit,
+      });
     } catch (error) {
       console.error("metrics:", error instanceof Error ? error.message : error);
       res.status(500).json({ error: "database_error" });

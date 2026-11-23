@@ -14,6 +14,7 @@ export type ClientEventName =
   | 'publish_gate_shown'
   | 'menu_feature_opened'
   | 'tour_recorded'
+  | 'media_option_chosen'
   | 'link_shared'
   | 'pwa_prompt_shown'
   | 'pwa_prompt_dismissed'

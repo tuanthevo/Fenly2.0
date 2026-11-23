@@ -19,11 +19,13 @@ interface ShareKitProps {
   videoUrl?: string | null;
   /** The just-exported video, when still in memory */
   videoBlob?: Blob | null;
+  /** A photo listing made in a browser that can't export video: there is no file to download */
+  noVideo?: boolean;
 }
 
 const cardClass = 'p-3.5 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm space-y-2';
 
-export const ShareKit: React.FC<ShareKitProps> = ({ listingId, links, posts, caption, videoUrl, videoBlob }) => {
+export const ShareKit: React.FC<ShareKitProps> = ({ listingId, links, posts, caption, videoUrl, videoBlob, noVideo }) => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -98,6 +100,11 @@ export const ShareKit: React.FC<ShareKitProps> = ({ listingId, links, posts, cap
           <CopyButton id="direct-link" text={url('direct')} channel="direct" label="Copy" primary />
         </div>
         <div className="grid grid-cols-2 gap-2">
+          {noVideo ? (
+            <p className="text-[11px] text-[#6E655F] leading-snug self-center" data-testid="share-no-video">
+              This browser can't make the video file. Open your listing in Chrome or Safari 26 to make one.
+            </p>
+          ) : (
           <button
             type="button"
             onClick={() => void download()}
@@ -107,6 +114,7 @@ export const ShareKit: React.FC<ShareKitProps> = ({ listingId, links, posts, cap
             {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
             Download video
           </button>
+          )}
           {caption ? (
             <CopyButton id="caption" text={caption} channel="caption" label="Copy caption" />
           ) : (

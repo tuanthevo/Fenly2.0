@@ -9,6 +9,8 @@ import type { FairHousingIssue, PublishProblem } from '../fill/listingRules';
 import type { SharePosts } from '../fill/sharePosts';
 import type { ChannelSummary, FillSummary, Nudge } from '../fill/fillStatus';
 import type { ShareChannel } from '../fill/types';
+import type { PhotoSlot } from '../fill/photoShots';
+import type { PhotoAssist } from '../fill/photoAssist';
 
 export type ListingRow = {
   id: string;
@@ -34,6 +36,23 @@ export type ListingRow = {
   copy_approved_at: string | null;
   published_at: string | null;
   updated_at: string;
+  /** Missing on servers older than photo listings: a video listing */
+  media_type?: 'video' | 'photos';
+};
+
+/** One of the host's photos (photo listings), as saved in listing_photos. */
+export type PhotoRow = {
+  id?: string;
+  slot: PhotoSlot;
+  position: number;
+  storage_path: string;
+  width: number | null;
+  height: number | null;
+  caption: string | null;
+  caption_approved: boolean;
+  phash: string | null;
+  qc_flags: string[];
+  signedUrl?: string | null;
 };
 
 export type MediaRow = {
@@ -93,7 +112,7 @@ export const fillApi = {
   createDraft: (moveOutDate: string, rentCents: number) =>
     api<{ listing: ListingRow }>('/api/listings', { method: 'POST', body: { moveOutDate, rentCents } }),
   listMine: () => api<{ listings: Pick<ListingRow, 'id' | 'status' | 'title' | 'neighborhood' | 'rent_cents' | 'move_out_date' | 'lease_permission' | 'published_at' | 'updated_at'>[] }>('/api/listings/mine'),
-  get: (id: string) => api<{ listing: ListingRow; media: MediaRow[]; links: LinkRow[] }>(`/api/listings/${id}`),
+  get: (id: string) => api<{ listing: ListingRow; media: MediaRow[]; links: LinkRow[]; photos?: PhotoRow[] }>(`/api/listings/${id}`),
   patch: (id: string, patch: Record<string, unknown>) =>
     api<{ listing: ListingRow }>(`/api/listings/${id}`, { method: 'PATCH', body: patch }),
   publish: (id: string) =>
@@ -106,6 +125,9 @@ export const fillApi = {
       nudges: Nudge[];
       links: LinkRow[];
     }>(`/api/listings/${id}/status`),
+  /** Photo listings: suggested order, callouts, facts and privacy flags. Suggestions only; the host checks them. */
+  photoAssist: (body: { listing: Record<string, unknown>; photos: { id: string; slot: PhotoSlot; jpegBase64: string }[] }) =>
+    api<{ assist: PhotoAssist; model_used: string | null }>('/api/photos/assist', { method: 'POST', body }),
   /** "Improve with AI" for the note to the host: a suggested rewrite, never sent until the applicant picks it */
   rewriteNote: (note: string) => api<{ rewrite: string }>('/api/gemini/rewrite-note', { method: 'POST', body: { note } }),
   apply: (id: string, body: { note?: string; moveInDate?: string | null; via?: string | null; introVideoPath?: string }) =>
@@ -127,7 +149,7 @@ export function storageVideoType(blob: Blob): { contentType: string; ext: string
  * report upload progress). Row-level security allows only the listing's owner.
  */
 export async function uploadToStorage(
-  bucket: 'listing-videos' | 'listing-thumbnails' | 'profile-photos' | 'applicant-intros',
+  bucket: 'listing-videos' | 'listing-thumbnails' | 'listing-photos' | 'profile-photos' | 'applicant-intros',
   path: string,
   blob: Blob,
   contentType: string,
@@ -180,6 +202,37 @@ export async function saveMediaRows(
   if (!supabase) throw new Error('Sign-in is not set up.');
   const { error } = await supabase.from('listing_media').upsert(rows, { onConflict: 'bucket,path' });
   if (error) throw new Error(`Couldn't save the video to your listing: ${error.message}`);
+}
+
+/** Saves the listing's photo rows (owner-only through RLS). The same storage path again updates its row. */
+export async function savePhotoRows(listingId: string, rows: PhotoRow[]): Promise<void> {
+  const supabase = await getSupabase();
+  if (!supabase) throw new Error('Sign-in is not set up.');
+  const { error } = await supabase.from('listing_photos').upsert(
+    rows.map(({ id: _id, signedUrl: _url, ...row }) => ({ ...row, listing_id: listingId })),
+    { onConflict: 'storage_path' }
+  );
+  if (error) throw new Error(`Couldn't save your photos: ${error.message}`);
+}
+
+/** Removes photos the host retook or deleted: the files and their rows. */
+export async function deletePhotos(paths: string[]): Promise<void> {
+  if (paths.length === 0) return;
+  const supabase = await getSupabase();
+  if (!supabase) return;
+  await supabase.storage.from('listing-photos').remove(paths);
+  await supabase.from('listing_photos').delete().in('storage_path', paths);
+}
+
+/**
+ * Forgets the finished tour (video + cover) after the host switches between video and photos:
+ * it was made from the other kind of media, so the tour step makes a new one. The clips and
+ * photos themselves stay, which is what lets the host switch back.
+ */
+export async function clearFinishedTour(listingId: string): Promise<void> {
+  const supabase = await getSupabase();
+  if (!supabase) return;
+  await supabase.from('listing_media').delete().eq('listing_id', listingId).in('kind', ['video_full', 'video_teaser', 'thumbnail']);
 }
 
 /** A JPEG of one frame (default 1.5 s in), scaled to `maxHeight`, plus the video's size. */

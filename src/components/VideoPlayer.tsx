@@ -1,7 +1,9 @@
 import React, { useRef, useState, useEffect, useMemo, Suspense } from 'react';
-import { Play, Pause, Heart } from 'lucide-react';
+import { Play, Pause, Heart, Images, ShieldCheck } from 'lucide-react';
 import { RoomListing } from '../types';
-import { photoTourPlanForRoom } from '../utils/photoTourListing';
+import { listingInfoForRoom, photoTourPlanForListing, photoTourPlanForRoom } from '../utils/photoTourListing';
+import { isPhotoSlot } from '../fill/photoShots';
+import { PhotoGrid } from './find/PhotoGrid';
 import { useFlag } from '../config/FlagsProvider';
 import { chapterJump, roomStarts } from '../find/videoChapters';
 
@@ -262,7 +264,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const lastWheelTimeRef = useRef<number>(0);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
-  const scenes: TourScene[] = room.customScenes || ROOM_TOUR_SCENES[room.id] || [
+  // A photo listing (Fill > Take photos): the host's own photos, never the demo pictures below
+  const listingPhotos = room.mediaType === 'photos' ? room.photos ?? [] : [];
+  const isPhotoListing = room.mediaType === 'photos';
+  const [gridOpen, setGridOpen] = useState(false);
+  const photoListingsOn = useFlag('photo_listings');
+  const scenes: TourScene[] = isPhotoListing
+    ? (listingPhotos.length ? listingPhotos : [{ url: room.fallbackThumbnail, caption: null }]).map((p) => ({ label: p.caption || 'Photo', caption: '', imageUrl: p.url }))
+    : room.customScenes || ROOM_TOUR_SCENES[room.id] || [
     {
       label: 'Clip 1/4 • Entry & Common Space',
       caption: `Welcome inside our flat in ${room.neighborhood} ✨`,
@@ -383,9 +392,21 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   // Photos are loaded first and any that fail are skipped, so a dead link never shows as a black frame.
   // Off unless the photo_tour flag is on (a demo feature); the slideshow below plays instead
   const photoTourOn = useFlag('photo_tour');
-  const loadedPhotos = useLoadedPhotos(photoTourOn && isActive && !isViralEdit ? scenes.map((s) => s.imageUrl) : null);
+  // A photo listing whose host's browser couldn't export the MP4 plays the same tour live, whatever the flag says
+  const loadedPhotos = useLoadedPhotos((photoTourOn || isPhotoListing) && isActive && !isViralEdit ? scenes.map((s) => s.imageUrl) : null);
   const photoTourPlan = useMemo(
-    () => (isViralEdit || !loadedPhotos ? null : photoTourPlanForRoom(room, scenes.filter((s) => loadedPhotos.has(s.imageUrl)))),
+    () =>
+      isViralEdit || !loadedPhotos
+        ? null
+        : isPhotoListing
+        ? photoTourPlanForListing(
+            listingInfoForRoom(room),
+            listingPhotos
+              .filter((p) => loadedPhotos.has(p.url))
+              .map((p) => ({ src: p.url, slot: isPhotoSlot(p.slot) ? p.slot : 'other', caption: p.caption, landscape: (p.width ?? 0) > (p.height ?? 0) })),
+            { listingId: room.id }
+          )
+        : photoTourPlanForRoom(room, scenes.filter((s) => loadedPhotos.has(s.imageUrl))),
     // scenes is derived from room
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [room, isViralEdit, loadedPhotos]
@@ -708,6 +729,45 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           );
         })}
       </div>
+
+      {/* Photo listings say what they are, with every photo one tap away; "Verified real" is for filmed tours only */}
+      {isPhotoListing && (
+        <div className="absolute top-14 left-3 z-30 flex flex-col items-start gap-1.5" data-testid="photo-listing-label">
+          <span className="px-2.5 py-1 rounded-full bg-[#2C2724]/75 text-[#F9F7F3] text-[11px] font-bold">Made from the host's photos</span>
+          {listingPhotos.length > 0 && (
+            <button
+              type="button"
+              data-testid="see-all-photos"
+              className="min-h-10 px-3 rounded-full bg-[#F9F7F3] text-[#2C2724] text-xs font-extrabold flex items-center gap-1.5 shadow-warm-sm active:scale-95"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsPlaying(false);
+                setGridOpen(true);
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseUp={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+            >
+              <Images className="w-4 h-4" aria-hidden="true" /> See all photos
+            </button>
+          )}
+        </div>
+      )}
+      {photoListingsOn && !isPhotoListing && isViralEdit && room.id.startsWith('db:') && (
+        <span className="absolute top-14 left-3 z-30 px-2.5 py-1 rounded-full bg-[#EBF0EC] text-[#485B4A] text-[11px] font-bold flex items-center gap-1 pointer-events-none" data-testid="verified-real-badge">
+          <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" /> Verified real
+        </span>
+      )}
+      {gridOpen && (
+        <PhotoGrid
+          photos={listingPhotos}
+          onClose={() => {
+            setGridOpen(false);
+            setIsPlaying(true);
+          }}
+        />
+      )}
 
       {/* Paused tour video (by a tap, or the browser refused to start it): a play button until it plays */}
       {isViralEdit && isActive && !isPlaying && !showPlayIcon && (
