@@ -49,6 +49,7 @@ const CORE_FILES = [
   'components/InstallPrompt.tsx',
   'components/OnboardingBanner.tsx',
   'components/VideoInfoOverlay.tsx',
+  'components/RoomDetailsModal.tsx',
   'components/SidebarActions.tsx',
   'components/NavMenu.tsx',
   ...fs.readdirSync(path.join(ROOT, 'components/find')).filter((f) => f.endsWith('.tsx')).map((f) => `components/find/${f}`),
