@@ -63,7 +63,12 @@ test("listing page escapes listing text, shows facts, and links Apply with the c
   assert.ok(html.includes('href="/?apply=aaaa&amp;via=fbCode01"'));
   assert.ok(html.includes("token=t&amp;x=1")); // URLs inside attributes are escaped too
   assert.ok(html.includes('property="og:image"'));
-  assert.ok(html.includes("Apply with your Passport"));
+  assert.ok(html.includes(">Apply to this room<"));
+  // Brand font, and white text only on the darker terracotta (4.5:1), never on #D06C4E
+  assert.ok(html.includes("fonts.googleapis.com/css2?family=Plus+Jakarta+Sans"));
+  const style = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+  for (const rule of style.split("}")) assert.ok(!(rule.includes("color:#fff") && /var\(--accent\)|#D06C4E/i.test(rule)), rule);
+  assert.ok(!/opacity:\.7/.test(html));
   assert.ok(!/address:/i.test(html));
 });
 
