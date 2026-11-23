@@ -13,6 +13,7 @@ import {
   type PhotoTourPhoto,
 } from '../remotion/viral/photoTour';
 import type { ViralEditPlan, ViralListingInfo, ViralStyleId } from '../remotion/viral/types';
+import { cleanTag } from '../remotion/viral/copy';
 
 export type TourPhotoScene = { label: string; imageUrl: string };
 
@@ -97,6 +98,17 @@ const shotName = (slot: PhotoSlot) => PHOTO_SHOTS.find((s) => s.slot === slot)?.
 export function calloutsFromCaption(caption: string | null | undefined, slot: PhotoSlot): { tag: string; detail: string } {
   const [first = '', ...rest] = (caption ?? '').split(',').map((part) => part.trim()).filter(Boolean);
   return { tag: first || shotName(slot), detail: rest.join(', ') };
+}
+
+/**
+ * Labels in a caption that the video would cut off: on-screen callouts hold 3 words
+ * and 22 characters (copy.ts cleanTag). The editor shows these so the host can shorten them.
+ */
+export function longCalloutParts(caption: string | null | undefined): string[] {
+  return (caption ?? '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part && cleanTag(part) !== part.replace(/\s+/g, ' '));
 }
 
 /**

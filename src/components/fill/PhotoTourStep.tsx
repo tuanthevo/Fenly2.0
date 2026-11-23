@@ -11,7 +11,7 @@ import { PRIVACY_FLAG_TEXT, captionIssues } from '../../fill/photoAssist';
 import { MAX_HOOK_CHARS, sanitizeHookText } from '../../remotion/viral/copy';
 import { checkBrowserCanExport, exportViralVideo, preloadExporter } from '../../remotion/viral/exportVideo';
 import type { ViralEditPlan, ViralListingInfo } from '../../remotion/viral/types';
-import { photoTourPlanForListing } from '../../utils/photoTourListing';
+import { longCalloutParts, photoTourPlanForListing } from '../../utils/photoTourListing';
 import type { PhotoDraft } from './usePhotoDraft';
 
 const PhotoTourPlayer = React.lazy(() => import('../PhotoTourPlayer'));
@@ -100,9 +100,9 @@ export const PhotoTourStep: React.FC<PhotoTourStepProps> = ({ listingId, listing
   return (
     <div className="space-y-3" data-testid="photo-tour-step">
       <div className={`${card} space-y-3`}>
-        <div className="flex items-center justify-between gap-2">
+        <div>
           <h3 className="text-sm font-extrabold">Your photo tour</h3>
-          <span className="text-[11px] font-bold text-[#6E655F]">Made from your photos. Nothing is added or changed.</span>
+          <p className="text-xs text-[#6E655F] mt-0.5">Made from your photos. Nothing is added or changed.</p>
         </div>
         <div className="relative mx-auto w-full max-w-[260px] aspect-[9/16] rounded-2xl overflow-hidden bg-[#2C2724]">
           {plan ? (
@@ -162,7 +162,13 @@ export const PhotoTourStep: React.FC<PhotoTourStepProps> = ({ listingId, listing
                   placeholder="South-facing window, Built-in closet"
                   onChange={(e) => draft.setCaption(p.key, e.target.value)}
                   data-testid={`photo-caption-${i}`}
+                  aria-describedby={longCalloutParts(p.caption).length ? `caption-hint-${p.key}` : undefined}
                 />
+                {longCalloutParts(p.caption).length > 0 && (
+                  <p id={`caption-hint-${p.key}`} className="text-[11px] font-bold text-[#A9513A] mt-1" role="status">
+                    A label fits 3 words and 22 letters on screen. Shorten: {longCalloutParts(p.caption).map((part) => `"${part}"`).join(', ')}
+                  </p>
+                )}
               </div>
               <div className="flex flex-col gap-1 pt-5">
                 <button type="button" className={iconBtn} disabled={i === 0} onClick={() => draft.move(p.key, -1)} aria-label={`Move photo ${i + 1} earlier`}>

@@ -170,7 +170,7 @@ export const PhotoShotCapture: React.FC<PhotoShotCaptureProps> = ({ draft, onErr
         {onExtras && full ? (
           <p className="text-xs font-bold text-[#6E655F]">You have {MAX_PHOTOS} photos, the most a listing can hold. Remove one to add another.</p>
         ) : (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
             <button type="button" className={taken ? secondaryBtn : primaryBtn} disabled={busy} onClick={() => cameraInput.current?.click()} data-testid="photo-take">
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : taken ? <RotateCcw className="w-4 h-4" /> : onExtras ? <Plus className="w-4 h-4" /> : <Camera className="w-4 h-4" />}
               {taken ? 'Retake' : 'Take photo'}
@@ -205,32 +205,22 @@ export const PhotoShotCapture: React.FC<PhotoShotCaptureProps> = ({ draft, onErr
         <button type="button" className={`${secondaryBtn} !w-auto px-3`} disabled={index === 0} onClick={() => setIndex((i) => Math.max(0, i - 1))} aria-label="Previous shot">
           <ArrowLeft className="w-4 h-4" />
         </button>
-        {/* One dot per shot: filled when taken */}
-        <ol className="flex-1 flex items-center justify-center gap-1.5" aria-label="Shots">
+        {/* One dot per shot: sage when taken, terracotta while a required shot is missing */}
+        <ol className="flex-1 flex items-center justify-center gap-1.5" aria-label={`Shot ${index + 1} of ${PHOTO_SHOTS.length + 1}: ${shot.name}`}>
           {[...PHOTO_SHOTS, EXTRA_SHOT].map((s, i) => {
             const done = s.slot === 'other' ? extras.length > 0 : slots.includes(s.slot);
             return (
-              <li key={s.slot}>
-                <button
-                  type="button"
-                  onClick={() => setIndex(i)}
-                  aria-label={`${s.name}${done ? ', done' : s.required ? ', required' : ', optional'}`}
-                  aria-current={i === index ? 'step' : undefined}
-                  className="w-7 h-10 flex items-center justify-center"
-                >
-                  <span
-                    className={`block rounded-full transition-all ${i === index ? 'w-3 h-3' : 'w-2 h-2'} ${
-                      done ? 'bg-[#7A907C]' : s.required ? 'bg-[#D06C4E]' : 'bg-[#2C2724]/20'
-                    }`}
-                  />
-                </button>
-              </li>
+              <li
+                key={s.slot}
+                aria-hidden="true"
+                className={`rounded-full transition-all ${i === index ? 'w-3 h-3' : 'w-2 h-2'} ${done ? 'bg-[#7A907C]' : s.required ? 'bg-[#D06C4E]' : 'bg-[#2C2724]/20'}`}
+              />
             );
           })}
         </ol>
         <button
           type="button"
-          className={`${secondaryBtn} !w-auto px-3`}
+          className={`${secondaryBtn} !w-auto px-3 whitespace-nowrap`}
           disabled={onExtras}
           onClick={() => setIndex((i) => Math.min(PHOTO_SHOTS.length, i + 1))}
           data-testid="photo-next-shot"

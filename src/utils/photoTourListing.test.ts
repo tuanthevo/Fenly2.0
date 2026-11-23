@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { INITIAL_ROOMS } from '../data/mockRooms';
-import { factsForRoom, listingVariant, photoTourPlanForRoom, photoTourPlanForListing, PHOTO_TOUR_STYLES } from './photoTourListing';
+import { factsForRoom, listingVariant, photoTourPlanForRoom, photoTourPlanForListing, longCalloutParts, PHOTO_TOUR_STYLES } from './photoTourListing';
 import { checkPlan } from '../remotion/viral/plan';
 
 const scenes = (n: number) =>
@@ -76,4 +76,12 @@ test('a move-in date that has passed reads "Available now"; fewer than 2 photos 
   const plan = photoTourPlanForListing(INFO, HOST_PHOTOS, { availableFrom: '2026-11-01', today: '2026-11-22', listingId: 'x' })!;
   assert.ok(plan.shots[1].callouts.some((c) => c.text === 'Available now'));
   assert.equal(photoTourPlanForListing(INFO, HOST_PHOTOS.slice(0, 1), { listingId: 'x' }), null);
+});
+
+test('longCalloutParts names the labels that would be cut off on screen (over 3 words or 22 characters)', () => {
+  assert.deepEqual(longCalloutParts('Bright bedroom, Big window'), []);
+  assert.deepEqual(longCalloutParts('Desk by the window'), ['Desk by the window']);
+  assert.deepEqual(longCalloutParts('Bedroom, Extraordinarily spacious closet'), ['Extraordinarily spacious closet']);
+  assert.deepEqual(longCalloutParts(''), []);
+  assert.deepEqual(longCalloutParts(null), []);
 });
