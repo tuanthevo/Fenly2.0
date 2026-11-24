@@ -133,7 +133,7 @@ export const IntroVideoPicker: React.FC<IntroVideoPickerProps> = ({ value, onCha
       ) : previewUrl ? (
         <div className="space-y-1.5">
           <video disablePictureInPicture src={previewUrl} controls playsInline className="w-full max-h-64 rounded-xl bg-black" />
-          <button type="button" onClick={() => onChange(null)} className="text-xs font-bold text-[#9A4A33] flex items-center gap-1">
+          <button type="button" onClick={() => onChange(null)} className="min-h-10 text-xs font-bold text-[#9A4A33] flex items-center gap-1">
             <Trash2 className="w-3 h-3" /> Remove
           </button>
         </div>

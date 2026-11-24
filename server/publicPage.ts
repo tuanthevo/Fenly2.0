@@ -24,10 +24,13 @@ p{font-size:14px;line-height:1.55;color:var(--muted);margin:8px 0}
 .cta a{display:block;max-width:448px;margin:0 auto;text-align:center;background:var(--cta);color:#fff;font-weight:800;font-size:15px;padding:14px;border-radius:14px;text-decoration:none}
 .cta a:hover,.cta a:active{background:var(--cta-dark)}
 .cta a.secondary{background:var(--card);color:var(--ink);border:1px solid var(--ink)}
-.made{position:absolute;left:10px;bottom:10px;margin:0;padding:4px 9px;border-radius:999px;background:rgba(44,39,36,.72);color:#fff;font-size:11px;font-weight:700;line-height:1.3;pointer-events:none}
-.brand{font-weight:800;color:var(--cta-dark);text-decoration:none;font-size:15px}
-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-header span{font-size:11px;color:var(--muted);font-weight:700}
+.made{position:absolute;left:10px;bottom:10px;margin:0;padding:4px 9px;border-radius:999px;background:rgba(44,39,36,.72);color:#fff;font-size:12px;font-weight:700;line-height:1.3;pointer-events:none}
+.brand{font-weight:800;color:var(--cta-dark);text-decoration:none;font-size:18px;display:inline-flex;align-items:center;gap:6px}
+.brand img{width:24px;height:24px}
+header{margin-bottom:12px}
+header span{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-top:4px}
+.host{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;margin:10px 0 0}
+.nomedia{border-radius:24px;background:var(--sage-bg);border:1px solid rgba(122,144,124,.4);padding:28px 16px;text-align:center;font-size:14px;font-weight:700;color:#485B4A}
 `;
 
 export type ListingPageInput = {
@@ -39,6 +42,8 @@ export type ListingPageInput = {
   applyHref: string;
   findHref: string;
   today: string;
+  /** The host's first name and whether a phone or ID check backs them (shown, never scored) */
+  host?: { firstName: string | null; verified: boolean };
 };
 
 // The app's font (same request as index.html), so a shared link looks like the app
@@ -109,10 +114,16 @@ export function renderListingPage(input: ListingPageInput): string {
         .join("")}</div></div>`
     : "";
 
+  const hostName = input.host?.firstName?.trim();
+  const hostLine = hostName
+    ? `<p class="host">Listed by ${escapeHtml(hostName)}${input.host?.verified ? ' <span class="chip sage">Verified</span>' : ""}</p>`
+    : "";
+
   const body = `<main>
-<header><a class="brand" href="${escapeHtml(input.findHref)}">Fenn</a><span>${tour} · area shown, exact address after you're accepted</span></header>
-${media ? `<div class="video">${media}${madeFrom}</div>` : ""}
+<header><a class="brand" href="${escapeHtml(input.findHref)}"><img src="/icons/fenn.svg" alt="">Fenn</a><span>${tour}. The area is shown; the exact address comes after you're accepted.</span></header>
+${media ? `<div class="video">${media}${madeFrom}</div>` : `<div class="nomedia">The tour for this room isn't ready yet.</div>`}
 <h1>${escapeHtml(title)}</h1>
+${hostLine}
 <div class="facts">
 ${rent ? `<span class="chip price">${escapeHtml(rent)}/mo</span>` : ""}
 ${deposit ? `<span class="chip">${escapeHtml(deposit)}</span>` : ""}
@@ -123,7 +134,7 @@ ${specs ? `<span class="chip">${escapeHtml(specs)}</span>` : ""}
 ${listing.description ? `<p>${escapeHtml(listing.description)}</p>` : ""}
 ${amenities}
 ${filled ? `<div class="card"><h2>This room is taken</h2><p>It filled through Fenn. See similar rooms nearby.</p></div>` : ""}
-<p style="font-size:12px;margin-top:18px">Something wrong with this listing? <a href="/?report=${escapeHtml(listing.id)}" style="color:inherit">Report it</a>. Never pay a deposit before you have seen the room.</p>
+<p style="font-size:12px;margin-top:18px">Something wrong with this listing? <a href="/?report=${escapeHtml(listing.id)}" style="color:inherit">Report it</a>. Never pay a deposit before you have seen the room. <a href="/help.html" style="color:inherit">Help and safety</a>.</p>
 </main>
 <div class="cta">${
     filled

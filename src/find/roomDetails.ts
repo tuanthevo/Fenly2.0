@@ -36,7 +36,7 @@ export function hostInitials(name: string): string {
 /** `escrow`: the 1.0 Home hub's move-in escrow is on (the `home_extras` flag). */
 export function roomDetailsView(room: DetailsRoom, opts: { escrow?: boolean } = {}): RoomDetailsView {
   const badges: string[] = [];
-  if (room.host.verified) badges.push(room.host.phoneVerified ? 'Phone verified' : 'Verified host');
+  if (room.host.verified) badges.push(room.host.phoneVerified ? 'Phone verified' : 'Verified');
   if (opts.escrow) badges.push('Move-in escrow');
 
   const tiles = [{ label: 'Monthly rent', value: dollars(room.price) }];

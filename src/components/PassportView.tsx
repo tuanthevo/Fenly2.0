@@ -152,7 +152,7 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
       setPhotoVersion((v) => v + 1);
       setMessage('Photo saved');
     } catch (e) {
-      setMessage(e instanceof Error ? `Couldn't save the photo: ${e.message}` : "Couldn't save the photo.");
+      setMessage("Couldn't save the photo. Try again, or pick a smaller one.");
     } finally {
       setPhotoBusy(false);
     }
@@ -266,7 +266,7 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
     ]);
     setSaving(false);
     const error = profileResult.error ?? passportResult.error;
-    setMessage(error ? `Couldn't save: ${error.message}` : 'Saved');
+    setMessage(error ? "Couldn't save. Check your connection and try again." : 'Saved');
     if (!error) {
       const { data } = await supabase.from('passports').select('level').eq('user_id', user.id).maybeSingle();
       if (data) setPassport((p) => (p ? { ...p, level: data.level } : p));
@@ -302,9 +302,11 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
           <div className="font-extrabold text-sm text-[#2C2724] truncate">{displayName || 'Your Passport'}</div>
           <div className="text-xs text-[#6E655F] truncate">{user.email ?? user.phone}</div>
         </div>
-        <span className="text-xs bg-[#E8EFE9] text-[#485B4A] border border-[#7A907C]/40 px-2.5 py-0.5 rounded-full font-bold shrink-0">
-          Level {passport?.level ?? 0}
-        </span>
+        {(passport?.level ?? 0) >= 1 && (
+          <span className="text-xs bg-[#E8EFE9] text-[#485B4A] border border-[#7A907C]/40 px-2.5 py-0.5 rounded-full font-bold shrink-0">
+            Passport ready
+          </span>
+        )}
       </div>
 
       <div className={cardClass + ' space-y-2'}>
@@ -323,7 +325,7 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
           ))}
         </div>
         <p className="text-xs text-[#6E655F]">
-          Sign in with your phone to get the phone badge. Hosts can ask shortlisted applicants for an ID check. They see a badge, never your document.
+          {user.phone ? 'Your phone number is confirmed.' : 'To get the phone badge, sign in with a phone code next time.'} Hosts can ask shortlisted applicants for an ID check. They see a badge, never your document.
         </p>
       </div>
 
@@ -341,8 +343,8 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
         if (missing.length === 0) return null;
         return (
           <div className={cardClass + ' space-y-1.5'} data-testid="passport-level1">
-            <h3 className="text-xs font-extrabold text-[#2C2724]">Finish Level 1 ({6 - missing.length}/6)</h3>
-            <p className="text-xs text-[#6E655F]">Hosts see Level 1 applicants first. Fill these in, then save below.</p>
+            <h3 className="text-sm font-extrabold text-[#2C2724]">Finish your Passport ({6 - missing.length} of 6 done)</h3>
+            <p className="text-xs text-[#6E655F]">Hosts see finished Passports first. Fill these in, then save.</p>
             {(['phone', 'photo', 'bio', 'move_in', 'budget', 'lifestyle'] as const).map((item) => {
               const done = !missing.includes(item);
               return (
@@ -442,7 +444,7 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
           {LIFESTYLE_QUESTIONS.map((question) => (
             <div key={question.key} className="space-y-1">
               <span className="text-xs font-bold text-[#6E655F]">{question.label}</span>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-2">
                 {question.options.map((option) => {
                   const selected = passport.lifestyle?.[question.key] === option;
                   return (
@@ -456,7 +458,7 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
                           lifestyle: { ...(passport.lifestyle ?? {}), [question.key]: option },
                         })
                       }
-                      className={`px-2.5 py-1 rounded-full text-xs font-bold border transition-all ${
+                      className={`min-h-10 px-3.5 rounded-full text-xs font-bold border transition-all ${
                         selected
                           ? 'bg-[#2C2724] text-[#F9F7F3] border-[#2C2724]'
                           : 'bg-white text-[#2C2724] border-[#2C2724]/25 hover:bg-[#F2EFE9]'
@@ -469,17 +471,19 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
               </div>
             </div>
           ))}
-          <div className="flex items-center gap-3">
+          {/* Stays in reach while the form scrolls */}
+          <div className="sticky bottom-2 z-10 flex items-center gap-3 p-2 -mx-2 rounded-2xl bg-white/95 border border-[#2C2724]/10 shadow-warm-sm">
             <button
               type="button"
               onClick={() => void save()}
               disabled={saving}
-              className="px-4 py-2.5 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] disabled:opacity-60 text-white text-xs font-extrabold shadow-warm-sm active:scale-95 transition-all flex items-center gap-1.5"
+              data-testid="passport-save"
+              className="min-h-11 px-5 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] disabled:opacity-60 text-white text-sm font-extrabold active:scale-95 transition-all flex items-center gap-1.5"
             >
-              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
               Save Passport
             </button>
-            {message && <span className="text-xs font-bold text-[#485B4A]">{message}</span>}
+            {message && <span className="text-xs font-bold text-[#485B4A]" role="status">{message}</span>}
           </div>
         </div>
       )}
@@ -496,9 +500,11 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
           aria-checked={notifyEmail}
           aria-label="Email notifications"
           onClick={() => void toggleEmail()}
-          className={`w-11 h-6 rounded-full p-0.5 transition-colors ${notifyEmail ? 'bg-[#7A907C]' : 'bg-[#2C2724]/20'}`}
+          className="w-12 h-10 flex items-center justify-center shrink-0"
         >
-          <span className={`block w-5 h-5 rounded-full bg-white shadow transition-transform ${notifyEmail ? 'translate-x-5' : ''}`} />
+          <span className={`block w-11 h-6 rounded-full p-0.5 transition-colors ${notifyEmail ? 'bg-[#485B4A]' : 'bg-[#2C2724]/30'}`}>
+            <span className={`block w-5 h-5 rounded-full bg-white shadow transition-transform ${notifyEmail ? 'translate-x-5' : ''}`} />
+          </span>
         </button>
       </div>
 

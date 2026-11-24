@@ -70,18 +70,8 @@ export const FillStatusView: React.FC<{ listingId: string; onBack: () => void; o
           <ArrowLeft className="w-4 h-4" />
         </button>
         <h2 className="flex-1 min-w-0 text-base font-extrabold text-[#2C2724] truncate">
-          {kit ? 'Share kit' : data?.listing.title || 'Fill status'}
+          {kit ? 'Share your room' : data?.listing.title || 'Your room'}
         </h2>
-        {!kit && onEdit && data && (
-          <button
-            type="button"
-            onClick={onEdit}
-            data-testid="fill-status-edit"
-            className="min-h-10 px-3 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/25 text-[#2C2724] text-xs font-extrabold flex items-center gap-1.5 shrink-0 active:scale-95"
-          >
-            <Pencil className="w-3.5 h-3.5" /> Edit
-          </button>
-        )}
         {!kit && (
           <button
             type="button"
@@ -105,18 +95,38 @@ export const FillStatusView: React.FC<{ listingId: string; onBack: () => void; o
       ) : data ? (
         <>
           <DaysLeftCard daysLeft={data.daysLeft} moveOut={data.listing.move_out_date} rent={data.listing.rent_cents} />
-          <Totals summary={data.summary} />
-          {data.nudges.length > 0 && <Nudges nudges={data.nudges} />}
-          <ChannelTable summary={data.summary} />
+          {data.summary.totals.views === 0 && data.summary.totals.applications === 0 ? (
+            <div className={`${cardClass} space-y-1`} data-testid="fill-status-first-share">
+              <h3 className="text-base font-extrabold text-[#2C2724]">Your room is live. Nobody has seen it yet.</h3>
+              <p className="text-sm text-[#6E655F]">Share the link once. Views and applicants show up here as they come in.</p>
+            </div>
+          ) : (
+            <>
+              <Totals summary={data.summary} />
+              {data.nudges.length > 0 && <Nudges nudges={data.nudges} />}
+              <ChannelTable summary={data.summary} />
+            </>
+          )}
           <button
             type="button"
             onClick={() => void openKit()}
             disabled={kitLoading}
-            className="w-full py-3 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-sm font-extrabold shadow-warm-sm flex items-center justify-center gap-2 active:scale-95 disabled:opacity-60"
+            className="w-full min-h-12 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-base font-extrabold flex items-center justify-center gap-2 active:scale-95 disabled:opacity-60"
           >
             {kitLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
-            Share again
+            {data.summary.totals.views === 0 ? 'Share your link' : 'Share again'}
           </button>
+          {data.links.find((l) => l.channel === 'direct')?.url && (
+            <a
+              href={data.links.find((l) => l.channel === 'direct')!.url}
+              target="_blank"
+              rel="noopener"
+              data-testid="fill-status-view-public"
+              className="min-h-11 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/25 text-[#2C2724] text-sm font-extrabold flex items-center justify-center gap-1.5"
+            >
+              <Eye className="w-4 h-4" aria-hidden="true" /> See it as renters do
+            </a>
+          )}
           {/* Straight to the part the host wants to change: the facts and text, or the video */}
           {(onEdit || onEditVideo) && (
             <div className="grid grid-cols-2 gap-2">
@@ -156,7 +166,7 @@ const DaysLeftCard: React.FC<{ daysLeft: number | null; moveOut: string | null; 
           {daysLeft === null ? 'Add the date you need it filled' : daysLeft < 0 ? 'Fill-by date has passed' : 'left to fill the room'}
         </div>
         <div className="text-xs text-[#6E655F]">
-          {moveOut ? `Fill by ${moveOut}` : ''}
+          {moveOut ? `Fill by ${new Date(`${moveOut}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}
           {rent ? ` · ${formatRentCents(rent)}/mo` : ''}
         </div>
       </div>
@@ -171,15 +181,17 @@ const Totals: React.FC<{ summary: FillSummary }> = ({ summary }) => (
         <Eye className="w-3.5 h-3.5" /> Views
       </div>
       <div className="text-2xl font-black text-[#2C2724]">{summary.totals.views}</div>
-      <div className="text-xs text-[#6E655F]">{summary.totals.uniqueViewers} people</div>
+      <div className="text-xs text-[#6E655F]">
+        from {summary.totals.uniqueViewers} {summary.totals.uniqueViewers === 1 ? 'person' : 'people'}
+      </div>
     </div>
     <div className={cardClass}>
       <div className="text-xs font-bold text-[#6E655F] flex items-center gap-1">
         <FileCheck className="w-3.5 h-3.5" /> Applications
       </div>
-      <div className="text-2xl font-black text-[#D06C4E]">{summary.totals.applications}</div>
+      <div className={`text-2xl font-black ${summary.totals.applications > 0 ? 'text-[#A9513A]' : 'text-[#2C2724]'}`}>{summary.totals.applications}</div>
       <div className="text-xs text-[#6E655F]">
-        {summary.totals.conversion === null ? '—' : `${Math.round(summary.totals.conversion * 100)}% of viewers`}
+        {summary.totals.conversion === null ? 'none yet' : `${Math.round(summary.totals.conversion * 100)}% of viewers`}
       </div>
     </div>
   </div>
@@ -201,7 +213,7 @@ const Nudges: React.FC<{ nudges: Nudge[] }> = ({ nudges }) => (
 const ChannelTable: React.FC<{ summary: FillSummary }> = ({ summary }) => (
   <div className={cardClass}>
     <h3 className="text-xs font-extrabold text-[#2C2724] mb-2">By channel</h3>
-    {summary.rows.length === 0 ? (
+    {!summary.rows.some((row) => row.views > 0 || row.applications > 0) ? (
       <p className="text-sm text-[#6E655F]">No views yet. Share your link once and the places people come from show up here.</p>
     ) : (
     <table className="w-full text-xs">
@@ -213,11 +225,12 @@ const ChannelTable: React.FC<{ summary: FillSummary }> = ({ summary }) => (
         </tr>
       </thead>
       <tbody>
-        {summary.rows.map((row) => (
+        {/* Only the places that have sent someone: no rows of zeros */}
+        {summary.rows.filter((row) => row.views > 0 || row.applications > 0).map((row) => (
           <tr key={row.channel} className="border-t border-[#2C2724]/10">
             <td className="py-2 font-bold text-[#2C2724]">{channelLabel(row.channel)}</td>
             <td className="py-2 text-right tabular-nums">{row.views}</td>
-            <td className="py-2 text-right tabular-nums font-extrabold text-[#A9513A]">{row.applications}</td>
+            <td className={`py-2 text-right tabular-nums ${row.applications > 0 ? 'font-extrabold text-[#A9513A]' : 'text-[#6E655F]'}`}>{row.applications}</td>
           </tr>
         ))}
       </tbody>

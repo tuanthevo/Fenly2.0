@@ -220,8 +220,11 @@ export const InboxView: React.FC<InboxViewProps> = ({ signedIn, onRequestSignIn,
         <div className="flex justify-center py-8 text-[#6E655F]"><Loader2 className="w-5 h-5 animate-spin" /></div>
       ) : threads && threads.length === 0 ? (
         <div className="p-4 rounded-2xl bg-white border border-[#2C2724]/15 text-center space-y-1" data-testid="inbox-empty">
-          <h2 className="text-sm font-extrabold">{EMPTY_STATE.inboxEmpty.title}</h2>
-          <p className="text-xs text-[#6E655F]">{EMPTY_STATE.inboxEmpty.line}</p>
+          <h2 className="text-base font-extrabold">{EMPTY_STATE.inboxEmpty.title}</h2>
+          <p className="text-sm text-[#6E655F]">{EMPTY_STATE.inboxEmpty.line}</p>
+          <a href="/help.html" target="_blank" rel="noopener" className="inline-flex items-center justify-center min-h-10 text-sm font-extrabold text-[#A9513A] underline underline-offset-2">
+            How Fenn works
+          </a>
         </div>
       ) : (
         <>

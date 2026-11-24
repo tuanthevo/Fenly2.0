@@ -326,12 +326,32 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
   const depositCents = deposit === '' ? null : Math.round(Number(deposit) * 100);
   const depositRule = depositCheck(rentCents, depositCents);
 
-  /* ---------- Step 1: the basics ---------- */
+  /* ---------- Step 1: the basics, on two short screens (rent and dates, then the room) ---------- */
+  const [basicsPart, setBasicsPart] = useState<1 | 2>(1);
+  const [showLookup, setShowLookup] = useState(false);
+  const [moreAmenities, setMoreAmenities] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+  const flashSaved = () => {
+    setSavedFlash(true);
+    window.setTimeout(() => setSavedFlash(false), 2500);
+  };
+  const rentAndDatesProblem = (): string | null => {
+    if (!moveOut) return 'Pick the date you need the room filled.';
+    if (!(rentCents >= 10000 && rentCents <= 2000000)) return 'Rent must be between $100 and $20,000.';
+    return depositRule.error ?? null;
+  };
+  const nextBasics = () => {
+    const problem = rentAndDatesProblem();
+    setError(problem);
+    if (!problem) setBasicsPart(2);
+  };
   const submitStart = () =>
     run('start', async () => {
-      if (!moveOut) throw new Error('Pick the date you need the room filled.');
-      if (!(rentCents >= 10000 && rentCents <= 2000000)) throw new Error('Rent must be between $100 and $20,000.');
-      if (depositRule.error) throw new Error(depositRule.error);
+      const problem = rentAndDatesProblem();
+      if (problem) {
+        setBasicsPart(1);
+        throw new Error(problem);
+      }
       if (!serviceCity(city)) throw new Error('Pick the city the room is in, or type its ZIP code.');
       const sqft = squareFeet ? Number(squareFeet) : null;
       if (sqft !== null && !(sqft >= 50 && sqft <= 10000)) throw new Error('Room size must be between 50 and 10,000 sq ft, or left blank.');
@@ -357,6 +377,8 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
         amenities,
       });
       applyListing(updated);
+      if (editing) flashSaved();
+      setBasicsPart(1);
       setStep(editing ? 'details' : 'lease');
     });
 
@@ -671,6 +693,10 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
   /* ---------- Layout ---------- */
   const stepIndex = steps.findIndex((s) => s.id === step);
   const goBack = () => {
+    if (step === 'start' && basicsPart === 2) {
+      setError(null);
+      return setBasicsPart(1);
+    }
     if (step === 'share' || stepIndex <= 0) return onClose();
     setError(null);
     setStep(steps[stepIndex - 1].id);
@@ -678,7 +704,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
   /** The header arrow does what the step's main button does, and says what's missing when it can't. */
   const goForward = () => {
     setError(null);
-    if (step === 'start') return void submitStart();
+    if (step === 'start') return basicsPart === 1 ? nextBasics() : void submitStart();
     if (step === 'lease') {
       if (!leaseChoice) return setError('Pick one answer to continue.');
       return setStep('tour');
@@ -689,7 +715,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
       return void submitPhotos();
     }
     if (step === 'tour') {
-      if (!enoughShots) return setError('Film 3 shots to continue.');
+      if (!enoughShots) return; // the button itself says what is missing
       return void submitTour();
     }
     if (step === 'details') return void submitDetails();
@@ -759,6 +785,11 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
               <p className="text-xs font-bold text-[#6E655F]" data-testid="fill-progress-label">
                 {stepIndex + 1} of {steps.length} <span className="text-[#2C2724]">{steps[stepIndex]?.label}</span>
                 {steps[stepIndex + 1] ? <span className="font-semibold"> · next: {steps[stepIndex + 1].label}</span> : null}
+                {savedFlash && (
+                  <span className="ml-2 text-[#485B4A]" role="status" data-testid="fill-saved">
+                    Saved
+                  </span>
+                )}
               </p>
             </div>
           )}
@@ -773,13 +804,16 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
             <>
               {step === 'start' && (
                 <div className="space-y-3">
+                  {basicsPart === 1 && (
                   <div className={`${card} space-y-4`}>
                     <div>
-                      <h3 className="text-lg font-extrabold leading-tight">Let's fill your room</h3>
-                      <p className="text-xs text-[#6E655F] mt-1">
-                        {photoAllowed
-                          ? 'The basics, then a short video or a few photos. About 10 minutes in all.'
-                          : 'The basics, then three shots of 10 seconds or more. About 10 minutes in all.'}
+                      <h3 className="text-lg font-extrabold leading-tight">{editing ? 'Rent and dates' : "Let's fill your room"}</h3>
+                      <p className="text-sm text-[#6E655F] mt-1">
+                        {editing
+                          ? 'Changes show on your listing as soon as you save.'
+                          : photoAllowed
+                          ? 'Two quick questions, then a short video or a few photos. About 10 minutes in all.'
+                          : 'Two quick questions, then three short shots of at least 10 seconds each. About 10 minutes in all.'}
                       </p>
                     </div>
                     <div>
@@ -819,13 +853,17 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                       {depositRule.error ?? depositRule.note ?? 'Optional. Enter 0 if there is no deposit.'}
                     </p>
                   </div>
+                  )}
+                  {basicsPart === 2 && (
                   <div className={`${card} space-y-3`} data-testid="fill-room-facts">
                     <div>
-                      <h3 className="text-sm font-extrabold">About the room</h3>
-                      <p className="text-xs text-[#6E655F] mt-0.5">These go on your video and listing. Change anything later.</p>
+                      <h3 className="text-lg font-extrabold leading-tight">About the room</h3>
+                      <p className="text-sm text-[#6E655F] mt-1">These go on your tour and listing. You can change anything later.</p>
                     </div>
                     <div>
-                      <label className={label} htmlFor="fill-area-query">Address, ZIP code or city (only used to find your area, never saved)</label>
+                      {showLookup && (
+                      <>
+                      <label className={label} htmlFor="fill-area-query">Address or ZIP code (only used to find your area, never saved)</label>
                       <form
                         className="flex gap-2 mb-2"
                         onSubmit={(e) => {
@@ -842,9 +880,11 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                           onChange={(e) => setAreaQuery(e.target.value.slice(0, 120))}
                         />
                         <button type="submit" disabled={areaBusy || !areaQuery.trim()} className="min-h-10 px-3 rounded-xl bg-white border border-[#2C2724]/15 hover:bg-[#F2EFE9] text-xs font-bold shrink-0 disabled:opacity-50">
-                          {areaBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Find'}
+                          {areaBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Look up'}
                         </button>
                       </form>
+                      </>
+                      )}
                       {areaNote && <p className="text-xs text-[#6E655F] font-semibold mb-2" role="status">{areaNote}</p>}
                       <label className={label} htmlFor="fill-city">City (we show the area, never the address)</label>
                       <div className="flex gap-2">
@@ -874,6 +914,11 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                           <MapPin className="w-4 h-4 text-[#D06C4E]" />
                         </button>
                       </div>
+                      {!showLookup && (
+                        <button type="button" onClick={() => setShowLookup(true)} className="min-h-10 text-xs font-bold text-[#A9513A] underline underline-offset-2" data-testid="fill-show-lookup">
+                          City not listed? Type an address or ZIP
+                        </button>
+                      )}
                       {cityNeighborhoods.length > 0 && (
                         <>
                           <label className={`${label} mt-2`} htmlFor="fill-neighborhood">Neighborhood</label>
@@ -915,7 +960,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                     <div>
                       <span className={label}>What's included</span>
                       <div className="flex flex-wrap gap-2">
-                        {FILL_AMENITIES.map((a) => {
+                        {FILL_AMENITIES.filter((a, i) => moreAmenities || i < 6 || amenities.includes(a)).map((a) => {
                           const on = amenities.includes(a);
                           return (
                             <button
@@ -931,13 +976,25 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                             </button>
                           );
                         })}
+                        {!moreAmenities && FILL_AMENITIES.length > 6 && (
+                          <button type="button" onClick={() => setMoreAmenities(true)} className="min-h-10 px-3.5 rounded-full text-xs font-bold text-[#A9513A] underline underline-offset-2" data-testid="fill-more-amenities">
+                            More
+                          </button>
+                        )}
                       </div>
                     </div>
                     </div>
                   </div>
-                  <button type="button" className={primaryBtn} disabled={busy !== null} onClick={() => void submitStart()} data-testid="fill-start-continue">
+                  )}
+                  <button
+                    type="button"
+                    className={primaryBtn}
+                    disabled={busy !== null}
+                    onClick={() => (basicsPart === 1 ? nextBasics() : void submitStart())}
+                    data-testid="fill-start-continue"
+                  >
                     {busy === 'start' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                    Continue
+                    {basicsPart === 1 ? 'Continue' : editing ? 'Save and continue' : 'Continue'}
                   </button>
                 </div>
               )}
@@ -1299,7 +1356,10 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
 
               {/* Last thing on the edit form, away from Save and Close */}
               {editing && onDeleted && listing && (step === 'start' || step === 'details') && (
-                <DeleteListing listingId={listing.id} status={listing.status} mediaType={mediaTypeOf(listing)} disabled={busy !== null} onDeleted={onDeleted} />
+                // Well clear of the main button, also on the short first screen
+                <div className="pt-10">
+                  <DeleteListing listingId={listing.id} status={listing.status} mediaType={mediaTypeOf(listing)} disabled={busy !== null} onDeleted={onDeleted} />
+                </div>
               )}
             </>
           )}

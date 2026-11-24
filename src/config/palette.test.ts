@@ -49,6 +49,7 @@ const CORE_FILES = [
   'components/InstallPrompt.tsx',
   'components/OnboardingBanner.tsx',
   'components/VideoInfoOverlay.tsx',
+  'components/GuidedShotCapture.tsx',
   'components/RoomDetailsModal.tsx',
   'components/SidebarActions.tsx',
   'components/NavMenu.tsx',

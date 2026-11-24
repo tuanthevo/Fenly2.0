@@ -165,7 +165,7 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
   if (error) {
     return (
       <div className="w-full h-full bg-[#F9F7F3] p-4 space-y-3">
-        <button type="button" onClick={onBack} className="text-xs font-bold flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Back</button>
+        <button type="button" onClick={onBack} className="min-h-10 text-xs font-bold flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Back</button>
         <p className="text-xs font-bold text-[#9A4A33]">{error}</p>
       </div>
     );

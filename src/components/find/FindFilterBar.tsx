@@ -7,7 +7,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Loader2, MapPin, Pin, SlidersHorizontal, X } from 'lucide-react';
 import { DEFAULT_RADIUS_MILES, RADIUS_MILES } from '../../geo/bayArea';
 import { lookupBayAreaPlace } from '../../lib/geocode';
-import { EMPTY_FIND_FILTERS, MUST_HAVE_OPTIONS, activeFilterCount, cleanPlaceLabel, rentInput, rentRangeError, type FindFilters, type FindNear } from '../../find/findFilters';
+import { EMPTY_FIND_FILTERS, FIND_SORTS, MUST_HAVE_OPTIONS, activeFilterCount, cleanPlaceLabel, rentInput, rentRangeError, type FindFilters, type FindNear } from '../../find/findFilters';
 
 const dollarsText = (cents: number | null) => (cents == null ? '' : String(Math.round(cents / 100)));
 
@@ -42,6 +42,7 @@ export const FindFilterBar: React.FC<FindFilterBarProps> = ({ filters, onChange,
             <ArrowLeft className="w-4 h-4" />
           </button>
         )}
+        {!onBack && <img src="/icons/fenn.svg" alt="Fenn" className="w-9 h-9 rounded-xl shrink-0" />}
         <div className="flex-1 min-w-0">
           <h1 className="text-base font-extrabold text-[#2C2724] leading-tight line-clamp-2 text-balance" data-testid="find-title">
             Rooms in {place}
@@ -300,6 +301,23 @@ const FilterSheet: React.FC<{ filters: FindFilters; onClose: () => void; onApply
                 </button>
               );
             })}
+          </div>
+        </section>
+
+        <section>
+          <span className={sectionLabel} id="find-sort-label">Show first</span>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-labelledby="find-sort-label">
+            {FIND_SORTS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={(draft.sort ?? 'newest') === option.id}
+                className={chip((draft.sort ?? 'newest') === option.id)}
+                onClick={() => setDraft((d) => ({ ...d, sort: option.id }))}
+              >
+                {option.label}
+              </button>
+            ))}
           </div>
         </section>
 

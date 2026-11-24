@@ -109,7 +109,7 @@ export function registerFindRoutes(app: Express): void {
       .select(FEED_COLUMNS)
       .eq("status", "published")
       .is("hidden_at", null)
-      .order("published_at", { ascending: false })
+      .order(filters.sort === "rent_low" ? "rent_cents" : "published_at", { ascending: filters.sort === "rent_low" })
       .limit(filters.near ? NEAR_SCAN_LIMIT : FEED_LIMIT * 2);
     if (filters.minRentCents != null) query = query.gte("rent_cents", filters.minRentCents);
     if (filters.maxRentCents != null) query = query.lte("rent_cents", filters.maxRentCents);

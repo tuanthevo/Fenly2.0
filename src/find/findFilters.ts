@@ -22,13 +22,21 @@ export type FindFilters = {
   moveInBy: string | null;
   /** Room features the renter needs (from MUST_HAVE_OPTIONS); a room must list every one */
   mustHave?: string[];
+  /** Feed order: newest listing first (the default) or lowest rent first */
+  sort?: FindSort;
 };
+
+export type FindSort = 'newest' | 'rent_low';
+export const FIND_SORTS: { id: FindSort; label: string }[] = [
+  { id: 'newest', label: 'Newest' },
+  { id: 'rent_low', label: 'Lowest rent' },
+];
 
 /** Features of the room a renter can require. About the room only, never about people (fair housing). */
 export const MUST_HAVE_OPTIONS = ['Private bath', 'Furnished', 'In-unit laundry', 'Parking', 'Pets OK'] as const;
 
-export const FIND_FILTER_KEYS: (keyof FindFilters)[] = ['near', 'minRentCents', 'maxRentCents', 'moveInBy', 'mustHave'];
-export const EMPTY_FIND_FILTERS: FindFilters = { near: null, minRentCents: null, maxRentCents: null, moveInBy: null, mustHave: [] };
+export const FIND_FILTER_KEYS: (keyof FindFilters)[] = ['near', 'minRentCents', 'maxRentCents', 'moveInBy', 'mustHave', 'sort'];
+export const EMPTY_FIND_FILTERS: FindFilters = { near: null, minRentCents: null, maxRentCents: null, moveInBy: null, mustHave: [], sort: 'newest' };
 
 const MIN_RENT_DOLLARS = 100;
 const MAX_RENT_DOLLARS = 20000;
@@ -82,7 +90,8 @@ export function parseFindQuery(query: Record<string, unknown>): FindFilters {
   const moveInBy = /^\d{4}-\d{2}-\d{2}$/.test(by) && !Number.isNaN(Date.parse(by)) ? by : null;
   const asked = str(query.has).split(',').map((s) => s.trim());
   const mustHave = MUST_HAVE_OPTIONS.filter((option) => asked.includes(option));
-  return { near, minRentCents, maxRentCents, moveInBy, mustHave };
+  const sort: FindSort = str(query.sort) === 'rent_low' ? 'rent_low' : 'newest';
+  return { near, minRentCents, maxRentCents, moveInBy, mustHave, sort };
 }
 
 export function findQueryString(filters: FindFilters): string {
@@ -98,6 +107,7 @@ export function findQueryString(filters: FindFilters): string {
   if (filters.maxRentCents != null) params.set('maxRent', String(Math.round(filters.maxRentCents / 100)));
   if (filters.moveInBy) params.set('moveInBy', filters.moveInBy);
   if (filters.mustHave?.length) params.set('has', filters.mustHave.join(','));
+  if (filters.sort === 'rent_low') params.set('sort', 'rent_low');
   return params.toString();
 }
 

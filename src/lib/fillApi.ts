@@ -176,8 +176,8 @@ export async function uploadToStorage(
       try {
         const body = JSON.parse(xhr.responseText);
         if (/maximum allowed size|too large|413/i.test(body?.message ?? body?.error ?? '')) {
-          message = 'That video is larger than this Supabase project allows per file. Raise the file size limit in Storage settings.';
-        } else if (body?.message) message = `Upload failed: ${body.message}`;
+          message = 'That file is too large to upload. Try a shorter clip.';
+        }
       } catch {
         // keep the generic message
       }

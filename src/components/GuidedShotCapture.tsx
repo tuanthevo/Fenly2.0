@@ -426,11 +426,11 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
       {/* Top bar */}
       <div className="w-full max-w-[440px] px-4 pt-4 pb-2 flex items-start justify-between gap-3 shrink-0">
         <div className="min-w-0">
-          <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#D06C4E]">
+          <span className="text-xs font-extrabold uppercase tracking-wider text-[#A9513A]">
             Shot {shot.slotNumber} of 5
           </span>
           <h3 className="font-extrabold text-sm leading-snug">{shot.name}</h3>
-          <p className="text-[11px] text-[#F9F7F3]/75 leading-snug">{instructionFor(shot, recordingMs / 1000)}</p>
+          <p className="text-xs text-[#F9F7F3]/75 leading-snug">{instructionFor(shot, recordingMs / 1000)}</p>
         </div>
         <button
           type="button"
@@ -450,13 +450,13 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
           role="alert"
           className="w-full max-w-[440px] px-4 pb-2 shrink-0"
         >
-          <div className="px-3 py-2.5 rounded-xl bg-[#D06C4E] text-white flex items-center gap-2.5 shadow-lg">
+          <div className="px-3 py-2.5 rounded-xl bg-[#B85B3F] text-white flex items-center gap-2.5 shadow-lg">
             <Smartphone className="w-5 h-5 shrink-0 animate-pulse" />
             <div className="min-w-0">
               <span className="block text-sm font-black uppercase tracking-wide">
                 Rotate your phone upright!
               </span>
-              <span className="block text-[11px] font-semibold text-white/90">
+              <span className="block text-xs font-semibold text-white/90">
                 Hold it tall like a selfie. Sideways footage gets cropped to vertical.
               </span>
             </div>
@@ -511,7 +511,7 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
             <div className="absolute top-7 inset-x-0 flex justify-center px-6 pointer-events-none">
               <span
                 data-testid="pre-shot-reminder-pill"
-                className="px-3 py-1.5 rounded-full bg-black/70 border border-white/20 text-[11px] font-extrabold text-[#F9F7F3] text-center"
+                className="px-3 py-1.5 rounded-full bg-black/70 border border-white/20 text-xs font-extrabold text-[#F9F7F3] text-center"
               >
                 {GUIDED_PRE_SHOT_REMINDER}
               </span>
@@ -571,7 +571,7 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="flex items-center gap-1 text-[10px] font-black text-white uppercase">
+                  <span className="flex items-center gap-1 text-xs font-black text-white uppercase">
                     <span className="w-2 h-2 rounded-full bg-[#D06C4E] animate-pulse" />
                     Rec
                   </span>
@@ -599,7 +599,7 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
               <button
                 type="button"
                 onClick={onUseCameraRoll}
-                className="px-4 py-2.5 rounded-xl bg-[#D06C4E] hover:bg-[#b85b3f] text-white text-xs font-extrabold flex items-center gap-1.5"
+                className="px-4 py-2.5 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-xs font-extrabold flex items-center gap-1.5"
               >
                 <Images className="w-4 h-4" />
                 Choose from Camera Roll
@@ -626,7 +626,7 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
               type="button"
               data-testid="guided-camera-use-btn"
               onClick={handleUseShot}
-              className="flex-1 py-3 rounded-xl bg-[#D06C4E] hover:bg-[#b85b3f] text-white text-xs font-extrabold flex items-center justify-center gap-1.5"
+              className="flex-1 py-3 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-xs font-extrabold flex items-center justify-center gap-1.5"
             >
               <Check className="w-4 h-4 stroke-[3]" />
               Use This Shot
@@ -648,7 +648,7 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
                 }`}
               />
             </button>
-            <span className="text-[11px] font-bold text-[#F9F7F3]/75">
+            <span className="text-xs font-bold text-[#F9F7F3]/75">
               {phase === 'ready'
                 ? `Tap to start • 3-2-1, then ${recordingMs / 1000}s auto-stop`
                 : phase === 'recording'
@@ -695,7 +695,7 @@ const ClipPreviewModal: React.FC<{
       >
         <div className="flex items-center justify-between gap-2 px-1">
           <div className="min-w-0">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#D06C4E]">
+            <span className="text-xs font-extrabold uppercase tracking-wider text-[#A9513A]">
               Shot {shot.slotNumber} of 5
             </span>
             <h4 className="font-extrabold text-sm truncate">{shot.name}</h4>
@@ -726,7 +726,7 @@ const ClipPreviewModal: React.FC<{
           )}
         </div>
         {media.isLandscape && (
-          <p className="text-[11px] font-semibold text-[#9A4A33] bg-[#D06C4E]/10 border border-[#D06C4E]/30 rounded-xl px-2.5 py-2">
+          <p className="text-xs font-semibold text-[#9A4A33] bg-[#D06C4E]/10 border border-[#D06C4E]/30 rounded-xl px-2.5 py-2">
             Sideways clip: shown center-cropped to vertical, like it will appear in the feed.
           </p>
         )}
@@ -734,7 +734,7 @@ const ClipPreviewModal: React.FC<{
           <button
             type="button"
             onClick={onRetake}
-            className="py-2.5 rounded-xl bg-[#D06C4E] hover:bg-[#b85b3f] text-white text-[11px] font-extrabold flex items-center justify-center gap-1.5"
+            className="py-2.5 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-xs font-extrabold flex items-center justify-center gap-1.5"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             Retake
@@ -742,7 +742,7 @@ const ClipPreviewModal: React.FC<{
           <button
             type="button"
             onClick={onReplaceFromRoll}
-            className="py-2.5 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/30 text-[11px] font-extrabold flex items-center justify-center gap-1.5"
+            className="py-2.5 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/30 text-xs font-extrabold flex items-center justify-center gap-1.5"
           >
             <Images className="w-3.5 h-3.5" />
             Camera Roll
@@ -904,7 +904,7 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           {stepLabel && (
-            <div className="w-6 h-6 rounded-lg bg-[#D06C4E]/15 text-[#D06C4E] flex items-center justify-center font-extrabold text-xs shrink-0">
+            <div className="w-6 h-6 rounded-lg bg-[#D06C4E]/15 text-[#A9513A] flex items-center justify-center font-extrabold text-xs shrink-0">
               {stepLabel}
             </div>
           )}
@@ -912,7 +912,7 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
             <h4 className="font-extrabold text-xs text-[#2C2724]">
               {mode === 'quick' ? 'Quick Tour' : 'Guided 5-Shot Video'}
             </h4>
-            <p className="text-[10px] text-[#6E655F]">
+            <p className="text-xs text-[#6E655F]">
               {mode === 'quick'
                 ? `The room, a shared space, the bathroom. ${seconds} seconds each.`
                 : `Never filmed a room before? Follow each card. ${seconds} seconds per shot.`}
@@ -921,7 +921,7 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
         </div>
         <span
           data-testid="guided-shot-progress-pill"
-          className={`px-2 py-1 rounded-full text-[10px] font-extrabold shrink-0 ${
+          className={`px-2 py-1 rounded-full text-xs font-extrabold shrink-0 ${
             remainingToProceed === 0
               ? 'bg-[#E8EFE9] text-[#485B4A]'
               : 'bg-[#F2EFE9] text-[#6E655F]'
@@ -1007,39 +1007,38 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
                     </>
                   ) : (
                     <span className="absolute inset-0 flex flex-col items-center justify-center text-[#F9F7F3]/80">
-                      <Video className="w-5 h-5" />
-                      <span className="text-[8px] font-extrabold uppercase mt-1">9:16</span>
+                      <Video className="w-5 h-5" aria-hidden="true" />
                     </span>
                   )}
                 </button>
 
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#D06C4E]">
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-[#A9513A]">
                       Shot {shot.slotNumber}
                       {isNext && !isDone ? ' • Up next' : ''}
                     </span>
                     {isDone && (
                       <span
                         data-testid={`guided-shot-done-badge-${shot.slotNumber}`}
-                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[#E8EFE9] border border-[#7A907C] text-[#485B4A] text-[9px] font-extrabold"
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[#E8EFE9] border border-[#7A907C] text-[#485B4A] text-xs font-extrabold"
                       >
                         <CheckCircle2 className="w-3 h-3" />
                         {media.source === 'recorded' ? 'Recorded' : 'From Roll'}
                       </span>
                     )}
                   </div>
-                  <h5 className="text-xs font-extrabold text-[#2C2724] leading-snug">
+                  <h5 className="text-sm font-extrabold text-[#2C2724] leading-snug">
                     {shot.name}
                   </h5>
-                  <p className="text-[11px] text-[#6E655F] leading-snug">{shot.instruction}</p>
+                  <p className="text-[13px] text-[#6E655F] leading-snug">{shot.instruction}</p>
                 </div>
               </div>
 
               {media?.isLandscape && (
                 <p
                   data-testid={`guided-shot-landscape-note-${shot.slotNumber}`}
-                  className="text-[10px] font-semibold text-[#9A4A33] bg-[#D06C4E]/10 border border-[#D06C4E]/25 rounded-lg px-2.5 py-1.5 flex items-start gap-1.5"
+                  className="text-xs font-semibold text-[#9A4A33] bg-[#D06C4E]/10 border border-[#D06C4E]/25 rounded-lg px-2.5 py-1.5 flex items-start gap-1.5"
                 >
                   <Smartphone className="w-3.5 h-3.5 shrink-0 rotate-90 mt-px" />
                   <span>
@@ -1053,7 +1052,7 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
                 <p
                   data-testid={`guided-shot-error-${shot.slotNumber}`}
                   role="alert"
-                  className="text-[10px] font-bold text-[#9A4A33] bg-[#D06C4E]/10 border border-[#D06C4E]/40 rounded-lg px-2.5 py-1.5 flex items-start gap-1.5"
+                  className="text-xs font-bold text-[#9A4A33] bg-[#D06C4E]/10 border border-[#D06C4E]/40 rounded-lg px-2.5 py-1.5 flex items-start gap-1.5"
                 >
                   <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-px" />
                   <span>{error}</span>
@@ -1065,7 +1064,11 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
                   type="button"
                   data-testid={`guided-record-btn-${shot.slotNumber}`}
                   onClick={() => startRecording(shot)}
-                  className="py-2 px-2 rounded-xl bg-[#D06C4E] hover:bg-[#b85b3f] text-white text-[11px] font-extrabold flex items-center justify-center gap-1.5 shadow-warm-sm transition-all active:scale-95"
+                  className={`min-h-11 px-2 rounded-xl text-sm font-extrabold flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
+                    isNext && !isDone
+                      ? 'bg-[#B85B3F] hover:bg-[#A9513A] text-white shadow-warm-sm'
+                      : 'bg-white hover:bg-[#F2EFE9] border border-[#2C2724] text-[#2C2724]'
+                  }`}
                 >
                   {isDone ? (
                     <RotateCcw className="w-3.5 h-3.5 shrink-0" />
@@ -1073,9 +1076,7 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
                     <Camera className="w-3.5 h-3.5 shrink-0" />
                   )}
                   <span>
-                    {useNativeCamera
-                      ? `${isDone ? 'Retake' : 'Record'} · ${SHOT_GUIDE_SEC}s or more`
-                      : `${isDone ? 'Retake' : 'Record'} ${mode === 'quick' ? '' : 'Guided '}${seconds}s Clip`}
+                    {useNativeCamera ? (isDone ? 'Retake' : 'Record') : `${isDone ? 'Retake' : 'Record'} (${seconds} sec)`}
                   </span>
                 </button>
                 <button
@@ -1083,15 +1084,15 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
                   data-testid={`guided-roll-btn-${shot.slotNumber}`}
                   onClick={() => openCameraRoll(shot.slotNumber)}
                   disabled={isChecking}
-                  className="py-2 px-2 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/30 text-[#2C2724] text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-60"
+                  className="min-h-11 px-2 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/30 text-[#2C2724] text-sm font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-60"
                 >
-                  <Images className="w-3.5 h-3.5 shrink-0 text-[#D06C4E]" />
+                  <Images className="w-4 h-4 shrink-0 text-[#D06C4E]" aria-hidden="true" />
                   <span>
                     {isChecking
-                      ? 'Checking clip...'
+                      ? 'Checking'
                       : isDone
-                      ? 'Replace from Camera Roll'
-                      : 'Choose from Camera Roll'}
+                      ? 'Replace'
+                      : 'Upload a clip'}
                   </span>
                 </button>
                 <input
@@ -1127,7 +1128,7 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
           type="button"
           data-testid="quick-tour-add-extras"
           onClick={() => setExtrasOpen(true)}
-          className="w-full py-2 rounded-xl bg-white hover:bg-[#F2EFE9] border border-dashed border-[#2C2724]/30 text-[#2C2724] text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95"
+          className="w-full py-2 rounded-xl bg-white hover:bg-[#F2EFE9] border border-dashed border-[#2C2724]/30 text-[#2C2724] text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95"
         >
           <Video className="w-3.5 h-3.5 text-[#D06C4E]" />
           Add 2 more shots for the full tour (closet, best perk)
@@ -1137,7 +1138,7 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
       {/* Gate status */}
       <div
         data-testid="guided-shot-gate-status"
-        className={`p-2.5 rounded-xl text-[11px] font-bold flex items-center gap-2 ${
+        className={`p-2.5 rounded-xl text-xs font-bold flex items-center gap-2 ${
           remainingToProceed === 0
             ? 'bg-[#E8EFE9] text-[#485B4A] border border-[#7A907C]/50'
             : 'bg-[#F2EFE9] text-[#6E655F] border border-[#2C2724]/10'

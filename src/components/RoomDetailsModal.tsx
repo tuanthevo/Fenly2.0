@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   X, 
   Check, 
@@ -49,6 +49,12 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
   const [compatData, setCompatData] = useState<any>(null);
   const [isCalculatingCompat, setIsCalculatingCompat] = useState(false);
   const escrowOn = useFlag('home_extras');
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
   const view = roomDetailsView(room, { escrow: escrowOn });
@@ -64,15 +70,15 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-[#2C2724]/60 backdrop-blur-sm animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-[#2C2724]/60 animate-fadeIn" onClick={onClose}>
       <div 
-        className="w-full sm:max-w-2xl max-h-[90vh] bg-[#F9F7F3] text-[#2C2724] border border-[#2C2724]/20 rounded-t-3xl sm:rounded-2xl flex flex-col shadow-warm overflow-hidden"
+        role="dialog" aria-modal="true" aria-labelledby="room-details-title" className="w-full sm:max-w-2xl max-h-[90vh] bg-[#F9F7F3] text-[#2C2724] border border-[#2C2724]/20 rounded-t-3xl sm:rounded-2xl flex flex-col shadow-warm overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="p-4 border-b border-[#2C2724]/12 bg-white flex items-center justify-between">
           <div className="min-w-0">
-            <h2 className="font-bold text-base text-[#2C2724] truncate">{room.title}</h2>
+            <h2 id="room-details-title" className="font-extrabold text-base text-[#2C2724] leading-snug line-clamp-2">{room.title}</h2>
             <div className="text-xs text-[#6E655F] flex items-center gap-2 mt-0.5 truncate">
               <span className="text-[#2C2724] font-bold">${room.price}/mo</span>
               <span>•</span>
@@ -232,6 +238,9 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
               <li>Keep messages in Fenn. Your phone number stays private.</li>
               {view.host.verified ? <li>Verified means the host confirmed a phone number or passed an ID check.</li> : <li>This host has not verified a phone number or ID yet.</li>}
             </ul>
+            <a href="/help.html" target="_blank" rel="noopener" className="inline-flex items-center min-h-10 text-sm font-extrabold text-[#485B4A] underline underline-offset-2">
+              More on staying safe
+            </a>
           </div>
 
           {/* Host Card */}

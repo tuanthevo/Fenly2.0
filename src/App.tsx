@@ -1427,6 +1427,16 @@ export default function App() {
 
   return (
     <div className="relative w-screen h-[100dvh] bg-[#2C2724] text-[#2C2724] overflow-hidden flex items-center justify-center font-['Plus_Jakarta_Sans','Inter',sans-serif]">
+      {/* Desktop only: the product in one line, beside the phone frame */}
+      <aside className="hidden lg:flex flex-col gap-4 w-80 mr-14 text-[#F9F7F3]" aria-label="About Fenn">
+        <div className="flex items-center gap-3">
+          <img src="/icons/fenn.svg" alt="" className="w-12 h-12 rounded-2xl" />
+          <span className="text-3xl font-extrabold">Fenn</span>
+        </div>
+        <p className="text-2xl font-extrabold leading-snug text-balance">Fill or find a room in the Bay Area, with a real tour of every room.</p>
+        <p className="text-base text-[#F9F7F3]/80 leading-relaxed">Fenn is made for your phone. Open this page there, or use it here in the frame.</p>
+        <a href="/help.html" className="text-base font-extrabold underline underline-offset-4 w-fit">Help and safety</a>
+      </aside>
       {/* Full-screen on mobile phone, 9:16 phone frame on desktop */}
       <main className="relative w-full h-full sm:max-w-[440px] sm:max-h-[920px] sm:h-[96vh] sm:rounded-[32px] bg-[#F9F7F3] text-[#2C2724] overflow-hidden shadow-2xl border-0 sm:border-2 sm:border-[#2C2724]/25 flex flex-col min-h-0">
         {gmpQuotaExceeded && (

@@ -111,11 +111,11 @@ export const FillHome: React.FC<FillHomeProps> = ({ signedIn, onStartFill, onRes
         </p>
       </div>
 
-      {signedIn && hosting.length > 0 && onOpenApplicants && (
+      {signedIn && onOpenApplicants && hosting.some((h) => h.applicants > 0 || h.role === 'housemate') && (
         <div className="space-y-2" data-testid="fill-applicants">
           <h3 className="text-xs font-extrabold text-[#6E655F] uppercase tracking-wide px-1">Applicants</h3>
           <div className="rounded-2xl bg-white border border-[#2C2724]/10 divide-y divide-[#2C2724]/10 overflow-hidden">
-            {hosting.map((h) => (
+            {hosting.filter((h) => h.applicants > 0 || h.role === 'housemate').map((h) => (
               <button
                 key={h.id}
                 type="button"

@@ -96,6 +96,7 @@ test('find filters: parse, match, query string', () => {
     maxRentCents: 150000,
     moveInBy: '2026-12-15',
     mustHave: [],
+    sort: 'newest',
   });
   // Bad values are dropped: outside Northern California, an odd radius, junk text
   assert.deepEqual(parseFindQuery({ place: 'Los Angeles', lat: '34.05', lng: '-118.24', miles: '5', maxRent: 'abc', moveInBy: 'soon' }), {
@@ -104,6 +105,7 @@ test('find filters: parse, match, query string', () => {
     maxRentCents: null,
     moveInBy: null,
     mustHave: [],
+    sort: 'newest',
   });
   assert.equal(parseFindQuery({ place: 'Oakland', lat: '37.8', lng: '-122.27', miles: '7' }).near?.miles, 5, 'unknown radius -> 5 mi');
   assert.equal(parseFindQuery({ place: '<script>', lat: '37.8', lng: '-122.27', miles: '3' }).near?.label, 'script');
@@ -293,4 +295,9 @@ test('must-have filters: only listed room features, kept in the query and counte
   const room = { city: 'San Francisco', neighborhood: 'Mission', rentCents: 145000, availableFrom: '2026-12-01', amenities: ['Private bath', 'Fast WiFi'] };
   assert.ok(matches(room, { ...EMPTY, mustHave: ['Private bath'] }));
   assert.ok(!matches(room, filters), 'every must-have has to be there');
+  // Sort: newest unless lowest rent is asked for; it is an order, not a filter, so it is not counted
+  assert.equal(parse({ sort: 'rent_low' }).sort, 'rent_low');
+  assert.equal(parse({ sort: 'drop table' }).sort, 'newest');
+  assert.equal(qs({ ...EMPTY, sort: 'rent_low' }), 'sort=rent_low');
+  assert.equal(count({ ...EMPTY, sort: 'rent_low' }), 0);
 });

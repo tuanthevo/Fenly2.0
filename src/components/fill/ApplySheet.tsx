@@ -238,7 +238,7 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
                       {preview.budgetMax != null && <span className="text-[#6E655F] font-bold">Budget up to {formatRentCents(preview.budgetMax)}</span>}
                     </div>
                     {preview.missing > 0 && onOpenPassport && (
-                      <button type="button" onClick={onOpenPassport} className="text-xs font-bold text-[#A9513A] flex items-center gap-0.5">
+                      <button type="button" onClick={onOpenPassport} className="min-h-10 text-xs font-bold text-[#A9513A] flex items-center gap-0.5">
                         Finish your Passport ({preview.missing} left): hosts see complete ones first <ChevronRight className="w-3 h-3" />
                       </button>
                     )}
@@ -326,7 +326,7 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
                   className="w-full py-3 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-sm font-extrabold shadow-warm-sm flex items-center justify-center gap-2 disabled:opacity-60"
                 >
                   {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  {uploadPct !== null ? `Uploading intro ${uploadPct}%` : 'Apply with my Passport'}
+                  {uploadPct !== null ? `Uploading intro ${uploadPct}%` : 'Apply'}
                 </button>
               </div>
             )}
