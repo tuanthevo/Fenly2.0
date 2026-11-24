@@ -80,7 +80,7 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
           <div className="min-w-0">
             <h2 id="room-details-title" className="font-extrabold text-base text-[#2C2724] leading-snug line-clamp-2">{room.title}</h2>
             <div className="text-xs text-[#6E655F] flex items-center gap-2 mt-0.5 truncate">
-              <span className="text-[#2C2724] font-bold">${room.price}/mo</span>
+              <span className="text-[#2C2724] font-bold">${room.price.toLocaleString('en-US')}/mo</span>
               <span>•</span>
               <span>{room.roomType}</span>
               <span>•</span>

@@ -87,7 +87,9 @@ test("listing page names the host and shows a verified badge only when it is bac
     });
   assert.ok(page({ firstName: "<b>Ana</b>", verified: true }).includes("Listed by &lt;b&gt;Ana&lt;/b&gt;"));
   assert.ok(page({ firstName: "Ana", verified: true }).includes("Verified"));
-  assert.ok(!page({ firstName: "Ana", verified: false }).includes("Verified"));
+  assert.ok(!page({ firstName: "Ana", verified: false }).includes(">Verified<"));
+  assert.ok(page({ firstName: "Ana", verified: false }).includes("No phone or ID check yet"));
+  assert.ok(page({ firstName: null, verified: false }).includes("Listed by a host on Fenn"));
   assert.ok(!page().includes("Listed by"));
   // No media: a calm placeholder, never an empty black box
   assert.ok(!page().includes('class="video"'));

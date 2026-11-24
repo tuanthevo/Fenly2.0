@@ -914,7 +914,7 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
             </h4>
             <p className="text-xs text-[#6E655F]">
               {mode === 'quick'
-                ? `The room, a shared space, the bathroom. ${seconds} seconds each.`
+                ? `The room, a shared space, the bathroom. At least ${SHOT_GUIDE_SEC} seconds each.`
                 : `Never filmed a room before? Follow each card. ${seconds} seconds per shot.`}
             </p>
           </div>
@@ -1014,9 +1014,9 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
 
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-extrabold uppercase tracking-wider text-[#A9513A]">
+                    <span className="text-xs font-extrabold text-[#A9513A]">
                       Shot {shot.slotNumber}
-                      {isNext && !isDone ? ' • Up next' : ''}
+                      {isNext && !isDone ? ', up next' : ''}
                     </span>
                     {isDone && (
                       <span

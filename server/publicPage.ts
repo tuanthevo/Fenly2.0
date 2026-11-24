@@ -29,7 +29,9 @@ p{font-size:14px;line-height:1.55;color:var(--muted);margin:8px 0}
 .brand img{width:24px;height:24px}
 header{margin-bottom:12px}
 header span{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-top:4px}
-.host{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;margin:10px 0 0}
+.host{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:14px;font-weight:700;margin:10px 0 0}
+.unchecked{font-size:12px;font-weight:600;color:var(--muted)}
+.foot a{display:inline-block;padding:11px 0;color:inherit}
 .nomedia{border-radius:24px;background:var(--sage-bg);border:1px solid rgba(122,144,124,.4);padding:28px 16px;text-align:center;font-size:14px;font-weight:700;color:#485B4A}
 `;
 
@@ -105,7 +107,7 @@ export function renderListingPage(input: ListingPageInput): string {
   const media = input.videoUrl
     ? `<video disablepictureinpicture src="${escapeHtml(input.videoUrl)}"${input.posterUrl ? ` poster="${escapeHtml(input.posterUrl)}"` : ""} playsinline muted autoplay loop controls preload="none" aria-label="${tour} of the room in ${escapeHtml(area)}"></video>`
     : input.posterUrl
-      ? `<img src="${escapeHtml(input.posterUrl)}" alt="Room in ${escapeHtml(area)}" fetchpriority="high">`
+      ? `<img src="${escapeHtml(input.posterUrl)}" alt="Room in ${escapeHtml(area)}" fetchpriority="high" onerror="this.parentNode.className='nomedia';this.parentNode.textContent='The tour for this room is not ready yet.'">`
       : "";
 
   const amenities = listing.amenities.length
@@ -115,8 +117,10 @@ export function renderListingPage(input: ListingPageInput): string {
     : "";
 
   const hostName = input.host?.firstName?.trim();
-  const hostLine = hostName
-    ? `<p class="host">Listed by ${escapeHtml(hostName)}${input.host?.verified ? ' <span class="chip sage">Verified</span>' : ""}</p>`
+  const hostLine = input.host
+    ? `<p class="host">Listed by ${hostName ? escapeHtml(hostName) : "a host on Fenn"}${
+        input.host.verified ? ' <span class="chip sage">Verified</span>' : ' <span class="unchecked">No phone or ID check yet</span>'
+      }</p>`
     : "";
 
   const body = `<main>
@@ -134,7 +138,7 @@ ${specs ? `<span class="chip">${escapeHtml(specs)}</span>` : ""}
 ${listing.description ? `<p>${escapeHtml(listing.description)}</p>` : ""}
 ${amenities}
 ${filled ? `<div class="card"><h2>This room is taken</h2><p>It filled through Fenn. See similar rooms nearby.</p></div>` : ""}
-<p style="font-size:12px;margin-top:18px">Something wrong with this listing? <a href="/?report=${escapeHtml(listing.id)}" style="color:inherit">Report it</a>. Never pay a deposit before you have seen the room. <a href="/help.html" style="color:inherit">Help and safety</a>.</p>
+<p class="foot" style="font-size:13px;margin-top:18px">Never pay a deposit before you have seen the room.<br><a href="/?report=${escapeHtml(listing.id)}">Report this listing</a> · <a href="/help.html">Help and safety</a> · <a href="${escapeHtml(input.findHref)}">More rooms on Fenn</a></p>
 </main>
 <div class="cta">${
     filled

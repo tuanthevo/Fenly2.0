@@ -103,6 +103,11 @@ export const FillStatusView: React.FC<{ listingId: string; onBack: () => void; o
           ) : (
             <>
               <Totals summary={data.summary} />
+              {data.summary.totals.applications === 0 && (
+                <p className="text-sm text-[#2C2724] px-1" data-testid="fill-status-no-applicants">
+                  <span className="font-extrabold">No applicants yet.</span> Post your link in one more place: a group chat or a housing group.
+                </p>
+              )}
               {data.nudges.length > 0 && <Nudges nudges={data.nudges} />}
               <ChannelTable summary={data.summary} />
             </>

@@ -783,7 +783,11 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                 ))}
               </div>
               <p className="text-xs font-bold text-[#6E655F]" data-testid="fill-progress-label">
-                {stepIndex + 1} of {steps.length} <span className="text-[#2C2724]">{steps[stepIndex]?.label}</span>
+                {stepIndex + 1} of {steps.length}{' '}
+                <span className="text-[#2C2724]">
+                  {steps[stepIndex]?.label}
+                  {step === 'start' ? (basicsPart === 1 ? ': rent and dates' : ': the room') : ''}
+                </span>
                 {steps[stepIndex + 1] ? <span className="font-semibold"> · next: {steps[stepIndex + 1].label}</span> : null}
                 {savedFlash && (
                   <span className="ml-2 text-[#485B4A]" role="status" data-testid="fill-saved">
@@ -810,10 +814,10 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                       <h3 className="text-lg font-extrabold leading-tight">{editing ? 'Rent and dates' : "Let's fill your room"}</h3>
                       <p className="text-sm text-[#6E655F] mt-1">
                         {editing
-                          ? 'Changes show on your listing as soon as you save.'
+                          ? 'Changes show on your listing once you save on the next page.'
                           : photoAllowed
-                          ? 'Two quick questions, then a short video or a few photos. About 10 minutes in all.'
-                          : 'Two quick questions, then three short shots of at least 10 seconds each. About 10 minutes in all.'}
+                          ? 'A few basics, then a short video or a few photos. About 10 minutes in all.'
+                          : 'A few basics, then three short shots of at least 10 seconds each. About 10 minutes in all.'}
                       </p>
                     </div>
                     <div>
@@ -988,13 +992,13 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                   )}
                   <button
                     type="button"
-                    className={primaryBtn}
+                    className={`${primaryBtn} sticky bottom-0 z-10`}
                     disabled={busy !== null}
                     onClick={() => (basicsPart === 1 ? nextBasics() : void submitStart())}
                     data-testid="fill-start-continue"
                   >
                     {busy === 'start' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                    {basicsPart === 1 ? 'Continue' : editing ? 'Save and continue' : 'Continue'}
+                    {basicsPart === 1 ? (editing ? 'Next: the room' : 'Continue') : editing ? 'Save and continue' : 'Continue'}
                   </button>
                 </div>
               )}

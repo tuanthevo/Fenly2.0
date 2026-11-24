@@ -109,6 +109,9 @@ export const FillHome: React.FC<FillHomeProps> = ({ signedIn, onStartFill, onRes
         <p className="text-xs text-[#6E655F] text-center">
           {signedIn ? 'Your draft saves as you go. Stop and come back any time.' : "You'll sign in first, so your draft is saved as you go."}
         </p>
+        <a href="/help.html" target="_blank" rel="noopener" className="flex items-center justify-center min-h-10 text-sm font-extrabold text-[#A9513A] underline underline-offset-2">
+          How Fenn works
+        </a>
       </div>
 
       {signedIn && onOpenApplicants && hosting.some((h) => h.applicants > 0 || h.role === 'housemate') && (
@@ -171,6 +174,17 @@ export const FillHome: React.FC<FillHomeProps> = ({ signedIn, onStartFill, onRes
                     onClick={() => (row.status === 'draft' ? onResume(row.id) : onOpenStatus(row.id))}
                     className="min-w-0 flex-1 px-4 py-3.5 flex items-center gap-3 hover:bg-[#F9F7F3] transition-colors text-left"
                   >
+                    {row.status !== 'draft' && (
+                      <img
+                        src={`/api/media/thumb/${row.id}.jpg`}
+                        alt=""
+                        loading="lazy"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                        className="w-11 h-14 rounded-lg object-cover bg-[#F2EFE9] shrink-0"
+                      />
+                    )}
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-bold truncate">{name}</div>
                       <div className="text-xs text-[#6E655F] mt-0.5">

@@ -310,7 +310,7 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
       </div>
 
       <div className={cardClass + ' space-y-2'}>
-        <h3 className="text-xs font-extrabold text-[#2C2724]">Badges</h3>
+        <h3 className="text-sm font-extrabold text-[#2C2724]" data-passport-section="badges">Badges</h3>
         <div className="grid grid-cols-3 gap-2">
           {badges.map(({ key, label, on, icon: Icon }) => (
             <div
@@ -348,10 +348,16 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
             {(['phone', 'photo', 'bio', 'move_in', 'budget', 'lifestyle'] as const).map((item) => {
               const done = !missing.includes(item);
               return (
-                <div key={item} className={`text-xs font-bold flex items-center gap-1.5 ${done ? 'text-[#485B4A]' : 'text-[#2C2724]'}`}>
-                  {done ? <BadgeCheck className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5 text-[#6E655F]" />}
+                <button
+                  key={item}
+                  type="button"
+                  disabled={done}
+                  onClick={() => document.querySelector(item === 'phone' ? '[data-passport-section="badges"]' : '[data-passport-section="profile"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                  className={`w-full min-h-10 text-left text-sm font-bold flex items-center gap-2 ${done ? 'text-[#485B4A]' : 'text-[#2C2724] underline underline-offset-2 decoration-[#2C2724]/30'}`}
+                >
+                  {done ? <BadgeCheck className="w-4 h-4 shrink-0" /> : <Circle className="w-4 h-4 shrink-0 text-[#6E655F]" />}
                   {LEVEL1_ITEM_TEXT[item]}
-                </div>
+                </button>
               );
             })}
           </div>
@@ -399,8 +405,8 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
           {loading ? 'Loading your Passport…' : message ?? 'No Passport found yet.'}
         </div>
       ) : (
-        <div className={cardClass + ' space-y-3'}>
-          <h3 className="text-xs font-extrabold text-[#2C2724]">Application profile</h3>
+        <div className={cardClass + ' space-y-3'} data-passport-section="profile">
+          <h3 className="text-sm font-extrabold text-[#2C2724]">Application profile</h3>
           <label className="block space-y-1">
             <span className="text-xs font-bold text-[#6E655F]">Name hosts see</span>
             <input className={inputClass} value={displayName} maxLength={80} onChange={(e) => setDisplayName(e.target.value)} />
@@ -472,7 +478,7 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
             </div>
           ))}
           {/* Stays in reach while the form scrolls */}
-          <div className="sticky bottom-2 z-10 flex items-center gap-3 p-2 -mx-2 rounded-2xl bg-white/95 border border-[#2C2724]/10 shadow-warm-sm">
+          <div className="sticky -bottom-4 z-10 flex items-center gap-3 -mx-4 -mb-4 px-4 pt-3 pb-5 rounded-b-2xl bg-white border-t border-[#2C2724]/15">
             <button
               type="button"
               onClick={() => void save()}
@@ -539,6 +545,8 @@ export const PassportView: React.FC<PassportViewProps> = ({ onRequestSignIn, onO
         <LogOut className="w-3.5 h-3.5" /> Sign out
       </button>
       <p className="text-center text-xs text-[#6E655F]">
+        <a href="/help.html" className="inline-flex items-center min-h-10 px-2 underline font-bold">Help and safety</a>
+        <span aria-hidden="true">·</span>
         <a href="/privacy.html" className="inline-flex items-center min-h-10 px-2 underline font-bold">Privacy</a>
         <span aria-hidden="true">·</span>
         <a href="/terms.html" className="inline-flex items-center min-h-10 px-2 underline font-bold">Terms</a>
