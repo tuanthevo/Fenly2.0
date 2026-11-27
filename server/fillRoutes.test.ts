@@ -63,7 +63,12 @@ test("listing page escapes listing text, shows facts, and links Apply with the c
   assert.ok(html.includes('href="/?apply=aaaa&amp;via=fbCode01"'));
   assert.ok(html.includes("token=t&amp;x=1")); // URLs inside attributes are escaped too
   assert.ok(html.includes('property="og:image"'));
-  assert.ok(html.includes("Apply with your Passport"));
+  assert.ok(html.includes(">Apply to this room<"));
+  // Brand font, and white text only on the darker terracotta (4.5:1), never on #D06C4E
+  assert.ok(html.includes("fonts.googleapis.com/css2?family=Plus+Jakarta+Sans"));
+  const style = html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
+  for (const rule of style.split("}")) assert.ok(!(rule.includes("color:#fff") && /var\(--accent\)|#D06C4E/i.test(rule)), rule);
+  assert.ok(!/opacity:\.7/.test(html));
   assert.ok(!/address:/i.test(html));
 });
 
@@ -122,4 +127,27 @@ test("listing page stays small and paints the cover first on mobile data", () =>
   assert.ok(/<link rel="preload" as="image" href="https:\/\/x\.supabase\.co[^"]*thumb\.jpg[^"]*" fetchpriority="high">/.test(html));
   assert.ok(html.includes('preload="none"'), "the video waits for the cover");
   assert.ok(!/<script/i.test(html), "no JavaScript on the listing page");
+});
+
+test("a photo listing's page says it is a photo tour made from the host's photos; a video listing's page does not", () => {
+  const page = (mediaType?: "video" | "photos") =>
+    renderListingPage({
+      listing: toFillListingInfo({ ...ROW, media_type: mediaType }),
+      status: "published",
+      metaTags: "",
+      videoUrl: "https://x.supabase.co/v.mp4",
+      posterUrl: "https://fenly.app/api/media/thumb/a.jpg",
+      applyHref: "/?apply=aaaa",
+      findHref: "/",
+      today: "2026-11-17",
+    });
+  const photos = page("photos");
+  assert.ok(photos.includes("Photo tour · area shown"));
+  assert.ok(photos.includes("Made from the host&#39;s photos"));
+  assert.ok(photos.includes('aria-label="Photo tour of the room'));
+  for (const html of [page("video"), page()]) {
+    assert.ok(html.includes("Video tour · area shown"));
+    assert.equal(html.includes("Made from the host"), false);
+  }
+  assert.equal(toFillListingInfo({ id: "x" }).mediaType, "video");
 });

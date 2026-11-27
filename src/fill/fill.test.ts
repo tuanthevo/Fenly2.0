@@ -184,11 +184,28 @@ test('share posts carry the facts and each channel gets its own link', () => {
   assert.equal(posts.reddit.title, '[OFFERING] $1,450 / room in Mission · available Dec 1');
   assert.ok(posts.reddit.body.includes(urls.reddit));
   assert.ok(posts.tiktok.caption.includes(urls.tiktok) && posts.tiktok.caption.includes('#mission'));
-  assert.ok(posts.instagram.caption.includes(urls.instagram));
   assert.ok(posts.group_chat.text.includes(urls.group_chat));
   for (const text of allPostTexts(posts)) assert.equal(violatesFairHousing(text), false, text);
   // a missing channel link falls back to the direct link
   assert.ok(buildSharePosts(LISTING, { direct: urls.direct }).reddit.body.includes(urls.direct));
+});
+
+test('the Instagram caption follows the caption rules: facts before the cut, no link, at most 5 labels, one ask', () => {
+  const caption = buildSharePosts(LISTING, { instagram: 'https://fenly.app/r/igCode01', direct: 'https://fenly.app/r/dirCode1' }, '2026-11-17').instagram.caption;
+  const visible = caption.slice(0, 125);
+  assert.ok(visible.includes('$1,450') && visible.includes('Mission'), visible);
+  // captions aren't clickable: the link lives in the bio (the share kit has a "bio link" button)
+  assert.doesNotMatch(caption, /https?:|fenly\.app|www\./);
+  const tags: string[] = caption.match(/#\w+/g) ?? [];
+  assert.ok(tags.length >= 1 && tags.length <= 5, tags.join(' '));
+  for (const dead of ['#viral', '#fyp', '#explorepage', '#foryou', '#sfhousing']) assert.ok(!tags.includes(dead), dead);
+  assert.equal(new Set(tags).size, tags.length);
+  assert.equal((caption.match(/link in bio/gi) ?? []).length, 1);
+  assert.ok(caption.includes('room for rent in Mission') || caption.includes('Room for rent in Mission'));
+  assert.equal(violatesFairHousing(caption), false);
+
+  const sparse = buildSharePosts({ ...LISTING, rentCents: null, neighborhood: null, availableFrom: null, amenities: [] }, {}).instagram.caption;
+  assert.doesNotMatch(sparse, /\$|undefined|null/);
 });
 
 test('share posts handle a listing with few facts', () => {
@@ -273,4 +290,15 @@ test('nearestNeighborhood prefills from location, only inside the city', async (
   assert.equal(nearestNeighborhood(37.7385, -122.4160), 'Bernal Heights');
   assert.equal(nearestNeighborhood(37.8044, -122.2712), null); // Oakland
   assert.equal(nearestNeighborhood(Number.NaN, 1), null);
+});
+
+test('share posts for a photo listing say "photo tour"; a video listing keeps "video tour"', () => {
+  const urls = { direct: 'https://fenly.app/r/dirCode1' };
+  const video = allPostTexts(buildSharePosts(LISTING, urls, '2026-11-17')).join('\n');
+  const photos = allPostTexts(buildSharePosts({ ...LISTING, mediaType: 'photos' }, urls, '2026-11-17')).join('\n');
+  assert.ok(video.includes('video tour') && !video.includes('photo tour'));
+  assert.ok(photos.includes('photo tour'));
+  assert.equal(/video/i.test(photos), false, 'a photo listing never promises a video');
+  // Nothing else changes: same facts, same links
+  assert.equal(photos.replace(/See the short photo tour/g, 'Watch the short video tour').replace(/[Pp]hoto tour/g, (m) => (m[0] === 'P' ? 'Video tour' : 'video tour')), video);
 });

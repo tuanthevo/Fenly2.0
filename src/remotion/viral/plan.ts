@@ -101,6 +101,25 @@ export type LengthPreset = {
 };
 
 export const LENGTH_PRESETS: Record<ViralLength, LengthPreset> = {
+  // Fenn (host's concept, Nov 2026): slow-moving shots of 3 to 5 seconds, room by room. No length
+  // target: the video is as long as its good shots. Each room plays from the steadiest stretch
+  // of its clip (ClipAnalysis.steady).
+  fenn: {
+    label: 'Fenn',
+    approxLabel: '3-5s shots',
+    // The opener is a 3 s shot like any other: the headline alone. Three facts in the 2 s left of a
+    // 5 s shot could not be read (host's clips, Nov 2026), so the facts go to the rooms and the end card.
+    hook: { baseSec: 1.2, perWordSec: 0.22, minSec: 3, maxSec: 3.4 },
+    heroFactsSec: 0,
+    tourSec: 5,
+    minTourSec: 3,
+    closerSec: 4,
+    endCardSec: 3.2,
+    tourRate: { targetMotion: 0.05, fallback: 1, min: 1, max: 1.15 },
+    closerRate: 1,
+    ramp: null,
+    details: true,
+  },
   full: {
     label: 'Full tour',
     approxLabel: '30-50s',
@@ -181,6 +200,14 @@ const SOURCE_TAIL_SEC = 0.05;
  * headline, and a closer that isn't the perk gets a moment before its reveal.
  */
 export const MOMENT_SEC = 5.5;
+/** ...and in the Fenn edit, where every shot is 3-5 s */
+export const FENN_MOMENT_SEC = 4.5;
+/** Clean footage a clip needs in the Fenn edit to give two shots of its room */
+export const FENN_SPLIT_MIN_CLEAN_SEC = 8.5;
+/** A video shorter than this has no mid-video dip to carry viewers through: no re-hook */
+export const REHOOK_MIN_TOTAL_SEC = 15;
+/** ...and the re-hook never lands in the first third of a Fenn edit */
+export const REHOOK_EARLIEST_SHARE = 0.3;
 /** Clean footage a room needs before it is split into two moments (10 s recordings have ~8 s; host, Nov 2026) */
 export const SPLIT_MIN_CLEAN_SEC = 8;
 /**
@@ -307,7 +334,7 @@ export function reframeFor(reframe: ClipAnalysis['reframe']): ViralShot['reframe
 
 type SourceInfo = { duration: number; preferred: number; clean: ClipRange; motion: number | null; hard: boolean };
 
-function sourceInfo(clip: ViralClipInput, aiWindow?: { startSec: number; endSec?: number }): SourceInfo {
+function sourceInfo(clip: ViralClipInput, aiWindow?: { startSec: number; endSec?: number }, preferSteady = false): SourceInfo {
   const duration = clip.durationSec > 0 ? clip.durationSec : clip.analysis?.durationSec ?? 4.5;
   const end = Math.max(0, duration - SOURCE_TAIL_SEC);
   const fallbackStart =
@@ -316,7 +343,9 @@ function sourceInfo(clip: ViralClipInput, aiWindow?: { startSec: number; endSec?
   const hard = Boolean(analysisClean?.hard);
   const lo = hard ? analysisClean!.startSec : 0;
   const hi = hard ? Math.min(end, analysisClean!.endSec) : end;
-  const preferred = clamp(aiWindow?.startSec ?? clip.analysis?.best.startSec ?? fallbackStart, lo, hi);
+  // Fenn's rooms start where the camera moves most smoothly; the opener keeps its best frame (the cover)
+  const steadyStart = preferSteady ? clip.analysis?.steady?.startSec : undefined;
+  const preferred = clamp(aiWindow?.startSec ?? steadyStart ?? clip.analysis?.best.startSec ?? fallbackStart, lo, hi);
   let clean: ClipRange;
   if (aiWindow) {
     clean = { startSec: preferred, endSec: clamp(aiWindow.endSec ?? end, preferred, hi) };
@@ -352,6 +381,8 @@ export type FitRequest = {
   keepRate: number;
   minRate: number;
   ramp: { frames: number; rate: number } | null;
+  /** Fenn: start from the clip's steadiest stretch instead of its best frame */
+  preferSteady?: boolean;
 };
 
 export type FitResult = { srcStartSec: number; playbackRate: number; rampFrames: number; rampRate: number };
@@ -365,7 +396,7 @@ export type FitResult = { srcStartSec: number; playbackRate: number; rampFrames:
  * last frame (only expected under the closer's end card).
  */
 export function fitSource(clip: ViralClipInput, req: FitRequest, aiWindow?: { startSec: number; endSec?: number }): FitResult {
-  const src = sourceInfo(clip, aiWindow);
+  const src = sourceInfo(clip, aiWindow, req.preferSteady);
   const { fps } = req;
   const end = Math.max(0, src.duration - SOURCE_TAIL_SEC);
   const frames = Math.max(1, Math.min(req.cleanFrames, req.durationInFrames));
@@ -611,7 +642,8 @@ function planSegments(
   const n = ordered.length;
   const segs: Segment[] = [];
   let extras = 0;
-  const allow = () => length === 'full' && n > 1 && extras < maxExtras;
+  const allow = () => length !== 'teaser' && n > 1 && extras < maxExtras;
+  const splitMinSec = length === 'fenn' ? FENN_SPLIT_MIN_CLEAN_SEC : SPLIT_MIN_CLEAN_SEC;
   const halves = (src: SourceInfo): [Window, Window] => {
     const { startSec: s, endSec: e } = src.clean;
     const mid = (s + e) / 2;
@@ -623,7 +655,7 @@ function planSegments(
   };
   ordered.forEach((clip, i) => {
     const role: ViralShotRole = i === 0 ? 'hook' : i === n - 1 ? 'closer' : 'tour';
-    const src = sourceInfo(clip, options.ai?.windows?.[clip.slotNumber]);
+    const src = sourceInfo(clip, options.ai?.windows?.[clip.slotNumber], length === 'fenn' && role !== 'hook');
     const { startSec: s, endSec: e } = src.clean;
     if (role === 'hook') {
       const earliest = Math.max(s, src.preferred - MAX_HOOK_SHIFT_SEC);
@@ -647,7 +679,7 @@ function planSegments(
       return;
     }
     const splittable = role === 'tour' || (role === 'closer' && clip.slotNumber !== 5);
-    if (splittable && allow() && e - s >= SPLIT_MIN_CLEAN_SEC) {
+    if (splittable && allow() && e - s >= splitMinSec) {
       extras++;
       // Very long clean footage: three moments (thirds of the clip), when another extra is allowed
       if (e - s >= THIRD_MIN_CLEAN_SEC && allow()) {
@@ -695,8 +727,10 @@ export function buildViralEditPlan(input: BuildViralPlanInput, options: BuildVir
   // Too long: play the rooms a little faster (same footage) before dropping any; then drop extra
   // moments, last first, each time trying the slowest speed that fits
   const allExtras = plan.shots.filter((s) => s.part).length;
+  // Fenn's shots stay slow: over the ceiling it drops extra shots instead of playing faster
+  const maxFit = options.length === 'fenn' ? 1 : MAX_FIT_RATE;
   for (let extras = allExtras; extras >= 0; extras--) {
-    for (let speedUp = extras === allExtras ? 1 + FIT_SPEED_STEP : 1; speedUp <= MAX_FIT_RATE + 1e-6; speedUp += FIT_SPEED_STEP) {
+    for (let speedUp = extras === allExtras ? 1 + FIT_SPEED_STEP : 1; speedUp <= maxFit + 1e-6; speedUp += FIT_SPEED_STEP) {
       plan = buildPlanWith(input, options, extras, Math.round(speedUp * 100) / 100);
       if (fits(plan)) return plan;
     }
@@ -737,7 +771,8 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
   const n = segs.length;
   const roles: ViralShotRole[] = segs.map((sg) => sg.role);
   const windowOf = (i: number) => segs[i].window ?? options.ai?.windows?.[segs[i].clip.slotNumber];
-  const sources = segs.map((_, i) => sourceInfo(ordered[i], windowOf(i)));
+  const preferSteady = (i: number) => length === 'fenn' && roles[i] !== 'hook';
+  const sources = segs.map((_, i) => sourceInfo(ordered[i], windowOf(i), preferSteady(i)));
   const isSplit = (i: number) => segs.some((sg, k) => k !== i && sg.clip === segs[i].clip && sg.role !== 'hook') && roles[i] !== 'hook';
 
   // Cuts: whip / zoom transitions between rooms, a zoom between two moments of one room, a light-leak (or flash) hit into the closer
@@ -807,7 +842,8 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
     const rampExtra = ramp ? (ramp.frames * (ramp.rate - keepRates[i])) / fps : 0;
     const fit = (cleanSeconds(sources[i], 'tour') - rampExtra) / keepRates[i] - spareSec(i);
     const floor = Math.min(lp.minTourSec * preset.scale, hardMax(i, SPEED.minTour));
-    return clamp(fit, floor, ((isSplit(i) ? MOMENT_SEC : lp.tourSec) * preset.scale) / speedUp);
+    const momentSec = length === 'fenn' ? FENN_MOMENT_SEC : MOMENT_SEC;
+    return clamp(fit, floor, ((isSplit(i) ? momentSec : lp.tourSec) * preset.scale) / speedUp);
   });
   const { primary, endCard: endCardFrames } = snapToBeats(seconds, lp.endCardSec * preset.scale, fps, bpm);
 
@@ -827,6 +863,7 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
         keepRate: keepRates[i],
         minRate: roles[i] === 'hook' ? SPEED.minHero : roles[i] === 'closer' ? SPEED.minCloser : SPEED.minTour,
         ramp: rampFor(i),
+        preferSteady: preferSteady(i),
       },
       windowOf(i)
     )
@@ -1018,32 +1055,35 @@ function buildPlanWith(input: BuildViralPlanInput, options: BuildViralPlanOption
   let rehook: ViralEditPlan['rehook'] = null;
   const tourAll = shots.map((s, i) => (s.role === 'tour' ? i : -1)).filter((i) => i >= 0);
   // A short room can't hold its label and the re-hook without crowding: prefer rooms with time for both
-  const roomy = (i: number) => length !== 'full' || primary[i] >= REHOOK_MIN_ROOM_SEC * fps;
+  const tourLike = length !== 'teaser';
+  const roomy = (i: number) => !tourLike || primary[i] >= REHOOK_MIN_ROOM_SEC * fps;
   const tourLabeled = tourAll.filter((i) => shots[i].tag);
   const pick = [tourLabeled.filter(roomy), tourAll.filter(roomy), tourLabeled, tourAll].find((l) => l.length > 0) ?? [];
   const tourIdx = pick;
-  if (n >= 4 && tourIdx.length > 0) {
+  if (n >= 4 && tourIdx.length > 0 && (length !== 'fenn' || totalFrames >= REHOOK_MIN_TOTAL_SEC * fps)) {
     const text = rehookText(style, last.slotNumber === 5);
     // On screen long enough to read (grade.ts reading-time row), and gone before the room's next callout
     const need = Math.round(readSecFor(text) * fps);
     const fromFor = (k: number) =>
       // 0.3 s after the room tag: the shortest gap between two text entrances (grade.ts ENTRANCE_GAP_SEC)
-      shots[k].startFrame + (length === 'full' ? shots[k].tagInFrame + Math.round(0.3 * fps) : shots[k].inOverlapFrames + 6);
+      shots[k].startFrame + (tourLike ? shots[k].tagInFrame + Math.round(0.3 * fps) : shots[k].inOverlapFrames + 6);
     const roomFor = (k: number) => {
       const local = fromFor(k) - shots[k].startFrame;
       const nextCallout = shots[k].callouts.map((c) => c.inFrame).filter((f) => f > local);
       return Math.min(primary[k] - local - 8, ...nextCallout.map((f) => f - local - 2));
     };
-    const target = (length === 'full' ? 0.45 : 0.5) * totalFrames;
+    const target = (tourLike ? 0.45 : 0.5) * totalFrames;
     const nearest = (list: number[]) =>
       list.reduce((a, b) => (Math.abs(shots[b].startFrame - target) < Math.abs(shots[a].startFrame - target) ? b : a));
     const fits = tourIdx.filter((i) => roomFor(i) >= need);
-    const k = length === 'full' ? nearest(fits.length ? fits : tourIdx) : fits.length ? nearest(fits) : Math.floor(n / 2);
+    const k = tourLike ? nearest(fits.length ? fits : tourIdx) : fits.length ? nearest(fits) : Math.floor(n / 2);
     rehook = {
       text,
       fromFrame: fromFor(k),
       durationInFrames: Math.min(need, Math.max(12, roomFor(k))),
     };
+    // Fenn: a re-hook in the first third is not a mid-video hook, it only crowds the first room's label
+    if (length === 'fenn' && fromFor(k) < REHOOK_EARLIEST_SHARE * totalFrames) rehook = null;
   }
 
   addPunchIns(shots, cuts, rehook, endCardFrom, fps);

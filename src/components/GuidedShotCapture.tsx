@@ -537,7 +537,7 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
                 {countdown}
               </span>
               <span className="mt-2 text-xs font-extrabold text-white bg-black/60 px-3 py-1 rounded-full">
-                Get ready to walk...
+                Feet planted. Get ready...
               </span>
             </div>
           )}
@@ -581,7 +581,7 @@ const GuidedCameraModal: React.FC<GuidedCameraModalProps> = ({
                 </div>
               </div>
               <span className="px-3 py-1.5 rounded-full bg-black/70 text-sm font-extrabold text-white">
-                Walk forward slowly...
+                {shot.movementCue}
               </span>
             </div>
           )}

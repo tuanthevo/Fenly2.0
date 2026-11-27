@@ -769,6 +769,63 @@ test('nothing ever plays below real time: opener, rooms, closer, for every lengt
   }
 });
 
+/* ---------------- Fenn: slow-moving shots of 3-5 s, no length target ---------------- */
+
+const fenn = { length: 'fenn' as const };
+const steadyAt = (startSec: number, endSec: number) => ({ startSec, endSec, shake: 0.1, meanMotion: 0.03 });
+
+test('Fenn: every shot is on screen 3-5 s at 1.0-1.15x, and 3 quick clips make a short video', () => {
+  const clips = guidedClips([1, 2, 3], 5).map((c) => ({
+    ...c,
+    analysis: { ...analysis({ motion: 0.04 }), durationSec: 5, clean: { startSec: 0.5, endSec: 4.9, meanMotion: 0.04 }, steady: steadyAt(0.8, 4.8) },
+  }));
+  const plan = buildViralEditPlan({ listing, clips }, fenn);
+  assert.deepEqual(checkPlan(plan), []);
+  plan.shots.forEach((s, i) => {
+    assert.ok(onScreen(plan, i) >= 3 - 0.05 && onScreen(plan, i) <= 5 + 0.05, `shot ${i} is on screen ${onScreen(plan, i)} s`);
+    assert.ok(s.playbackRate >= 1 && s.playbackRate <= 1.15, `shot ${i} plays at ${s.playbackRate}`);
+  });
+  assert.ok(sec(plan) < 20, `total ${sec(plan)} s`);
+  assert.equal(plan.rehook, null, 'a short video needs no re-hook');
+});
+
+test('Fenn: a room plays from its steadiest stretch', () => {
+  const clips = guidedClips([1, 2, 3], 12).map((c) => ({
+    ...c,
+    analysis: { ...analysis({ startSec: 1, hookScore: c.slotNumber === 1 ? 2 : 0.5 }), durationSec: 12, clean: { startSec: 0.5, endSec: 8.5 }, steady: steadyAt(3.5, 8.5) },
+  }));
+  const plan = buildViralEditPlan({ listing, clips }, fenn);
+  const kitchen = plan.shots.find((s) => s.slotNumber === 2)!;
+  assert.ok(Math.abs(kitchen.srcStartSec - 3.5) <= 1 / plan.fps + 1e-6, `kitchen starts at ${kitchen.srcStartSec}`);
+  // the full tour still starts from its best frame
+  const full = buildViralEditPlan({ listing, clips });
+  assert.ok(full.shots.find((s) => s.slotNumber === 2)!.srcStartSec < 3);
+});
+
+test('Fenn: a long camera-roll clip gives 3-5 s shots, and nothing is padded to a length', () => {
+  const clips = guidedClips([1, 2, 3], 5);
+  clips[1] = { ...clips[1], durationSec: 30, analysis: { ...analysis({}), durationSec: 30, clean: { startSec: 0.5, endSec: 29.5 }, steady: steadyAt(10, 15) } };
+  const plan = buildViralEditPlan({ listing, clips }, fenn);
+  assert.deepEqual(checkPlan(plan), []);
+  plan.shots.forEach((_, i) => assert.ok(onScreen(plan, i) <= 5 + 0.05, `shot ${i} is on screen ${onScreen(plan, i)} s`));
+  assert.ok(sec(plan) < 30);
+  if (plan.rehook) assert.ok(plan.rehook.fromFrame >= 0.3 * plan.totalFrames, 're-hook in the first third');
+});
+
+test('Fenn: under 3 s of clean footage gives a shorter shot at real time, never a slowed one', () => {
+  const clips = guidedClips([1, 2, 3], 5);
+  clips[1].analysis = { ...analysis({}), durationSec: 5, clean: { startSec: 2.8, endSec: 4.9 }, steady: steadyAt(2.8, 4.9) };
+  const plan = buildViralEditPlan({ listing, clips }, fenn);
+  assert.deepEqual(checkPlan(plan), []);
+  assert.ok(plan.shots.every((s) => s.playbackRate >= 1));
+});
+
+test('Fenn: one clip, and analyses saved before Fenn, still plan', () => {
+  assert.deepEqual(checkPlan(buildViralEditPlan({ listing, clips: guidedClips([1]) }, fenn)), []);
+  const old = guidedClips().map((c) => ({ ...c, analysis: analysis({}) }));
+  assert.deepEqual(checkPlan(buildViralEditPlan({ listing, clips: old }, fenn)), []);
+});
+
 test('10 s recordings: rooms get a second moment, and the tour stays under 50 s at real speed', () => {
   const plan = buildViralEditPlan({ listing, clips: guidedClips([1, 2, 3, 4, 5], 10) });
   assert.deepEqual(checkPlan(plan), []);

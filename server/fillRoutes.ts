@@ -21,7 +21,9 @@ import {
   PUBLISH_PROBLEM_TEXT,
   isIsoDate,
   listingFairHousingIssues,
+  mediaTypeOf,
   publishProblems,
+  type PhotoState,
   sanitizeListingPatch,
   validRentCents,
   depositCheck,
@@ -29,14 +31,18 @@ import {
 import { allPostTexts, buildSharePosts } from "../src/fill/sharePosts.js";
 import { buildListingMeta, isLinkPreviewBot, shouldCountVisit } from "../src/fill/publicListing.js";
 import { daysUntil, fillNudges, summarizeByChannel, todayIn } from "../src/fill/fillStatus.js";
+import { canProceedWithPhotos, isPhotoSlot, type PhotoSlot } from "../src/fill/photoShots.js";
+import { getFlags } from "./flags.js";
+import { isAdminUser } from "./routeKit.js";
+import { removeListingFiles } from "./listingFiles.js";
 import { SHARE_CHANNELS, isShareChannel, type FillListingInfo, type ShareChannel } from "../src/fill/types.js";
 
 const LISTING_COLUMNS =
-  "id, owner_id, status, title, description, neighborhood, city, rent_cents, deposit_cents, available_from, move_out_date, lease_term, lease_permission, beds, baths, square_feet, amenities, house_rules, caption, viral_edit, copy_approved_at, published_at, filled_at, created_at, updated_at";
+  "id, owner_id, status, title, description, neighborhood, city, rent_cents, deposit_cents, available_from, move_out_date, lease_term, lease_permission, beds, baths, square_feet, amenities, house_rules, caption, viral_edit, copy_approved_at, published_at, filled_at, created_at, updated_at, media_type";
 const PUBLIC_COLUMNS =
-  "id, status, title, description, neighborhood, city, rent_cents, deposit_cents, available_from, move_out_date, lease_term, beds, baths, amenities, caption";
+  "id, status, title, description, neighborhood, city, rent_cents, deposit_cents, available_from, move_out_date, lease_term, beds, baths, amenities, caption, media_type";
 
-type ListingRow = Record<string, any> & { id: string; status: string };
+type ListingRow = Record<string, any> & { id: string; status: string; media_type?: string | null };
 type PublicLink = { id: string; listing_id: string; channel: ShareChannel; code: string };
 
 export function toFillListingInfo(row: Record<string, any>): FillListingInfo {
@@ -55,6 +61,7 @@ export function toFillListingInfo(row: Record<string, any>): FillListingInfo {
     amenities: Array.isArray(row.amenities) ? row.amenities : [],
     leaseTerm: row.lease_term ?? null,
     caption: row.caption ?? null,
+    mediaType: mediaTypeOf(row),
   };
 }
 
@@ -179,6 +186,25 @@ async function moderateListing(listing: ListingRow): Promise<boolean> {
   }
 }
 
+const PHOTO_COLUMNS = "id, slot, position, storage_path, width, height, caption, caption_approved, phash, qc_flags";
+
+/** A listing's photos in tour order. An error (the table missing before migration 0008 is run) reads as no photos. */
+async function listingPhotos(db: SupabaseClient, listingId: string): Promise<Record<string, any>[]> {
+  const { data, error } = await db.from("listing_photos").select(PHOTO_COLUMNS).eq("listing_id", listingId).order("position").order("created_at");
+  if (error) return [];
+  return data ?? [];
+}
+
+function photoState(rows: Record<string, any>[]): PhotoState {
+  const slots = rows.map((r) => r.slot).filter(isPhotoSlot) as PhotoSlot[];
+  return { slots, captionsApproved: canProceedWithPhotos(slots) && rows.every((r) => r.caption_approved === true) };
+}
+
+/** Photo listings are open to everyone once the flag is on, and to admins before that. */
+export function photoListingsAllowed(res: Response): boolean {
+  return getFlags().photo_listings || isAdminUser(currentUser(res));
+}
+
 export function registerFillRoutes(app: Express): void {
   // Start a draft: the two-question start (move-out date, rent for the room).
   app.post("/api/listings", requireUser(), async (req, res) => {
@@ -205,7 +231,7 @@ export function registerFillRoutes(app: Express): void {
     if (!db) return;
     const { data, error } = await db
       .from("listings")
-      .select("id, status, title, neighborhood, city, rent_cents, move_out_date, lease_permission, published_at, created_at, updated_at")
+      .select("id, status, title, neighborhood, city, rent_cents, move_out_date, lease_permission, published_at, created_at, updated_at, media_type")
       .eq("owner_id", user.id)
       .neq("status", "archived")
       .order("updated_at", { ascending: false })
@@ -222,10 +248,14 @@ export function registerFillRoutes(app: Express): void {
     if (!db) return;
     const listing = await ownListing(db, res, req.params.id, user.id);
     if (!listing) return;
-    const [media, links] = await Promise.all([
+    const [media, links, photoRows] = await Promise.all([
       db.from("listing_media").select("id, kind, bucket, path, duration_ms, width, height, bytes").eq("listing_id", listing.id),
       db.from("listing_links").select("id, channel, code").eq("listing_id", listing.id),
+      listingPhotos(db, listing.id),
     ]);
+    const photoUrls = photoRows.length
+      ? (await db.storage.from("listing-photos").createSignedUrls(photoRows.map((p) => p.storage_path), 3600)).data ?? []
+      : [];
     if (media.error) return dbError(res, media.error, "load media");
     const withUrls = await Promise.all(
       (media.data ?? []).map(async (m) => {
@@ -237,6 +267,7 @@ export function registerFillRoutes(app: Express): void {
     res.json({
       listing,
       media: withUrls,
+      photos: photoRows.map((p) => ({ ...p, signedUrl: photoUrls.find((u) => u.path === p.storage_path)?.signedUrl ?? null })),
       links: (links.data ?? []).map((l) => ({ ...l, url: shareUrl(origin, l.code) })),
     });
   });
@@ -247,6 +278,8 @@ export function registerFillRoutes(app: Express): void {
     const result = sanitizeListingPatch(req.body);
     if (!result.ok) return res.status(400).json({ error: "invalid", errors: result.errors });
     const { patch } = result;
+    // Choosing photos needs the feature; switching back to video is always allowed
+    if (patch.media_type === "photos" && !photoListingsAllowed(res)) return res.status(404).json({ error: "feature_off", feature: "photo_listings" });
     const issues = listingFairHousingIssues({
       title: patch.title,
       description: patch.description,
@@ -276,6 +309,30 @@ export function registerFillRoutes(app: Express): void {
     res.json({ listing: data, underReview });
   });
 
+  // Delete for good (the edit screen's "Delete listing"). Ownership is checked through the
+  // user's client; the files and the row then go with the admin client, because Storage is
+  // not reached by a database cascade and the owner's delete policy covers drafts only.
+  app.delete("/api/listings/:id", requireUser(), async (req, res) => {
+    const user = currentUser(res)!;
+    const db = userDb(res);
+    if (!db) return;
+    const listing = await ownListing(db, res, req.params.id, user.id);
+    if (!listing) return;
+    const admin = getAdminClient();
+    if (!admin) return res.status(503).json({ error: "supabase_not_configured" });
+    try {
+      // Files first, while their paths can still be read
+      await removeListingFiles(admin, listing.id);
+    } catch (error) {
+      console.error("delete listing files:", error instanceof Error ? error.message : error);
+      return res.status(500).json({ error: "delete_failed", message: "We couldn't delete the listing. Try again." });
+    }
+    const { error } = await admin.from("listings").delete().eq("id", listing.id).eq("owner_id", user.id);
+    if (error) return dbError(res, error, "delete listing");
+    await track("listing_deleted", { status: listing.status, media_type: mediaTypeOf(listing) }, { userId: user.id });
+    res.status(204).end();
+  });
+
   // Publish: lease check, approved copy, video + cover, fair housing; then links and posts.
   app.post("/api/listings/:id/publish", requireUser(), async (req, res) => {
     const user = currentUser(res)!;
@@ -285,7 +342,10 @@ export function registerFillRoutes(app: Express): void {
     if (!listing) return;
     const media = await db.from("listing_media").select("kind").eq("listing_id", listing.id);
     if (media.error) return dbError(res, media.error, "load media");
-    const problems = publishProblems(listing as any, (media.data ?? []).map((m) => m.kind));
+    const isPhotos = mediaTypeOf(listing) === "photos";
+    if (isPhotos && !photoListingsAllowed(res)) return res.status(404).json({ error: "feature_off", feature: "photo_listings" });
+    const photoRows = isPhotos ? await listingPhotos(db, listing.id) : [];
+    const problems = publishProblems(listing as any, (media.data ?? []).map((m) => m.kind), photoState(photoRows));
     if (problems.length) {
       return res.status(409).json({ error: "not_ready", problems, messages: problems.map((p) => PUBLISH_PROBLEM_TEXT[p]) });
     }
@@ -298,6 +358,7 @@ export function registerFillRoutes(app: Express): void {
       house_rules: listing.house_rules,
       caption: listing.caption,
       video: listing.viral_edit,
+      photo_captions: photoRows.map((p) => p.caption),
       share_posts: allPostTexts(draftPosts),
     });
     if (issues.length) return res.status(422).json({ error: "fair_housing", issues });
@@ -320,7 +381,7 @@ export function registerFillRoutes(app: Express): void {
         .single();
       if (error) return dbError(res, error, "publish listing");
       published = data as ListingRow;
-      await track("listing_published", { channels: links.length }, { userId: user.id, listingId: listing.id });
+      await track("listing_published", { channels: links.length, media_type: mediaTypeOf(listing) }, { userId: user.id, listingId: listing.id });
       underReview = await moderateListing(published);
     }
     const urls = Object.fromEntries(links.map((l) => [l.channel, shareUrl(origin, l.code)])) as Record<ShareChannel, string>;

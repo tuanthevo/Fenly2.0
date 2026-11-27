@@ -49,6 +49,10 @@ export interface RoomListing {
   videoUrl: string;
   /** Fenly 2.0: room start times in the tour video (seconds), for left/right swipes */
   videoChapters?: number[];
+  /** 'photos' = the tour is made from the host's photos (Fill > Take photos); database rooms only */
+  mediaType?: 'video' | 'photos';
+  /** The host's photos, in tour order (photo listings) */
+  photos?: { url: string; slot: string; caption: string | null; width: number | null; height: number | null }[];
   fallbackThumbnail: string;
   audioTrack: {
     title: string;

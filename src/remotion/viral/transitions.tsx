@@ -67,14 +67,22 @@ const ZoomThroughPresentation: React.FC<TransitionPresentationComponentProps<NoP
   );
 };
 
-const PRESENTATIONS: Record<'whip-left' | 'whip-right' | 'zoom-through', TransitionPresentation<NoProps>> = {
+/** Photo listings: the next photo fades in over the current one (which stays solid, so the frame never dims). */
+const CrossfadePresentation: React.FC<TransitionPresentationComponentProps<NoProps>> = ({
+  children,
+  presentationDirection,
+  presentationProgress,
+}) => <AbsoluteFill style={{ opacity: presentationDirection === 'entering' ? presentationProgress : 1 }}>{children}</AbsoluteFill>;
+
+const PRESENTATIONS: Record<'whip-left' | 'whip-right' | 'zoom-through' | 'crossfade', TransitionPresentation<NoProps>> = {
   'whip-left': { component: WhipLeftPresentation, props: {} },
   'whip-right': { component: WhipRightPresentation, props: {} },
   'zoom-through': { component: ZoomThroughPresentation, props: {} },
+  crossfade: { component: CrossfadePresentation, props: {} },
 };
 
 export function cutPresentation(kind: ViralCutKind): TransitionPresentation<NoProps> {
-  if (kind === 'whip-left' || kind === 'whip-right' || kind === 'zoom-through') return PRESENTATIONS[kind];
+  if (kind === 'whip-left' || kind === 'whip-right' || kind === 'zoom-through' || kind === 'crossfade') return PRESENTATIONS[kind];
   return PRESENTATIONS['whip-left'];
 }
 

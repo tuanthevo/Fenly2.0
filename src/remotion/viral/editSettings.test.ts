@@ -128,3 +128,9 @@ test('settings from the browser are checked before they reach a prompt', () => {
   assert.ok(JSON.stringify(out).length < 600);
   assert.deepEqual(sanitizeEditSettings(null), DEFAULT_EDIT_SETTINGS);
 });
+
+test('new videos use the Fenn edit; a saved full tour stays a full tour', () => {
+  assert.equal(DEFAULT_EDIT_SETTINGS.length, 'fenn');
+  assert.equal(sanitizeEditSettings({ length: 'full' }).length, 'full');
+  assert.equal(sanitizeEditSettings({ length: 'nonsense' }).length, 'fenn');
+});

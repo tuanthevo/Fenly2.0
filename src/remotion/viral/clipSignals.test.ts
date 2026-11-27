@@ -11,6 +11,9 @@ import {
   exposureBoostForLuma,
   findBestWindow,
   findCleanRange,
+  findSteadyWindow,
+  FENN_SHOT_MAX_SEC,
+  SHAKE_RETAKE,
 } from './clipSignals';
 import type { ClipSample } from './types';
 
@@ -255,4 +258,47 @@ test('on the real guided shots, only the living-room pillar is cropped, on its r
   for (const name of ['bedroom', 'kitchen', 'bathroom', 'closet']) {
     assert.equal(guidedAnalysis(name).analysis.reframe, null, name);
   }
+});
+
+/* ---------------- Fenn: the steadiest 3-5 s of a clip ---------------- */
+
+function roomSample(t: number, over: Partial<ClipSample> = {}): ClipSample {
+  return { t, luma: 0.55, detail: 0.06, structure: 0.22, corr: 0.95, motion: 0.03, balance: 0.7, coverage: 1, ...over };
+}
+/** 6 fps samples; `shaky(t)` marks the seconds where the camera jolts */
+function clipOf(durationSec: number, shaky: (t: number) => boolean): ClipSample[] {
+  return Array.from({ length: Math.round(durationSec * 6) }, (_, i) => {
+    const t = i / 6;
+    return shaky(t) ? roomSample(t, { corr: 0.66, motion: i % 2 ? 0.12 : 0.02 }) : roomSample(t);
+  });
+}
+
+test('the steady window skips the shaky stretch and takes up to 5 s', () => {
+  const samples = clipOf(9.5, (t) => t >= 2 && t < 4);
+  const w = findSteadyWindow(samples, { startSec: 0.3, endSec: 9.4 })!;
+  assert.ok(w.startSec >= 3.8, `starts at ${w.startSec}`);
+  assert.ok(Math.abs(w.endSec - w.startSec - FENN_SHOT_MAX_SEC) < 0.2, `lasts ${w.endSec - w.startSec}`);
+  assert.ok(w.shake < 0.15, `shake ${w.shake}`);
+});
+
+test('a short clean range gives a short steady window, never nothing', () => {
+  const samples = clipOf(4, () => false);
+  const w = findSteadyWindow(samples, { startSec: 1, endSec: 3 })!;
+  assert.ok(w.startSec >= 1 - 1e-6 && w.endSec <= 3 + 1e-6);
+  assert.ok(w.endSec - w.startSec >= 1.5);
+});
+
+test('a clip that is shaky everywhere asks for one slower retake', () => {
+  const a = analyzeSamples(clipOf(6, () => true), 6);
+  assert.ok(a.steady && a.steady.shake > SHAKE_RETAKE, `shake ${a.steady?.shake}`);
+  const shaky = a.warnings.filter((w) => w.kind === 'shaky');
+  assert.equal(shaky.length, 1);
+  assert.equal(shaky[0].severity, 'retake');
+  assert.match(shaky[0].tip, /^Try that one slower\./);
+});
+
+test('a steady clip gets a steady window and no shaky warning', () => {
+  const a = analyzeSamples(clipOf(6, () => false), 6);
+  assert.ok(a.steady && a.steady.shake < 0.15);
+  assert.equal(a.warnings.filter((w) => w.kind === 'shaky').length, 0);
 });

@@ -4,6 +4,8 @@
  * Pure, so it is unit tested.
  */
 import type { RoomListing } from '../types';
+import { formatMoveIn } from '../fill/publicListing';
+import { PHOTO_SHOTS, type PhotoSlot } from '../fill/photoShots';
 import {
   buildPhotoTourPlan,
   closerTagFromLabel,
@@ -11,6 +13,7 @@ import {
   type PhotoTourPhoto,
 } from '../remotion/viral/photoTour';
 import type { ViralEditPlan, ViralListingInfo, ViralStyleId } from '../remotion/viral/types';
+import { cleanTag } from '../remotion/viral/copy';
 
 export type TourPhotoScene = { label: string; imageUrl: string };
 
@@ -67,5 +70,69 @@ export function photoTourPlanForRoom(room: RoomListing, scenes: TourPhotoScene[]
   return buildPhotoTourPlan(
     { listing: listingInfoForRoom(room), photos, facts: factsForRoom(room) },
     { style: PHOTO_TOUR_STYLES[variant % PHOTO_TOUR_STYLES.length], variant }
+  );
+}
+
+/* ---------- host photo listings (Fill > Take photos) ---------- */
+
+export type ListingTourPhoto = {
+  src: string;
+  slot: PhotoSlot;
+  /** The approved caption: "Room label" or "Room label, second callout" */
+  caption?: string | null;
+  landscape?: boolean;
+};
+
+export type ListingTourOptions = {
+  /** YYYY-MM-DD */
+  availableFrom?: string | null;
+  today?: string;
+  /** Picks the pan order, so two listings don't move the same way */
+  listingId: string;
+  hookText?: string;
+};
+
+const shotName = (slot: PhotoSlot) => PHOTO_SHOTS.find((s) => s.slot === slot)?.name ?? 'Room';
+
+/** "South-facing window, Built-in closet" -> the room label and its second callout. */
+export function calloutsFromCaption(caption: string | null | undefined, slot: PhotoSlot): { tag: string; detail: string } {
+  const [first = '', ...rest] = (caption ?? '').split(',').map((part) => part.trim()).filter(Boolean);
+  return { tag: first || shotName(slot), detail: rest.join(', ') };
+}
+
+/**
+ * Labels in a caption that the video would cut off: on-screen callouts hold 3 words
+ * and 22 characters (copy.ts cleanTag). The editor shows these so the host can shorten them.
+ */
+export function longCalloutParts(caption: string | null | undefined): string[] {
+  return (caption ?? '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part && cleanTag(part) !== part.replace(/\s+/g, ' '));
+}
+
+/**
+ * The host's own photos as a calm tour: the approved one-way pans, crossfades,
+ * no sound effects. The opener carries the price and the area; the facts that
+ * follow add the move-in date. Photos play in the order given.
+ */
+export function photoTourPlanForListing(
+  listing: ViralListingInfo,
+  photos: ListingTourPhoto[],
+  options: ListingTourOptions
+): ViralEditPlan | null {
+  const usable = photos.filter((p) => Boolean(p.src));
+  if (usable.length < 2) return null;
+  const facts = [ROOM_FACT[listing.roomType ?? ''] ?? 'Private room'];
+  if (listing.squareFeet && listing.squareFeet > 0) facts.push(`${Math.round(listing.squareFeet)} sq ft`);
+  const moveIn = formatMoveIn(options.availableFrom, options.today);
+  if (moveIn) facts.push(moveIn === 'now' ? 'Available now' : `Available ${moveIn}`);
+  return buildPhotoTourPlan(
+    {
+      listing,
+      photos: usable.map((p) => ({ src: p.src, landscape: p.landscape, ...calloutsFromCaption(p.caption, p.slot) })),
+      facts,
+    },
+    { style: 'price-hook', variant: listingVariant(options.listingId), calm: true, sfx: false, hookText: options.hookText }
   );
 }

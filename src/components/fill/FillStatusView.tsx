@@ -4,7 +4,7 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, CalendarClock, Clapperboard, Eye, FileCheck, Lightbulb, Loader2, Pencil, RefreshCw, Share2 } from 'lucide-react';
-import { fillApi, type LinkRow } from '../../lib/fillApi';
+import { ApiError, fillApi, type LinkRow } from '../../lib/fillApi';
 import { channelLabel } from '../../fill/attribution';
 import { formatRentCents } from '../../fill/publicListing';
 import type { SharePosts } from '../../fill/sharePosts';
@@ -19,7 +19,7 @@ export const FillStatusView: React.FC<{ listingId: string; onBack: () => void; o
   const [data, setData] = useState<StatusData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [kit, setKit] = useState<{ links: LinkRow[]; posts: SharePosts; caption: string | null; videoUrl: string | null } | null>(null);
+  const [kit, setKit] = useState<{ links: LinkRow[]; posts: SharePosts; caption: string | null; videoUrl: string | null; noVideo: boolean } | null>(null);
   const [kitLoading, setKitLoading] = useState(false);
 
   const load = useCallback(async () => {
@@ -28,7 +28,8 @@ export const FillStatusView: React.FC<{ listingId: string; onBack: () => void; o
     try {
       setData(await fillApi.status(listingId));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't load the status.");
+      // A deleted listing (Back after "Delete listing" lands here): say so instead of "not_found"
+      setError(e instanceof ApiError && e.status === 404 ? "This listing isn't here any more. It was deleted." : e instanceof Error ? e.message : "Couldn't load the status.");
     } finally {
       setLoading(false);
     }
@@ -48,6 +49,7 @@ export const FillStatusView: React.FC<{ listingId: string; onBack: () => void; o
         posts: published.posts,
         caption: details.listing.caption,
         videoUrl: details.media.find((m) => m.kind === 'video_full')?.signedUrl ?? null,
+        noVideo: details.listing.media_type === 'photos' && !details.media.some((m) => m.kind === 'video_full'),
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't open the share kit.");
@@ -70,7 +72,7 @@ export const FillStatusView: React.FC<{ listingId: string; onBack: () => void; o
         <h2 className="flex-1 min-w-0 text-base font-extrabold text-[#2C2724] truncate">
           {kit ? 'Share kit' : data?.listing.title || 'Fill status'}
         </h2>
-        {!kit && onEdit && (
+        {!kit && onEdit && data && (
           <button
             type="button"
             onClick={onEdit}
@@ -95,7 +97,7 @@ export const FillStatusView: React.FC<{ listingId: string; onBack: () => void; o
       {error && <p className="text-xs font-bold text-[#9A4A33] p-3 rounded-xl bg-[#D06C4E]/10">{error}</p>}
 
       {kit ? (
-        <ShareKit listingId={listingId} links={kit.links} posts={kit.posts} caption={kit.caption} videoUrl={kit.videoUrl} />
+        <ShareKit listingId={listingId} links={kit.links} posts={kit.posts} caption={kit.caption} videoUrl={kit.videoUrl} noVideo={kit.noVideo} />
       ) : loading && !data ? (
         <div className="flex justify-center py-10 text-[#6E655F]">
           <Loader2 className="w-5 h-5 animate-spin" />

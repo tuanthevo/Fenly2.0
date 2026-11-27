@@ -21,6 +21,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { GuidedShotCapture } from '../GuidedShotCapture';
+import { DeleteListing } from './DeleteListing';
 import type { RecordedViralSlotMedia } from '../GuidedViralTourStudio';
 import type { ViralVideoResult } from '../ViralVideoEditor';
 import type { ViralListingInfo } from '../../remotion/viral/types';
@@ -30,6 +31,7 @@ import {
   ApiError,
   fillApi,
   grabVideoFrame,
+  clearFinishedTour,
   saveMediaRows,
   storageVideoType,
   uploadToStorage,
@@ -40,12 +42,21 @@ import {
 import {
   PROBLEM_STEP,
   depositCheck,
+  mediaTypeOf,
   rawClipPath,
   resumeStep,
   slotFromRawPath,
   type FairHousingIssue,
   type FillStep,
+  type MediaType,
 } from '../../fill/listingRules';
+import { PHOTO_SHOTS, canProceedWithPhotos, isPhotoSlot } from '../../fill/photoShots';
+import { coverFromPhoto } from '../../lib/photoProcess';
+import { usePhotoListings } from '../../config/usePhotoListings';
+import { MediaChooser } from './MediaChooser';
+import { PhotoShotCapture } from './PhotoShotCapture';
+import { PhotoTourStep, type PhotoTourResult } from './PhotoTourStep';
+import { usePhotoDraft } from './usePhotoDraft';
 import { FILL_AMENITIES, leaseTermOptions } from '../../fill/neighborhoods';
 import { BAY_AREA_CITIES, BAY_AREA_REGIONS, areaLabel, bayAreaCity, nearestArea, serviceCity } from '../../geo/bayArea';
 import { nearestNorcalCity } from '../../geo/norcal';
@@ -110,9 +121,11 @@ interface FillFlowProps {
   mode?: 'create' | 'edit';
   /** Edit mode: open at the video editor instead of the basics ("Edit video" on the status page) */
   startAt?: 'video';
+  /** Edit mode: the host deleted the listing for good; without this there is no Delete button */
+  onDeleted?: () => void;
 }
 
-export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onClose, onOpenStatus, onDraftCreated, mode = 'create', startAt }) => {
+export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onClose, onOpenStatus, onDraftCreated, mode = 'create', startAt, onDeleted }) => {
   const editing = mode === 'edit' && Boolean(requestedId);
   const steps = editing ? EDIT_STEPS : STEPS;
   // Only the id this flow opened with is loaded; later id changes come from this flow itself
@@ -129,7 +142,14 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
   const [moveOut, setMoveOut] = useState('');
   const [rent, setRent] = useState('');
   const [deposit, setDeposit] = useState('');
-  // Step 3
+  // Step 3: a video (the guided shots) or photos. Photo listings are offered only when this host may use them.
+  const photoAllowed = usePhotoListings();
+  const draft = usePhotoDraft();
+  const [mediaType, setMediaType] = useState<MediaType>('video');
+  /** False until the host has picked video or photos (or the draft already has clips or photos) */
+  const [mediaChosen, setMediaChosen] = useState(false);
+  const [choosing, setChoosing] = useState<MediaType | null>(null);
+  const isPhotos = mediaType === 'photos';
   const [media, setMedia] = useState<Record<number, RecordedViralSlotMedia>>({});
   const uploadedClips = useRef(new Map<number, string>()); // slot -> videoUrl already in Storage
   const [retakeSlot, setRetakeSlot] = useState<number | null>(null);
@@ -187,6 +207,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
     setTitle(row.title ?? '');
     setDescription(row.description ?? '');
     setApproved(Boolean(row.copy_approved_at));
+    setMediaType(mediaTypeOf(row));
   };
 
   // Saved raw clips (resume / edit), downloaded only when a step needs them: they are tens of MB,
@@ -252,10 +273,18 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
         savedClips.current = data.media;
         const thumb = data.media.find((m) => m.kind === 'thumbnail')?.signedUrl;
         if (thumb) setCover(thumb);
+        const photoRows = data.photos ?? [];
+        const rawClips = data.media.filter((m) => m.kind === 'raw_clip' && m.signedUrl && slotFromRawPath(m.path)).length;
+        setMediaChosen(mediaTypeOf(data.listing) === 'photos' || rawClips > 0 || photoRows.length > 0);
+        // Photos are small: bring them back before the flow opens (clips are fetched later, when a step needs them)
+        if (photoRows.length > 0) await draft.restore(photoRows);
+        if (!alive) return;
         if (editing) setStep(startAt === 'video' ? 'video' : 'start');
         else {
-          const rawClips = data.media.filter((m) => m.kind === 'raw_clip' && m.signedUrl && slotFromRawPath(m.path)).length;
-          const next = resumeStep(data.listing, data.media.map((m) => m.kind), rawClips);
+          const next = resumeStep(data.listing, data.media.map((m) => m.kind), rawClips, {
+            slots: photoRows.map((p) => p.slot).filter(isPhotoSlot),
+            captionsApproved: photoRows.length > 0 && photoRows.every((p) => p.caption_approved),
+          });
           if (next === 'share') onOpenStatus(listingId);
           else setStep(next);
         }
@@ -274,10 +303,10 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
   // Steps that use the clips fetch them: the tour (capture cards), the video, and a new listing's
   // text (the AI writer looks at a frame from each room). Editing the text keeps working without them.
   useEffect(() => {
-    if (!listingId || loading) return;
+    if (!listingId || loading || isPhotos) return;
     if (step === 'tour' || step === 'video' || (step === 'details' && !editing)) void restoreClips();
-  }, [listingId, loading, step, editing, restoreClips]);
-  const clipsLoading = clipsState.status === 'loading';
+  }, [listingId, loading, step, editing, restoreClips, isPhotos]);
+  const clipsLoading = !isPhotos && clipsState.status === 'loading';
 
   const run = async (name: string, action: () => Promise<void>) => {
     setBusy(name);
@@ -371,6 +400,42 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
       setStep('details');
     }).finally(() => setUploadProgress(null));
 
+  /* ---------- Step 3: video or photos ---------- */
+  /** Picks (or switches) how the room is shown. Everything else in the draft stays as it is. */
+  const chooseMedia = (type: MediaType) => {
+    setChoosing(type);
+    return run('media', async () => {
+      const id = listing!.id;
+      if (type !== mediaType) {
+        const { listing: updated } = await fillApi.patch(id, { media_type: type });
+        setListing(updated);
+        setMediaType(type);
+        // A finished tour was made from the other kind of media: the tour step makes a new one
+        if (mediaKinds.some((k) => k === 'video_full' || k === 'thumbnail')) {
+          await clearFinishedTour(id);
+          setMediaKinds((kinds) => kinds.filter((k) => k === 'raw_clip'));
+          setVideoBlob(null);
+          setCover(null);
+        }
+      }
+      setMediaChosen(true);
+      trackEvent('media_option_chosen', { media_type: type }, id);
+    }).finally(() => setChoosing(null));
+  };
+
+  const enoughPhotos = canProceedWithPhotos(draft.slots);
+  const submitPhotos = () =>
+    run('tour', async () => {
+      const id = listing!.id;
+      trackEvent('tour_recorded', { shots: draft.photos.length, extras: draft.photos.length > 4, media_type: 'photos' }, id);
+      await draft.save(id, { onProgress: setUploadProgress });
+      setUploadProgress(null);
+      // Order, callouts, facts and privacy flags: suggestions the host checks in the next two steps
+      await draft.runAssist({ monthlyRent: Math.round(rentCents / 100), beds, baths, roomType: 'Private Room', neighborhood: neighborhood || city, city, amenities });
+      await draft.save(id);
+      setStep('details');
+    }).finally(() => setUploadProgress(null));
+
   /* ---------- Step 1: where the room is ---------- */
   const useMyLocation = () => {
     if (!navigator.geolocation) return;
@@ -411,14 +476,17 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
     setAiBusy(true);
     setError(null);
     try {
-      const pictures = Object.values(media)
-        .filter((m) => m.inlineDataBase64)
-        .map((m) => ({
-          label: GUIDED_SHOTS[m.slotNumber - 1]?.name ?? 'Room',
-          visualCue: GUIDED_SHOTS[m.slotNumber - 1]?.name,
-          base64Data: m.inlineDataBase64,
-          mimeType: m.mimeType ?? 'image/jpeg',
-        }));
+      const shotName = (slot: string) => PHOTO_SHOTS.find((s) => s.slot === slot)?.name ?? 'Room';
+      const pictures = isPhotos
+        ? draft.photos.slice(0, 6).map((p) => ({ label: shotName(p.slot), visualCue: shotName(p.slot), base64Data: p.thumbBase64, mimeType: 'image/jpeg' }))
+        : Object.values(media)
+            .filter((m) => m.inlineDataBase64)
+            .map((m) => ({
+              label: GUIDED_SHOTS[m.slotNumber - 1]?.name ?? 'Room',
+              visualCue: GUIDED_SHOTS[m.slotNumber - 1]?.name,
+              base64Data: m.inlineDataBase64,
+              mimeType: m.mimeType ?? 'image/jpeg',
+            }));
       const res = await fetch('/api/gemini/auto-fill-listing-copy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -452,13 +520,13 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
   useEffect(() => {
     // The writer looks at a frame from each room: wait until the clips are here (just filmed, or
     // downloaded again for a resumed draft) so it never writes blind
-    const clipsReady = Object.keys(media).length > 0 || clipsState.status === 'done';
+    const clipsReady = isPhotos ? draft.photos.length > 0 : Object.keys(media).length > 0 || clipsState.status === 'done';
     if (step === 'details' && !loading && !title && !description && !aiTried.current && clipsReady) {
       aiTried.current = true;
       void writeWithAi();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, loading, clipsState.status]);
+  }, [step, loading, clipsState.status, isPhotos, draft.photos.length]);
 
   const liveIssues = useMemo(
     () => [...new Set([...fairHousingIssues(title), ...fairHousingIssues(description)])],
@@ -476,6 +544,8 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
         title,
         description,
         copy_approved: true,
+        // Photo listings: a size or "Furnished" the host accepted from the photo suggestions
+        ...(isPhotos ? { square_feet: squareFeet ? Number(squareFeet) : null, amenities } : {}),
       });
       setListing(updated);
       if (editing && !thenVideo) onOpenStatus(updated.id);
@@ -545,6 +615,39 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
       else setStep('publish');
     }).finally(() => setUploadProgress(null));
 
+  /** The photo tour, saved the way a video is: MP4 as the listing's video, the doorway photo as its cover. */
+  const savePhotoTour = (result: PhotoTourResult) =>
+    run('video', async () => {
+      const id = listing!.id;
+      await draft.save(id, { approved: true });
+      const coverPhoto = draft.cover ?? draft.photos[0];
+      const coverImage = await coverFromPhoto(coverPhoto.blob);
+      const { plan, blob } = result;
+      // No export in this browser: an older tour video must not keep playing in its place
+      if (!blob && mediaKinds.includes('video_full')) await clearFinishedTour(id);
+      const total = (blob?.size ?? 0) + coverImage.blob.size;
+      setUploadProgress(0);
+      if (blob) await uploadToStorage('listing-videos', `${id}/full.mp4`, blob, 'video/mp4', (p) => setUploadProgress((p * blob.size) / total));
+      await uploadToStorage('listing-thumbnails', `${id}/thumb.jpg`, coverImage.blob, 'image/jpeg', (p) => setUploadProgress(((blob?.size ?? 0) + p * coverImage.blob.size) / total));
+      await saveMediaRows([
+        ...(blob
+          ? [{ listing_id: id, kind: 'video_full' as const, bucket: 'listing-videos', path: `${id}/full.mp4`, duration_ms: Math.round((plan.totalFrames / plan.fps) * 1000), width: plan.width, height: plan.height, bytes: blob.size }]
+          : []),
+        { listing_id: id, kind: 'thumbnail', bucket: 'listing-thumbnails', path: `${id}/thumb.jpg`, width: coverImage.width, height: coverImage.height, bytes: coverImage.blob.size },
+      ]);
+      const { listing: updated } = await fillApi.patch(id, {
+        // One chapter per shot, so the Find feed swipes photo to photo
+        viral_edit: { photoTour: true, hookText: result.hookText, chapters: chaptersFromPlan(plan) },
+        caption: plan.caption.slice(0, 2200),
+      });
+      setListing(updated);
+      setVideoBlob(blob);
+      setCover(coverImage.dataUrl);
+      setMediaKinds((k) => [...new Set([...k.filter((x) => blob || x !== 'video_full'), 'thumbnail', ...(blob ? ['video_full'] : [])])]);
+      if (editing) onOpenStatus(id);
+      else setStep('publish');
+    }).finally(() => setUploadProgress(null));
+
   /* ---------- Publish ---------- */
   const publish = () =>
     run('publish', async () => {
@@ -580,17 +683,29 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
       if (!leaseChoice) return setError('Pick one answer to continue.');
       return setStep('tour');
     }
+    if (step === 'tour' && showChooser) return setError('Pick a video or photos to continue.');
+    if (step === 'tour' && isPhotos) {
+      if (!enoughPhotos) return setError('Take the four required photos to continue.');
+      return void submitPhotos();
+    }
     if (step === 'tour') {
       if (!enoughShots) return setError('Film 3 shots to continue.');
       return void submitTour();
     }
     if (step === 'details') return void submitDetails();
     if (step === 'video' && editing) return onOpenStatus(listing!.id);
+    if (step === 'video' && isPhotos) {
+      if (!mediaKinds.includes('thumbnail') || !draft.approved) return setError('Check your captions, then tap "Use this tour".');
+      return setStep('publish');
+    }
     if (step === 'video') {
       if (!mediaKinds.includes('video_full')) return setError('Make your video first, then tap "Use this video".');
       return setStep('publish');
     }
   };
+  // The chooser shows once, on the way into the tour step; an edit of a live listing keeps its kind
+  const showChooser = step === 'tour' && photoAllowed && !editing && !mediaChosen;
+  const switchMedia = photoAllowed && !editing && listing?.status === 'draft';
   const canGoForward = step !== 'publish' && step !== 'share' && !(editing && step === 'video');
 
   return (
@@ -655,7 +770,11 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                   <div className={`${card} space-y-4`}>
                     <div>
                       <h3 className="text-lg font-extrabold leading-tight">Let's fill your room</h3>
-                      <p className="text-xs text-[#6E655F] mt-1">The basics, then three shots of 10 seconds or more. About 10 minutes in all.</p>
+                      <p className="text-xs text-[#6E655F] mt-1">
+                        {photoAllowed
+                          ? 'The basics, then a short video or a few photos. About 10 minutes in all.'
+                          : 'The basics, then three shots of 10 seconds or more. About 10 minutes in all.'}
+                      </p>
                     </div>
                     <div>
                       <label className={label} htmlFor="fill-move-out">When do you need to fill the room?</label>
@@ -884,7 +1003,30 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                 </div>
               )}
 
-              {step === 'tour' && !clipsLoading && (
+              {showChooser && <MediaChooser busy={choosing} onChoose={(type) => void chooseMedia(type)} />}
+
+              {step === 'tour' && !showChooser && isPhotos && (
+                <div className="space-y-3">
+                  <PhotoShotCapture draft={draft} onError={setError} />
+                  {uploadProgress !== null && <Progress value={uploadProgress} text="Saving your photos" />}
+                  {busy === 'tour' && uploadProgress === null && (
+                    <p className="text-[11px] font-bold text-[#6E655F] flex items-center gap-1.5" role="status">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-[#D06C4E]" /> Fenn is looking at your photos…
+                    </p>
+                  )}
+                  <button type="button" className={primaryBtn} disabled={!enoughPhotos || busy !== null || draft.adding !== null} onClick={() => void submitPhotos()} data-testid="fill-photos-continue">
+                    {busy === 'tour' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    {enoughPhotos ? 'Continue' : 'Take the 4 required photos to continue'}
+                  </button>
+                  {switchMedia && (
+                    <button type="button" className={secondaryBtn} disabled={busy !== null} onClick={() => void chooseMedia('video')} data-testid="fill-switch-video">
+                      Record a video instead (your photos are kept)
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {step === 'tour' && !showChooser && !isPhotos && !clipsLoading && (
                 <div className="space-y-3">
                   <GuidedShotCapture
                     mode="quick"
@@ -900,6 +1042,11 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                     {busy === 'tour' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                     {enoughShots ? 'Continue' : 'Film 3 shots to continue'}
                   </button>
+                  {switchMedia && (
+                    <button type="button" className={secondaryBtn} disabled={busy !== null} onClick={() => void chooseMedia('photos')} data-testid="fill-switch-photos">
+                      Take photos instead (your clips are kept)
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -960,6 +1107,35 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                       <span>I checked this text and it's accurate.</span>
                     </label>
                   </div>
+                  {isPhotos && draft.facts && (draft.facts.squareFeet || draft.facts.furnished || draft.facts.notes.length > 0) && (
+                    <div className={`${card} space-y-2`} data-testid="photo-fact-suggestions">
+                      <div>
+                        <h3 className="text-sm font-extrabold flex items-center gap-1.5">
+                          <Sparkles className="w-4 h-4 text-[#D06C4E]" aria-hidden="true" /> From your photos
+                        </h3>
+                        <p className="text-xs text-[#6E655F] mt-0.5">Suggestions only. Use the ones that are right.</p>
+                      </div>
+                      {draft.facts.squareFeet && String(draft.facts.squareFeet) !== squareFeet && (
+                        <Suggestion text={`The room looks like about ${draft.facts.squareFeet} sq ft`} onUse={() => setSquareFeet(String(draft.facts!.squareFeet))} />
+                      )}
+                      {draft.facts.furnished && !amenities.includes('Furnished') && (
+                        <Suggestion text="The room looks furnished" onUse={() => setAmenities((prev) => [...prev, 'Furnished'])} />
+                      )}
+                      {draft.facts.notes
+                        .filter((note) => !description.toLowerCase().includes(note.toLowerCase()))
+                        .map((note) => (
+                          <Suggestion
+                            key={note}
+                            text={note}
+                            label="Add to description"
+                            onUse={() => {
+                              setDescription((d) => `${d.trim()}${d.trim() ? ' ' : ''}${note}.`.slice(0, 4000));
+                              setApproved(false);
+                            }}
+                          />
+                        ))}
+                    </div>
+                  )}
                   <button
                     type="button"
                     className={primaryBtn}
@@ -968,17 +1144,34 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                     data-testid="fill-details-continue"
                   >
                     {busy === 'details' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                    {editing ? 'Save changes' : 'Continue to the video'}
+                    {editing ? 'Save changes' : isPhotos ? 'Continue to your tour' : 'Continue to the video'}
                   </button>
                   {editing && (
                     <button type="button" className={secondaryBtn} disabled={busy !== null} onClick={() => void submitDetails(true)} data-testid="fill-edit-new-video">
-                      Save and make a new video
+                      {isPhotos ? 'Save and edit the photo tour' : 'Save and make a new video'}
                     </button>
                   )}
                 </div>
               )}
 
-              {step === 'video' && !clipsLoading && (
+              {step === 'video' && isPhotos && listing && (
+                <div className="space-y-3">
+                  <PhotoTourStep
+                    listingId={listing.id}
+                    listing={{ ...viralListing, squareFeet: squareFeet ? Number(squareFeet) : undefined }}
+                    availableFrom={moveOut || null}
+                    today={today}
+                    draft={draft}
+                    initialHook={typeof (listing.viral_edit as { hookText?: unknown } | null)?.hookText === 'string' ? (listing.viral_edit as { hookText: string }).hookText : ''}
+                    busy={busy !== null}
+                    onRetake={() => setStep('tour')}
+                    onReady={(result) => void savePhotoTour(result)}
+                  />
+                  {uploadProgress !== null && <Progress value={uploadProgress} text="Saving your tour" />}
+                </div>
+              )}
+
+              {step === 'video' && !isPhotos && !clipsLoading && (
                 <div className="space-y-3">
                   <Suspense
                     fallback={
@@ -1017,7 +1210,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                 <div className="space-y-3">
                   <div className={`${card} flex gap-3`}>
                     {cover ? (
-                      <img src={cover} alt="Video cover" className="w-20 h-[142px] rounded-xl object-cover border border-[#2C2724]/15 shrink-0" />
+                      <img src={cover} alt={isPhotos ? 'Listing cover photo' : 'Video cover'} className="w-20 h-[142px] rounded-xl object-cover border border-[#2C2724]/15 shrink-0" />
                     ) : (
                       <div className="w-20 h-[142px] rounded-xl bg-[#2C2724]/10 shrink-0" />
                     )}
@@ -1075,7 +1268,14 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                     <CheckCircle2 className="w-5 h-5 text-[#485B4A] shrink-0" />
                     <p className="text-xs font-bold text-[#485B4A]">Your room is live. Post it where people are looking.</p>
                   </div>
-                  <ShareKit listingId={listing.id} links={published.links} posts={published.posts} caption={listing.caption} videoBlob={videoBlob} />
+                  <ShareKit
+                    listingId={listing.id}
+                    links={published.links}
+                    posts={published.posts}
+                    caption={listing.caption}
+                    videoBlob={videoBlob}
+                    noVideo={isPhotos && !mediaKinds.includes('video_full')}
+                  />
                   <button type="button" className={primaryBtn} onClick={() => onOpenStatus(listing.id)} data-testid="fill-open-status">
                     <Check className="w-4 h-4" /> See views and applicants
                   </button>
@@ -1087,6 +1287,11 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                   {error}
                 </p>
               )}
+
+              {/* Last thing on the edit form, away from Save and Close */}
+              {editing && onDeleted && listing && (step === 'start' || step === 'details') && (
+                <DeleteListing listingId={listing.id} status={listing.status} mediaType={mediaTypeOf(listing)} disabled={busy !== null} onDeleted={onDeleted} />
+              )}
             </>
           )}
         </div>
@@ -1094,6 +1299,15 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
     </div>
   );
 };
+
+const Suggestion: React.FC<{ text: string; label?: string; onUse: () => void }> = ({ text, label = 'Use', onUse }) => (
+  <div className="flex items-center gap-2">
+    <p className="flex-1 text-xs font-bold text-[#2C2724] leading-snug">{text}</p>
+    <button type="button" onClick={onUse} className="min-h-10 px-3 rounded-xl bg-white hover:bg-[#F2EFE9] border border-[#2C2724]/15 text-[11px] font-extrabold shrink-0">
+      {label}
+    </button>
+  </div>
+);
 
 const Progress: React.FC<{ value: number; text: string }> = ({ value, text }) => (
   <div className="space-y-1" data-testid="fill-upload-progress">

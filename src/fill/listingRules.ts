@@ -3,6 +3,18 @@
  */
 import { fairHousingIssues } from '../remotion/viral/copy.js';
 import type { LeasePermission } from './types.js';
+import { canProceedWithPhotos, type PhotoSlot } from './photoShots.js';
+
+export const MEDIA_TYPES = ['video', 'photos'] as const;
+export type MediaType = (typeof MEDIA_TYPES)[number];
+/** A listing's photos, as the publish and resume rules need them. */
+export type PhotoState = { slots: PhotoSlot[]; captionsApproved: boolean };
+const NO_PHOTOS: PhotoState = { slots: [], captionsApproved: false };
+
+/** Rows saved before photo listings have no media_type: they are video listings. */
+export function mediaTypeOf(listing: { media_type?: string | null } | null | undefined): MediaType {
+  return listing?.media_type === 'photos' ? 'photos' : 'video';
+}
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const LEASE_PERMISSIONS: LeasePermission[] = ['can_replace', 'leaseholder', 'not_sure'];
@@ -29,6 +41,7 @@ export type ListingPatch = Partial<{
   caption: string | null;
   viral_edit: unknown;
   copy_approved_at: string | null;
+  media_type: MediaType;
 }>;
 
 export type PatchResult = { ok: true; patch: ListingPatch } | { ok: false; errors: string[] };
@@ -104,6 +117,10 @@ export function sanitizeListingPatch(body: unknown, now: Date = new Date()): Pat
     if (LEASE_PERMISSIONS.includes(input.lease_permission as LeasePermission)) {
       patch.lease_permission = input.lease_permission as LeasePermission;
     } else errors.push('lease_permission must be can_replace, leaseholder or not_sure');
+  }
+  if ('media_type' in input) {
+    if ((MEDIA_TYPES as readonly unknown[]).includes(input.media_type)) patch.media_type = input.media_type as MediaType;
+    else errors.push('media_type must be video or photos');
   }
   if ('rent_cents' in input) {
     if (validRentCents(input.rent_cents)) patch.rent_cents = input.rent_cents;
@@ -182,6 +199,8 @@ export type PublishProblem =
   | 'missing_rent'
   | 'missing_video'
   | 'missing_thumbnail'
+  | 'missing_photos'
+  | 'captions_not_approved'
   | 'already_filled';
 
 export const PUBLISH_PROBLEM_TEXT: Record<PublishProblem, string> = {
@@ -192,6 +211,8 @@ export const PUBLISH_PROBLEM_TEXT: Record<PublishProblem, string> = {
   missing_rent: 'Add the rent for the room.',
   missing_video: 'Make the video tour first.',
   missing_thumbnail: 'The video cover image is missing. Export the video again.',
+  missing_photos: 'Add the four required photos of the room.',
+  captions_not_approved: 'Check the photo captions and tick "I checked these captions".',
   already_filled: 'This room is already marked filled.',
 };
 
@@ -203,8 +224,10 @@ export function publishProblems(
     title: string | null;
     description: string | null;
     rent_cents: number | null;
+    media_type?: string | null;
   },
-  mediaKinds: string[]
+  mediaKinds: string[],
+  photos: PhotoState = NO_PHOTOS
 ): PublishProblem[] {
   const problems: PublishProblem[] = [];
   if (listing.status === 'filled') problems.push('already_filled');
@@ -213,7 +236,11 @@ export function publishProblems(
   if (!listing.description?.trim()) problems.push('missing_description');
   if (!listing.copy_approved_at) problems.push('copy_not_approved');
   if (!validRentCents(listing.rent_cents)) problems.push('missing_rent');
-  if (!mediaKinds.includes('video_full')) problems.push('missing_video');
+  if (mediaTypeOf(listing) === 'photos') {
+    // The tour's MP4 is optional: a browser that cannot export still publishes, and Find plays the photos live
+    if (!canProceedWithPhotos(photos.slots)) problems.push('missing_photos');
+    if (!photos.captionsApproved) problems.push('captions_not_approved');
+  } else if (!mediaKinds.includes('video_full')) problems.push('missing_video');
   if (!mediaKinds.includes('thumbnail')) problems.push('missing_thumbnail');
   return problems;
 }
@@ -228,16 +255,20 @@ export function resumeStep(
     title: string | null;
     description: string | null;
     copy_approved_at: string | null;
+    media_type?: string | null;
   } | null,
   mediaKinds: string[],
-  rawClipCount: number
+  rawClipCount: number,
+  photos: PhotoState = NO_PHOTOS
 ): FillStep {
   if (!listing) return 'start';
   if (listing.status === 'published' || listing.status === 'filled') return 'share';
   if (!listing.lease_permission || listing.lease_permission === 'not_sure') return 'lease';
-  if (rawClipCount < 3) return 'tour';
+  const isPhotos = mediaTypeOf(listing) === 'photos';
+  if (isPhotos ? !canProceedWithPhotos(photos.slots) : rawClipCount < 3) return 'tour';
   if (!listing.copy_approved_at || !listing.title?.trim() || !listing.description?.trim()) return 'details';
-  if (!mediaKinds.includes('video_full') || !mediaKinds.includes('thumbnail')) return 'video';
+  if (isPhotos ? !photos.captionsApproved : !mediaKinds.includes('video_full')) return 'video';
+  if (!mediaKinds.includes('thumbnail')) return 'video';
   return 'publish';
 }
 
@@ -250,6 +281,8 @@ export const PROBLEM_STEP: Record<PublishProblem, FillStep> = {
   missing_rent: 'start',
   missing_video: 'video',
   missing_thumbnail: 'video',
+  missing_photos: 'tour',
+  captions_not_approved: 'video',
   already_filled: 'share',
 };
 

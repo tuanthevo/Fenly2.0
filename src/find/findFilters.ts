@@ -151,7 +151,19 @@ export type FindListing = {
   publishedAt: string | null;
   host: { id: string; firstName: string | null; photoUrl: string | null; phoneVerified: boolean; idVerified: boolean };
   housemates: { firstName: string | null; phoneVerified: boolean; idVerified: boolean }[];
+  /** 'photos' = a tour made from the host's photos; missing on rooms saved before photo listings */
+  mediaType?: 'video' | 'photos';
+  /** The host's photos in tour order (photo listings only) */
+  photos?: { url: string; slot: string; caption: string | null; width: number | null; height: number | null }[];
 };
+
+/**
+ * While the photo_listings flag is off, photo listings are an admin-only trial:
+ * everyone else's Find feed is exactly the video-only feed.
+ */
+export function visibleMediaTypes<T extends { media_type?: string | null }>(rows: T[], canSeePhotoListings: boolean): T[] {
+  return canSeePhotoListings ? rows : rows.filter((r) => r.media_type !== 'photos');
+}
 
 const LEASE_TERM_MAP: Record<string, RoomListing['leaseTerm']> = {
   'month-to-month': 'Month-to-month',
@@ -193,6 +205,8 @@ export function toRoomListing(l: FindListing, today: string): RoomListing {
     amenities: l.amenities ?? [],
     videoUrl: l.videoUrl ?? '',
     videoChapters: l.chapters ?? [],
+    mediaType: l.mediaType === 'photos' ? 'photos' : 'video',
+    photos: l.photos ?? [],
     fallbackThumbnail: l.thumbUrl ?? '',
     tourFormat: 'viral_edit',
     audioTrack: { title: 'Original sound', artist: hostName },

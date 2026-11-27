@@ -3,7 +3,7 @@
 Work top to bottom. Detailed Supabase steps are in [supabase.md](supabase.md).
 
 ## 1. Supabase (production project)
-- [ ] **Schema:** SQL Editor → run `supabase/migrations/0001_foundation.sql`, then `0002_fill.sql`, then `0003_find_apply.sql`, then `0004_listings_owner_select.sql`, then `0005_passport_stay_length.sql`, then `0006_listing_square_feet.sql`, then `0007_room_alerts.sql`. Table Editor shows every table with the RLS badge on.
+- [ ] **Schema:** SQL Editor → run `supabase/migrations/0001_foundation.sql`, then `0002_fill.sql`, then `0003_find_apply.sql`, then `0004_listings_owner_select.sql`, then `0005_passport_stay_length.sql`, then `0006_listing_square_feet.sql`, then `0007_room_alerts.sql`, then `0008_photo_listings.sql`. Table Editor shows every table with the RLS badge on.
 - [ ] **Storage:** buckets `listing-videos`, `listing-thumbnails`, `profile-photos`, `applicant-intros` exist and are private. Storage → Settings → upload file size limit **≥ 50 MB** (finished tours are 15-30 MB).
 - [ ] **Auth → URL Configuration:**
   - Site URL = `https://<your-domain>`.
@@ -44,6 +44,7 @@ Redeploy after changing variables.
 
 ## 4. Legal and trust (plan Part 7)
 - [ ] **Policies:** replace the placeholders `public/privacy.html` and `public/terms.html` with lawyer-reviewed versions. They are linked from the sign-in sheet and Passport.
+- [ ] **Delete requests (CCPA):** a host can delete one listing themselves (Edit, then "Delete listing"; files included). There is no self-serve account delete yet; those requests come by email. Deleting a user or a listing in the database removes its rows, but not its files in Storage. Before deleting, call `removeUserListingFiles(admin, userId)` or `removeListingFiles(admin, listingId)` from `server/listingFiles.ts` (videos, raw clips, covers and photos), then delete the rows.
 - [ ] **Company:** entity set up; the contact and privacy email used in the policies works.
 - [ ] **Fair housing:** a lawyer reviews the lifestyle questions (`src/find/lifestyle.ts`) and the listing copy rules.
 - [ ] **ID check:** keep `id_check` off, or replace the demo check in `server/idCheck.ts` with a vendor (Stripe Identity, Persona) before showing ID badges publicly.

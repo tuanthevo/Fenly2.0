@@ -3,12 +3,17 @@
  * while a thread is open. Flagged messages show a scam warning to the
  * recipient. Report and block from the thread menu. Applicants whose room was
  * filled see "This room is taken" with similar rooms nearby.
+ *
+ * A renter's rows lead with the room (cover, rent, place) and always show where
+ * the application stands; closed ones fold into "Past applications"
+ * (src/find/inboxRows.ts). Hosts' rows lead with the applicant, as before.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Ban, ChevronRight, Flag, Loader2, MoreHorizontal, Send, Users } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Ban, ChevronDown, ChevronRight, Flag, Home, Loader2, MoreHorizontal, Send, Users } from 'lucide-react';
 import { findApi, type InboxThread, type ThreadMessage } from '../../lib/findApi';
 import { ApiError } from '../../lib/fillApi';
 import { roomTakenText } from '../../find/hostText';
+import { applicationStatus, canViewRoom, roomLine, splitInbox, type StatusTone } from '../../find/inboxRows';
 import { EMPTY_STATE, TAB_VALUE } from '../../config/launchCopy';
 import { formatRentCents } from '../../fill/publicListing';
 import { ReportSheet } from './ReportSheet';
@@ -23,6 +28,116 @@ const STATUS_LINE: Record<string, string> = {
   withdrawn: 'Withdrawn',
 };
 
+const CHIP_TONE: Record<StatusTone, string> = {
+  pending: 'bg-white border-[#2C2724]/25 text-[#2C2724]',
+  good: 'bg-[#E8EFE9] border-[#7A907C]/50 text-[#485B4A]',
+  closed: 'bg-[#F2EFE9] border-[#F2EFE9] text-[#6E655F]',
+};
+
+/** Where a renter's application stands: Pending, Shortlisted, Chosen, Not chosen */
+const StatusChip: React.FC<{ status: string }> = ({ status }) => {
+  const { label, tone } = applicationStatus(status);
+  return (
+    <span data-testid="application-status" className={`shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-extrabold whitespace-nowrap ${CHIP_TONE[tone]}`}>
+      {label}
+    </span>
+  );
+};
+
+/** The room's video cover; a plain tile when the room has none (or is no longer listed) */
+const RoomThumb: React.FC<{ listing: InboxThread['listing'] }> = ({ listing }) => {
+  const [failed, setFailed] = useState(false);
+  if (!listing || !canViewRoom(listing) || failed) {
+    return (
+      <div className="w-12 h-12 rounded-xl bg-[#F2EFE9] text-[#6E655F] flex items-center justify-center shrink-0">
+        <Home className="w-5 h-5" />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={`/api/media/thumb/${listing.id}`}
+      alt=""
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className="w-12 h-12 rounded-xl object-cover bg-[#F2EFE9] shrink-0"
+    />
+  );
+};
+
+/** In a renter's conversation: which room this is, where the application stands, and a way back to the room page */
+const RoomStrip: React.FC<{ listing: InboxThread['listing']; status: string }> = ({ listing, status }) => {
+  const body = (
+    <>
+      <RoomThumb listing={listing} />
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-extrabold truncate mb-0.5">{roomLine(listing)}</div>
+        <div className="flex"><StatusChip status={status} /></div>
+      </div>
+    </>
+  );
+  const box = 'flex items-center gap-3 px-3.5 py-2.5 bg-white border-b border-[#2C2724]/15 text-left';
+  return listing && canViewRoom(listing) ? (
+    <a href={`/r/${listing.id}`} data-testid="thread-view-room" className={`${box} hover:bg-[#F9F7F3]`}>
+      {body}
+      <span className="shrink-0 flex items-center gap-0.5 text-[11px] font-extrabold text-[#A9513A]">
+        View room <ChevronRight className="w-4 h-4" />
+      </span>
+    </a>
+  ) : (
+    <div data-testid="thread-room" className={box}>
+      {body}
+    </div>
+  );
+};
+
+const ThreadRow: React.FC<{ thread: InboxThread; onOpen: () => void }> = ({ thread: t, onOpen }) => {
+  const area = t.listing?.neighborhood || 'the Bay Area';
+  const mine = t.role === 'applicant';
+  const taken = mine && t.declineReason === 'room_filled';
+  const who = t.other?.firstName ?? (mine ? 'Host' : 'Applicant');
+  const preview = taken
+    ? roomTakenText(area, t.similar.length)
+    : t.lastMessage
+    ? `${t.lastMessage.fromMe ? 'You' : who}: ${t.lastMessage.body}`
+    : mine
+    ? `Host: ${who}`
+    : STATUS_LINE[t.status] ?? t.status;
+  return (
+    <button type="button" onClick={onOpen} data-testid={`thread-${t.applicationId}`} className="w-full px-3.5 py-3 flex items-center gap-3 hover:bg-[#F9F7F3] text-left">
+      {mine ? (
+        <RoomThumb listing={t.listing} />
+      ) : t.other?.photoUrl ? (
+        <img src={t.other.photoUrl} alt="" className="w-10 h-10 rounded-full object-cover border border-[#7A907C] shrink-0" />
+      ) : (
+        <div className="w-10 h-10 rounded-full bg-[#D06C4E]/15 text-[#A9513A] flex items-center justify-center font-black shrink-0">
+          {who.charAt(0).toUpperCase()}
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        {mine ? (
+          <div className="text-sm font-extrabold truncate mb-0.5">{roomLine(t.listing)}</div>
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-extrabold truncate">{who}</span>
+            <span className="text-[10px] font-bold text-[#6E655F] truncate">· {area}</span>
+          </div>
+        )}
+        <div className="flex items-center gap-1.5 min-w-0">
+          {mine && <StatusChip status={t.status} />}
+          <span className={`text-[11px] truncate ${t.unread ? 'font-extrabold text-[#2C2724]' : 'text-[#6E655F]'}`}>{preview}</span>
+        </div>
+      </div>
+      {t.unread > 0 && (
+        <span aria-label={`${t.unread} unread`} className="min-w-5 h-5 px-1.5 rounded-full bg-[#B85B3F] text-white text-[10px] font-black flex items-center justify-center">
+          {t.unread}
+        </span>
+      )}
+      <ChevronRight className="w-4 h-4 text-[#6E655F] shrink-0" />
+    </button>
+  );
+};
+
 interface InboxViewProps {
   signedIn: boolean;
   onRequestSignIn: () => void;
@@ -35,6 +150,7 @@ export const InboxView: React.FC<InboxViewProps> = ({ signedIn, onRequestSignIn,
   const [threads, setThreads] = useState<InboxThread[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(initialThreadId ?? null);
+  const [showPast, setShowPast] = useState(false);
 
   const loadThreads = useCallback(async () => {
     try {
@@ -82,6 +198,8 @@ export const InboxView: React.FC<InboxViewProps> = ({ signedIn, onRequestSignIn,
     );
   }
 
+  const { active, past } = splitInbox(threads ?? []);
+
   return (
     <div className="flex-1 overflow-y-auto bg-[#F9F7F3] text-[#2C2724] p-3.5 space-y-3" data-testid="inbox-view">
       <h2 className="font-extrabold text-base px-1">Inbox</h2>
@@ -94,34 +212,37 @@ export const InboxView: React.FC<InboxViewProps> = ({ signedIn, onRequestSignIn,
           <p className="text-xs text-[#6E655F]">{EMPTY_STATE.inboxEmpty.line}</p>
         </div>
       ) : (
-        <div className="rounded-2xl bg-white border border-[#2C2724]/15 divide-y divide-[#2C2724]/10 shadow-warm-sm overflow-hidden">
-          {threads?.map((t) => {
-            const area = t.listing?.neighborhood || 'the Bay Area';
-            const taken = t.role === 'applicant' && t.declineReason === 'room_filled';
-            return (
-              <button key={t.applicationId} type="button" onClick={() => setOpenId(t.applicationId)} data-testid={`thread-${t.applicationId}`} className="w-full px-3.5 py-3 flex items-center gap-3 hover:bg-[#F9F7F3] text-left">
-                {t.other?.photoUrl ? (
-                  <img src={t.other.photoUrl} alt="" className="w-10 h-10 rounded-full object-cover border border-[#7A907C] shrink-0" />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-[#D06C4E]/15 text-[#A9513A] flex items-center justify-center font-black shrink-0">
-                    {(t.other?.firstName ?? '?').charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-extrabold truncate">{t.other?.firstName ?? (t.role === 'applicant' ? 'Host' : 'Applicant')}</span>
-                    <span className="text-[10px] font-bold text-[#6E655F] truncate">· {area}</span>
-                  </div>
-                  <div className={`text-[11px] truncate ${t.unread ? 'font-extrabold text-[#2C2724]' : 'text-[#6E655F]'}`}>
-                    {taken ? roomTakenText(area, t.similar.length) : t.lastMessage ? `${t.lastMessage.fromMe ? 'You: ' : ''}${t.lastMessage.body}` : STATUS_LINE[t.status] ?? t.status}
-                  </div>
-                </div>
-                {t.unread > 0 && <span className="min-w-5 h-5 px-1.5 rounded-full bg-[#B85B3F] text-white text-[10px] font-black flex items-center justify-center">{t.unread}</span>}
-                <ChevronRight className="w-4 h-4 text-[#6E655F] shrink-0" />
+        <>
+          {active.length > 0 && (
+            <div className="rounded-2xl bg-white border border-[#2C2724]/15 divide-y divide-[#2C2724]/10 shadow-warm-sm overflow-hidden">
+              {active.map((t) => (
+                <ThreadRow key={t.applicationId} thread={t} onOpen={() => setOpenId(t.applicationId)} />
+              ))}
+            </div>
+          )}
+          {past.length > 0 && (
+            <section className="space-y-2">
+              <button
+                type="button"
+                data-testid="inbox-past-toggle"
+                aria-expanded={showPast}
+                aria-controls="inbox-past"
+                onClick={() => setShowPast(!showPast)}
+                className="w-full min-h-10 px-1 flex items-center justify-between text-xs font-extrabold text-[#6E655F] hover:text-[#2C2724]"
+              >
+                <span>Past applications ({past.length})</span>
+                <ChevronDown className={`w-4 h-4 transition-transform ${showPast ? 'rotate-180' : ''}`} />
               </button>
-            );
-          })}
-        </div>
+              {showPast && (
+                <div id="inbox-past" className="rounded-2xl bg-white border border-[#2C2724]/15 divide-y divide-[#2C2724]/10 overflow-hidden">
+                  {past.map((t) => (
+                    <ThreadRow key={t.applicationId} thread={t} onOpen={() => setOpenId(t.applicationId)} />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+        </>
       )}
     </div>
   );
@@ -157,7 +278,10 @@ const ThreadView: React.FC<{ thread: InboxThread; onBack: () => void; onOpenAppl
     }, POLL_MS);
     return () => window.clearInterval(timer);
   }, [load]);
-  useEffect(() => endRef.current?.scrollIntoView({ block: 'end' }), [messages?.length]);
+  // Braces matter: newer Chrome returns a promise from scrollIntoView, and an effect that returns one crashes the screen
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: 'end' });
+  }, [messages?.length]);
 
   const send = async () => {
     const body = draft.trim();
@@ -198,7 +322,7 @@ const ThreadView: React.FC<{ thread: InboxThread; onBack: () => void; onOpenAppl
         <div className="flex-1 min-w-0">
           <div className="text-sm font-extrabold truncate">{thread.other?.firstName ?? 'Conversation'}</div>
           <div className="text-[10px] font-bold text-[#6E655F] truncate">
-            {thread.listing?.title || `Room in ${area}`} · {STATUS_LINE[status] ?? status}
+            {thread.role === 'applicant' ? 'Host' : `${thread.listing?.title || `Room in ${area}`} · ${STATUS_LINE[status] ?? status}`}
           </div>
         </div>
         {thread.role !== 'applicant' && thread.listing && (
@@ -231,6 +355,8 @@ const ThreadView: React.FC<{ thread: InboxThread; onBack: () => void; onOpenAppl
           )}
         </div>
       </div>
+
+      {thread.role === 'applicant' && <RoomStrip listing={thread.listing} status={status} />}
 
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
         {taken && (

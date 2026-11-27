@@ -9,6 +9,8 @@ import { findApi, type HostingRow } from '../../lib/findApi';
 import { EMPTY_STATE } from '../../config/launchCopy';
 import { formatRentCents } from '../../fill/publicListing';
 import { daysUntil, todayIn } from '../../fill/fillStatus';
+import { mediaTypeOf } from '../../fill/listingRules';
+import { DeleteListing } from './DeleteListing';
 
 type Row = Awaited<ReturnType<typeof fillApi.listMine>>['listings'][number];
 
@@ -139,16 +141,18 @@ export const FillHome: React.FC<FillHomeProps> = ({ signedIn, onStartFill, onRes
               {rows?.map((row) => {
                 const chip = STATUS_CHIP[row.status] ?? STATUS_CHIP.draft;
                 const days = daysUntil(row.move_out_date, today);
+                const name = row.title || `Room in ${row.neighborhood || 'the Bay Area'}`;
                 return (
+                  // A draft row carries its own delete button beside the row button (live rooms delete from Edit)
+                  <div key={row.id} className="flex items-center">
                   <button
-                    key={row.id}
                     type="button"
                     data-testid={`fill-listing-${row.id}`}
                     onClick={() => (row.status === 'draft' ? onResume(row.id) : onOpenStatus(row.id))}
-                    className="w-full px-4 py-3.5 flex items-center gap-3 hover:bg-[#F9F7F3] transition-colors text-left"
+                    className="min-w-0 flex-1 px-4 py-3.5 flex items-center gap-3 hover:bg-[#F9F7F3] transition-colors text-left"
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-bold truncate">{row.title || `Room in ${row.neighborhood || 'the Bay Area'}`}</div>
+                      <div className="text-sm font-bold truncate">{name}</div>
                       <div className="text-[11px] text-[#6E655F] mt-0.5">
                         <span className={`font-bold ${chip.className}`}>{chip.text}</span>
                         {[
@@ -163,6 +167,19 @@ export const FillHome: React.FC<FillHomeProps> = ({ signedIn, onStartFill, onRes
                     </div>
                     <ChevronRight className="w-4 h-4 text-[#6E655F] shrink-0" />
                   </button>
+                  {row.status === 'draft' && (
+                    <div className="pr-2 border-l border-[#2C2724]/10 pl-2">
+                      <DeleteListing
+                        variant="icon"
+                        name={name}
+                        listingId={row.id}
+                        status={row.status}
+                        mediaType={mediaTypeOf(row)}
+                        onDeleted={() => setRows((all) => (all ?? []).filter((r) => r.id !== row.id))}
+                      />
+                    </div>
+                  )}
+                  </div>
                 );
               })}
             </div>

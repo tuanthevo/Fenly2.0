@@ -8,6 +8,8 @@ export interface GuidedShot {
   slotNumber: 1 | 2 | 3 | 4 | 5;
   name: string;
   instruction: string;
+  /** One slow move made standing still (arms or hips); neighbouring shots differ so the video never repeats one */
+  move: 'slide' | 'push' | 'turn';
   /** Short beat shown inside the camera while recording */
   movementCue: string;
   sampleThumbnailUrl: string;
@@ -17,57 +19,60 @@ export const GUIDED_SHOTS: GuidedShot[] = [
   {
     slotNumber: 1,
     name: 'Bedroom Hook',
+    move: 'slide',
     instruction:
-      'Turn ALL lights on & open blinds. Stand at the bedroom doorway and walk slowly in, about 5 small steps (at least 10 sec).',
-    movementCue: '5 slow steps in',
+      'Turn ALL lights on & open blinds. Stand in the bedroom doorway, feet planted, and slide the phone slowly left to right (at least 10 sec).',
+    movementCue: 'Feet planted • slide slowly left to right',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&w=900&q=80',
   },
   {
     slotNumber: 2,
     name: 'Kitchen & Shared Space',
-    instruction:
-      'Stand at the kitchen entrance and walk slowly toward the island or counter (at least 10 sec).',
-    movementCue: 'Walk slowly toward the counter',
+    move: 'turn',
+    instruction: 'Stand in one spot at the kitchen entrance and turn slowly from the hips, left to right (at least 10 sec).',
+    movementCue: 'Stay in one spot • turn slowly',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=900&q=80',
   },
   {
     slotNumber: 3,
     name: 'Bathroom Peek',
+    move: 'push',
     instruction:
-      'Step slowly toward the open bathroom door, then hold still—keep yourself out of the mirror (at least 10 sec).',
-    movementCue: 'Step toward the door • stay out of the mirror',
+      'Stand at the open bathroom door and reach the phone slowly forward. Keep yourself out of the mirror (at least 10 sec).',
+    movementCue: 'Reach the phone slowly forward • stay out of the mirror',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=900&q=80',
   },
   {
     slotNumber: 4,
     name: 'Closet & Storage',
-    instruction: 'Open the closet doors wide, take 2 slow steps forward, then hold still (at least 10 sec).',
-    movementCue: '2 slow steps, then hold',
+    move: 'slide',
+    instruction: 'Open the closet doors wide. Feet planted, slide the phone slowly right to left (at least 10 sec).',
+    movementCue: 'Feet planted • slide slowly right to left',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=900&q=80',
   },
   {
     slotNumber: 5,
     name: 'Standout Perk',
+    move: 'push',
     instruction:
-      'Walk slowly toward the best perk—in-unit laundry, balcony, parking, or sunny view—then hold on it (at least 10 sec).',
-    movementCue: 'Walk to the perk, then hold',
+      'Stand close to the best perk (in-unit laundry, balcony, parking or a sunny view). Reach the phone slowly toward it, then hold (at least 10 sec).',
+    movementCue: 'Reach slowly toward it, then hold',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=900&q=80',
   },
 ];
 
-export const GUIDED_PRE_SHOT_REMINDER = "Lights ON • Walk forward • Don't pan side-to-side";
+/** Hosts film standing still: walking shakes the camera (host's rule, Nov 2026). */
+export const GUIDED_PRE_SHOT_REMINDER = 'Lights on • Feet planted • One slow move';
 export const GUIDED_COUNTDOWN_STEP_MS = 1000;
 /**
- * 15 s per shot. The host's rule (Nov 2026): with 3+ clips a tour runs 30-50 s
- * (plan.ts MIN_TOUR_TOTAL_SEC / MAX_TOUR_TOTAL_SEC). Real phone clips keep only
- * ~55-70% clean footage (tap-to-record shake, doorways), and 3 clips need ~9 s
- * of it each to reach 30 s; 10 s clips gave ~24 s. Past 50 s the editor plays
- * rooms a little faster rather than cut footage.
+ * 15 s per shot; hosts are told "at least 10 sec" (SHOT_GUIDE_SEC). The Fenn edit keeps the
+ * steadiest 3-5 s of each clip, and a clip with 8.5 s+ of clean footage gives its room two shots.
+ * The older full tour needs the length: with 3+ clips it runs 30-50 s (plan.ts).
  */
 export const GUIDED_RECORDING_MS = 15000;
 export const MIN_CLIP_DURATION_SEC = 2;

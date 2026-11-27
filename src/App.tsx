@@ -528,7 +528,7 @@ export default function App() {
     }
     setApplyTarget({ listingId, via: viaForListing(parseStoredVia(stored), listingId, Date.now()) });
   };
-  // Every "Request to Book" button: real (database) rooms open the 2.0 apply sheet;
+  // Every Apply button: real (database) rooms open the 2.0 apply sheet;
   // the 1.0 demo rooms keep the 1.0 application form. Drafting a lease waits until after testing.
   const requestToBook = (room: RoomListing) => {
     const dbId = dbListingId(room.id);
@@ -1556,7 +1556,7 @@ export default function App() {
                         }
                       />
 
-                      {/* Bottom Room Info, Trust Badges & One-Tap Save to Den / Request to Book */}
+                      {/* Bottom Room Info, Trust Badges & One-Tap Save to Den / Apply */}
                       <VideoInfoOverlay
                         room={room}
                         onViewHostProfile={handleViewHostProfile}
@@ -1806,6 +1806,7 @@ export default function App() {
                 startAt={editStartAt}
                 listingId={editListingId}
                 onClose={() => openFillStatus(editListingId, true)}
+                onDeleted={() => navigate((prev) => ({ ...prev, tab: 'fill', overlay: null }), { replace: true })}
                 onOpenStatus={(id) => openFillStatus(id, true)}
               />
             ) : fillOverlay && (fillOverlay === 'new' || fillListingId) ? (
