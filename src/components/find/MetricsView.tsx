@@ -61,14 +61,14 @@ export const MetricsView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         <>
           <div className="grid grid-cols-2 gap-2">
             <div className="p-3 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm">
-              <div className="text-[11px] font-bold text-[#6E655F]">North star: rooms filled in the launch area</div>
+              <div className="text-xs font-bold text-[#6E655F]">North star: rooms filled in the launch area</div>
               <div className="text-2xl font-black mt-1">{report.northStar.filledLaunchArea}</div>
-              <div className="text-[11px] font-bold text-[#485B4A]">{report.northStar.perWeek} per week</div>
+              <div className="text-xs font-bold text-[#485B4A]">{report.northStar.perWeek} per week</div>
             </div>
             <div className="p-3 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm">
-              <div className="text-[11px] font-bold text-[#6E655F]">Applications through a shared link</div>
+              <div className="text-xs font-bold text-[#6E655F]">Applications through a shared link</div>
               <div className="text-2xl font-black mt-1">{pct(report.virality.rate)}</div>
-              <div className="text-[11px] font-bold text-[#6E655F]">
+              <div className="text-xs font-bold text-[#6E655F]">
                 {report.virality.viaLink} of {report.virality.applications}
               </div>
             </div>
@@ -78,7 +78,7 @@ export const MetricsView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             {report.rows.map((row, i) => (
               <li key={row.id} className="p-3 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm space-y-1.5">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-[10px] font-black text-[#6E655F] w-4 shrink-0">{i + 1}</span>
+                  <span className="text-xs font-black text-[#6E655F] w-4 shrink-0">{i + 1}</span>
                   <h2 className="flex-1 text-xs font-extrabold">{row.step}</h2>
                   <span className="text-base font-black tabular-nums">{pct(row.rate)}</span>
                 </div>
@@ -87,11 +87,11 @@ export const MetricsView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     <div className="h-full rounded-full bg-[#7A907C]" style={{ width: `${Math.round(row.rate * 100)}%` }} />
                   </div>
                 )}
-                <p className="text-[11px] text-[#6E655F] ml-6">
+                <p className="text-xs text-[#6E655F] ml-6">
                   <span className="font-bold text-[#2C2724]">{row.metric}:</span> {row.value ?? 'not measured yet'}
                   {row.note ? ` · ${row.note}` : ''}
                 </p>
-                <p className="text-[11px] ml-6">
+                <p className="text-xs ml-6">
                   <span className="font-bold">If low, try:</span> {row.ifLow}
                 </p>
               </li>
@@ -101,12 +101,12 @@ export const MetricsView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             <section className="p-3 rounded-2xl bg-white border border-[#2C2724]/15 shadow-warm-sm space-y-2" data-testid="metrics-media-split">
               <div>
                 <h2 className="text-xs font-extrabold">Video vs photos</h2>
-                <p className="text-[11px] text-[#6E655F]">Listings started in the last {report.days} days. Photos should add listings without costing applicants.</p>
+                <p className="text-xs text-[#6E655F]">Listings started in the last {report.days} days. Photos should add listings without costing applicants.</p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs tabular-nums">
                   <thead>
-                    <tr className="text-left text-[11px] text-[#6E655F]">
+                    <tr className="text-left text-xs text-[#6E655F]">
                       <th scope="col" className="font-bold py-1 pr-2">Measure</th>
                       <th scope="col" className="font-bold py-1 px-2 text-right">Video</th>
                       <th scope="col" className="font-bold py-1 pl-2 text-right">Photos</th>
@@ -136,7 +136,7 @@ export const MetricsView: React.FC<{ onBack: () => void }> = ({ onBack }) => {
               </div>
             </section>
           )}
-          <p className="text-[10px] text-[#6E655F]">Counts come from tracked events and the listings and applications tables. No personal data is shown.</p>
+          <p className="text-xs text-[#6E655F]">Counts come from tracked events and the listings and applications tables. No personal data is shown.</p>
         </>
       ) : null}
     </div>

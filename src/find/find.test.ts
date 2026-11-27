@@ -95,6 +95,8 @@ test('find filters: parse, match, query string', () => {
     minRentCents: null,
     maxRentCents: 150000,
     moveInBy: '2026-12-15',
+    mustHave: [],
+    sort: 'newest',
   });
   // Bad values are dropped: outside Northern California, an odd radius, junk text
   assert.deepEqual(parseFindQuery({ place: 'Los Angeles', lat: '34.05', lng: '-118.24', miles: '5', maxRent: 'abc', moveInBy: 'soon' }), {
@@ -102,6 +104,8 @@ test('find filters: parse, match, query string', () => {
     minRentCents: null,
     maxRentCents: null,
     moveInBy: null,
+    mustHave: [],
+    sort: 'newest',
   });
   assert.equal(parseFindQuery({ place: 'Oakland', lat: '37.8', lng: '-122.27', miles: '7' }).near?.miles, 5, 'unknown radius -> 5 mi');
   assert.equal(parseFindQuery({ place: '<script>', lat: '37.8', lng: '-122.27', miles: '3' }).near?.label, 'script');
@@ -275,4 +279,25 @@ test('while photo listings are off, only people allowed to use them see them in 
   const rows = [{ id: 1, media_type: 'video' }, { id: 2, media_type: 'photos' }, { id: 3 }];
   assert.deepEqual(visibleMediaTypes(rows, false).map((r) => r.id), [1, 3]);
   assert.deepEqual(visibleMediaTypes(rows, true).map((r) => r.id), [1, 2, 3]);
+});
+
+test('must-have filters: only listed room features, kept in the query and counted', async () => {
+  const { MUST_HAVE_OPTIONS, EMPTY_FIND_FILTERS: EMPTY, activeFilterCount: count, findQueryString: qs, parseFindQuery: parse, matchesFindFilters: matches } = await import('./findFilters');
+  const { protectedTermsIn } = await import('./factualApplicant');
+  assert.ok(MUST_HAVE_OPTIONS.includes('Private bath') && MUST_HAVE_OPTIONS.length <= 5);
+  for (const option of MUST_HAVE_OPTIONS) assert.deepEqual(protectedTermsIn(option), [], option);
+  const filters = { ...EMPTY, mustHave: ['Private bath', 'Furnished'] };
+  assert.equal(qs(filters), 'has=Private+bath%2CFurnished');
+  assert.deepEqual(parse({ has: 'Private bath,Furnished,Near a church,<b>' }).mustHave, ['Private bath', 'Furnished'], 'anything off the list is dropped');
+  assert.deepEqual(parse({}).mustHave, []);
+  assert.equal(count(filters), 1);
+  assert.equal(count(EMPTY), 0);
+  const room = { city: 'San Francisco', neighborhood: 'Mission', rentCents: 145000, availableFrom: '2026-12-01', amenities: ['Private bath', 'Fast WiFi'] };
+  assert.ok(matches(room, { ...EMPTY, mustHave: ['Private bath'] }));
+  assert.ok(!matches(room, filters), 'every must-have has to be there');
+  // Sort: newest unless lowest rent is asked for; it is an order, not a filter, so it is not counted
+  assert.equal(parse({ sort: 'rent_low' }).sort, 'rent_low');
+  assert.equal(parse({ sort: 'drop table' }).sort, 'newest');
+  assert.equal(qs({ ...EMPTY, sort: 'rent_low' }), 'sort=rent_low');
+  assert.equal(count({ ...EMPTY, sort: 'rent_low' }), 0);
 });

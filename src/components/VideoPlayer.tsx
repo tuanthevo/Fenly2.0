@@ -733,7 +733,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       {/* Photo listings say what they are, with every photo one tap away; "Verified real" is for filmed tours only */}
       {isPhotoListing && (
         <div className="absolute top-16 right-3 z-30 flex flex-col items-end gap-1.5" data-testid="photo-listing-label">
-          <span className="px-2.5 py-1 rounded-full bg-[#2C2724]/75 text-[#F9F7F3] text-[11px] font-bold">Made from the host's photos</span>
+          <span className="px-2.5 py-1 rounded-full bg-[#2C2724]/75 text-[#F9F7F3] text-xs font-bold">Made from the host's photos</span>
           {listingPhotos.length > 0 && (
             <button
               type="button"
@@ -755,7 +755,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         </div>
       )}
       {photoListingsOn && !isPhotoListing && isViralEdit && room.id.startsWith('db:') && (
-        <span className="absolute top-16 right-3 z-30 px-2.5 py-1 rounded-full bg-[#EBF0EC] text-[#485B4A] text-[11px] font-bold flex items-center gap-1 pointer-events-none" data-testid="verified-real-badge">
+        <span className="absolute top-16 right-3 z-30 px-2.5 py-1 rounded-full bg-[#EBF0EC] text-[#485B4A] text-xs font-bold flex items-center gap-1 pointer-events-none" data-testid="verified-real-badge">
           <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" /> Verified real
         </span>
       )}

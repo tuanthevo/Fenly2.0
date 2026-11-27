@@ -150,7 +150,7 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
       const { rewrite } = await fillApi.rewriteNote(note);
       setSuggestion(rewrite);
     } catch (e) {
-      setRewriteError(e instanceof ApiError ? (e.body?.error as string) || e.message : "AI writing isn't available right now.");
+      setRewriteError(e instanceof ApiError ? e.message : "AI writing isn't available right now.");
     } finally {
       setRewriting(false);
     }
@@ -231,21 +231,21 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
               <div className="space-y-3">
                 {preview && (
                   <div className="p-2.5 rounded-xl bg-white border border-[#2C2724]/15 space-y-1" data-testid="apply-passport-preview">
-                    <div className="flex items-center gap-1.5 text-[11px] font-extrabold flex-wrap">
+                    <div className="flex items-center gap-1.5 text-xs font-extrabold flex-wrap">
                       <span>Your Passport · Level {preview.level}</span>
                       {preview.phone && <span className="px-1.5 py-0.5 rounded-md bg-[#EBF0EC] text-[#485B4A] flex items-center gap-0.5"><BadgeCheck className="w-3 h-3" /> Phone</span>}
                       {preview.id && <span className="px-1.5 py-0.5 rounded-md bg-[#EBF0EC] text-[#485B4A] flex items-center gap-0.5"><BadgeCheck className="w-3 h-3" /> ID</span>}
                       {preview.budgetMax != null && <span className="text-[#6E655F] font-bold">Budget up to {formatRentCents(preview.budgetMax)}</span>}
                     </div>
                     {preview.missing > 0 && onOpenPassport && (
-                      <button type="button" onClick={onOpenPassport} className="text-[11px] font-bold text-[#A9513A] flex items-center gap-0.5">
+                      <button type="button" onClick={onOpenPassport} className="min-h-10 text-xs font-bold text-[#A9513A] flex items-center gap-0.5">
                         Finish your Passport ({preview.missing} left): hosts see complete ones first <ChevronRight className="w-3 h-3" />
                       </button>
                     )}
                   </div>
                 )}
                 <label className="block">
-                  <span className="text-[11px] font-bold text-[#6E655F] block mb-1">When do you want to move in?</span>
+                  <span className="text-xs font-bold text-[#6E655F] block mb-1">When do you want to move in?</span>
                   <input
                     type="date"
                     min={today}
@@ -256,7 +256,7 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
                 </label>
                 <div>
                   <label className="block">
-                    <span className="text-[11px] font-bold text-[#6E655F] block mb-1">A short note to the host (optional)</span>
+                    <span className="text-xs font-bold text-[#6E655F] block mb-1">A short note to the host (optional)</span>
                     <textarea
                       ref={noteRef}
                       value={note}
@@ -275,7 +275,7 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
                           setMyVersion(null);
                         }}
                         data-testid="apply-note-revert"
-                        className="min-h-10 text-[11px] font-bold text-[#6E655F] hover:text-[#2C2724] flex items-center gap-1"
+                        className="min-h-10 text-xs font-bold text-[#6E655F] hover:text-[#2C2724] flex items-center gap-1"
                       >
                         <RotateCcw className="w-3.5 h-3.5" /> Back to my version
                       </button>
@@ -288,20 +288,20 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
                       disabled={rewriting || note.trim().length < NOTE_REWRITE_MIN_CHARS}
                       data-testid="apply-note-improve"
                       title={note.trim().length < NOTE_REWRITE_MIN_CHARS ? 'Write a sentence or two first' : undefined}
-                      className="min-h-10 px-2.5 rounded-xl hover:bg-[#F2EFE9] text-[#A9513A] text-[11px] font-bold flex items-center gap-1 disabled:opacity-50"
+                      className="min-h-10 px-2.5 rounded-xl hover:bg-[#F2EFE9] text-[#A9513A] text-xs font-bold flex items-center gap-1 disabled:opacity-50"
                     >
                       {rewriting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                       Improve with AI
                     </button>
                   </div>
-                  {rewriteError && <p className="text-[11px] font-bold text-[#A9513A]" role="status">{rewriteError}</p>}
+                  {rewriteError && <p className="text-xs font-bold text-[#A9513A]" role="status">{rewriteError}</p>}
                   {suggestion != null && (
                     <div className="mt-1.5 p-3 rounded-xl bg-white border border-[#D06C4E]/50 space-y-2" data-testid="apply-note-suggestion" role="region" aria-label="Suggested rewrite">
-                      <div className="text-[11px] font-extrabold text-[#A9513A] flex items-center gap-1">
+                      <div className="text-xs font-extrabold text-[#A9513A] flex items-center gap-1">
                         <Sparkles className="w-3.5 h-3.5" /> Suggested rewrite
                       </div>
                       <p className="text-sm whitespace-pre-wrap">{suggestion}</p>
-                      <p className="text-[11px] text-[#6E655F]">Check it says only what's true. Nothing is sent until you apply.</p>
+                      <p className="text-xs text-[#6E655F]">Check it says only what's true. Nothing is sent until you apply.</p>
                       <div className="grid grid-cols-3 gap-1.5">
                         <button type="button" onClick={() => useSuggestion(false)} data-testid="apply-note-use" className="min-h-10 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-xs font-extrabold">
                           Use this
@@ -326,7 +326,7 @@ export const ApplySheet: React.FC<ApplySheetProps> = ({ listingId, via, onClose,
                   className="w-full py-3 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-sm font-extrabold shadow-warm-sm flex items-center justify-center gap-2 disabled:opacity-60"
                 >
                   {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  {uploadPct !== null ? `Uploading intro ${uploadPct}%` : 'Apply with my Passport'}
+                  {uploadPct !== null ? `Uploading intro ${uploadPct}%` : 'Apply'}
                 </button>
               </div>
             )}

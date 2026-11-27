@@ -37,7 +37,7 @@ export const MediaChooser: React.FC<{ busy: MediaType | null; onChoose: (type: M
                 <Icon className="w-5 h-5 text-[#D06C4E]" aria-hidden="true" />
               </span>
               {badge && (
-                <span className="px-2 py-1 rounded-full bg-[#EBF0EC] border border-[#7A907C]/40 text-[11px] font-bold text-[#485B4A] flex items-center gap-1">
+                <span className="px-2 py-1 rounded-full bg-[#EBF0EC] border border-[#7A907C]/40 text-xs font-bold text-[#485B4A] flex items-center gap-1">
                   <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
                   {badge}
                 </span>

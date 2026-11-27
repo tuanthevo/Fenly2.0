@@ -72,6 +72,29 @@ test("listing page escapes listing text, shows facts, and links Apply with the c
   assert.ok(!/address:/i.test(html));
 });
 
+test("listing page names the host and shows a verified badge only when it is backed", () => {
+  const page = (host?: { firstName: string | null; verified: boolean }) =>
+    renderListingPage({
+      listing: toFillListingInfo(ROW),
+      status: "published",
+      metaTags: "",
+      videoUrl: null,
+      posterUrl: null,
+      applyHref: "/?apply=aaaa",
+      findHref: "/",
+      today: "2026-11-17",
+      host,
+    });
+  assert.ok(page({ firstName: "<b>Ana</b>", verified: true }).includes("Listed by &lt;b&gt;Ana&lt;/b&gt;"));
+  assert.ok(page({ firstName: "Ana", verified: true }).includes("Verified"));
+  assert.ok(!page({ firstName: "Ana", verified: false }).includes(">Verified<"));
+  assert.ok(page({ firstName: "Ana", verified: false }).includes("No phone or ID check yet"));
+  assert.ok(page({ firstName: null, verified: false }).includes("Listed by a host on Fenn"));
+  assert.ok(!page().includes("Listed by"));
+  // No media: a calm placeholder, never an empty black box
+  assert.ok(!page().includes('class="video"'));
+});
+
 test("listing page shows the security deposit when the host set one", () => {
   const page = (row: Record<string, unknown>) =>
     renderListingPage({
@@ -142,11 +165,11 @@ test("a photo listing's page says it is a photo tour made from the host's photos
       today: "2026-11-17",
     });
   const photos = page("photos");
-  assert.ok(photos.includes("Photo tour · area shown"));
+  assert.ok(photos.includes("Photo tour. The area is shown"));
   assert.ok(photos.includes("Made from the host&#39;s photos"));
   assert.ok(photos.includes('aria-label="Photo tour of the room'));
   for (const html of [page("video"), page()]) {
-    assert.ok(html.includes("Video tour · area shown"));
+    assert.ok(html.includes("Video tour. The area is shown"));
     assert.equal(html.includes("Made from the host"), false);
   }
   assert.equal(toFillListingInfo({ id: "x" }).mediaType, "video");
