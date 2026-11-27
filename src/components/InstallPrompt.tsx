@@ -132,11 +132,11 @@ export const InstallPrompt: React.FC = () => {
         ) : (
           <ol className="text-xs font-semibold space-y-1.5 bg-white rounded-xl border border-[#2C2724]/15 p-3">
             <li className="flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-[#2C2724] text-white text-[10px] font-black flex items-center justify-center shrink-0">1</span>
+              <span className="w-5 h-5 rounded-full bg-[#2C2724] text-white text-xs font-black flex items-center justify-center shrink-0">1</span>
               Tap <Share className="w-4 h-4 inline text-[#2C2724]" aria-label="Share" /> in Safari's toolbar
             </li>
             <li className="flex items-center gap-2">
-              <span className="w-5 h-5 rounded-full bg-[#2C2724] text-white text-[10px] font-black flex items-center justify-center shrink-0">2</span>
+              <span className="w-5 h-5 rounded-full bg-[#2C2724] text-white text-xs font-black flex items-center justify-center shrink-0">2</span>
               Choose <strong>Add to Home Screen</strong>
             </li>
           </ol>

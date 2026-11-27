@@ -24,7 +24,7 @@ test('size and deposit tiles appear when the host gave them', () => {
 });
 
 test('badges only claim what the data backs', () => {
-  assert.deepEqual(roomDetailsView({ ...room, host: { ...host, verified: true } }).badges, ['Verified host']);
+  assert.deepEqual(roomDetailsView({ ...room, host: { ...host, verified: true } }).badges, ['Verified']);
   assert.deepEqual(roomDetailsView({ ...room, host: { ...host, verified: true, phoneVerified: true } }).badges, ['Phone verified']);
   // Escrow belongs to the 1.0 Home hub: only with that feature on
   assert.deepEqual(roomDetailsView(room, { escrow: true }).badges, ['Move-in escrow']);

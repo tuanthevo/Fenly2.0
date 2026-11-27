@@ -104,8 +104,8 @@ export const ReportSheet: React.FC<ReportSheetProps> = ({ targetType, targetId, 
               className="w-full min-h-[64px] bg-white border border-[#2C2724]/25 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-[#D06C4E]"
             />
             {blockUserId && (
-              <label className="flex items-center gap-2 text-xs font-bold">
-                <input type="checkbox" checked={alsoBlock} onChange={(e) => setAlsoBlock(e.target.checked)} className="accent-[#D06C4E]" />
+              <label className="flex items-center gap-3 min-h-11 text-xs font-bold">
+                <input type="checkbox" checked={alsoBlock} onChange={(e) => setAlsoBlock(e.target.checked)} className="w-5 h-5 shrink-0 accent-[#B85B3F]" />
                 Also block this person
               </label>
             )}

@@ -1427,6 +1427,16 @@ export default function App() {
 
   return (
     <div className="relative w-screen h-[100dvh] bg-[#2C2724] text-[#2C2724] overflow-hidden flex items-center justify-center font-['Plus_Jakarta_Sans','Inter',sans-serif]">
+      {/* Desktop only: the product in one line, beside the phone frame */}
+      <aside className="hidden lg:flex flex-col gap-4 w-80 mr-14 text-[#F9F7F3]" aria-label="About Fenn">
+        <div className="flex items-center gap-3">
+          <img src="/icons/fenn.svg" alt="" className="w-12 h-12 rounded-2xl" />
+          <span className="text-3xl font-extrabold">Fenn</span>
+        </div>
+        <p className="text-2xl font-extrabold leading-snug text-balance">Fill or find a room in the Bay Area, with a real tour of every room.</p>
+        <p className="text-base text-[#F9F7F3]/80 leading-relaxed">Fenn is made for your phone. Open this page there, or use it here in the frame.</p>
+        <a href="/help.html" className="text-base font-extrabold underline underline-offset-4 w-fit">Help and safety</a>
+      </aside>
       {/* Full-screen on mobile phone, 9:16 phone frame on desktop */}
       <main className="relative w-full h-full sm:max-w-[440px] sm:max-h-[920px] sm:h-[96vh] sm:rounded-[32px] bg-[#F9F7F3] text-[#2C2724] overflow-hidden shadow-2xl border-0 sm:border-2 sm:border-[#2C2724]/25 flex flex-col min-h-0">
         {gmpQuotaExceeded && (
@@ -1633,13 +1643,24 @@ export default function App() {
                         {savedOnly ? 'See all rooms' : 'Clear filters'}
                       </button>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('fill')}
-                        className="min-h-11 px-5 bg-white border border-[#2C2724] font-extrabold text-sm rounded-xl"
-                      >
-                        Moving out? Fill your room
-                      </button>
+                      <div className="flex flex-col items-stretch gap-2 w-full max-w-xs pt-1">
+                        {/* A renter with nothing to watch still has a next move: alerts live on the Passport */}
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('passport')}
+                          data-testid="find-empty-alerts"
+                          className="min-h-12 px-5 bg-[#B85B3F] hover:bg-[#A9513A] text-white font-extrabold text-base rounded-xl transition-colors"
+                        >
+                          Get an alert for new rooms
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('fill')}
+                          className="min-h-11 px-5 bg-white hover:bg-[#F2EFE9] border border-[#2C2724] font-extrabold text-sm rounded-xl transition-colors"
+                        >
+                          Moving out? Fill your room
+                        </button>
+                      </div>
                     )}
                   </div>
                 );
@@ -1728,7 +1749,7 @@ export default function App() {
         {/* SCREEN 5: Messages (Protected In-App Chat & Anti-Leakage Shield) */}
         {activeTab === 'messages' && findMode && (
           <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden">
-            <OnboardingBanner tab="messages" />
+            {auth.user && <OnboardingBanner tab="messages" />}
             <InboxView
               signedIn={Boolean(auth.user)}
               onRequestSignIn={() => setSignInReason('message')}
@@ -1778,7 +1799,7 @@ export default function App() {
         {/* Passport (Fenly 2.0) */}
         {activeTab === 'passport' && (
           <div className="flex-1 min-h-0 w-full flex flex-col overflow-hidden">
-            {!reviewOpen && !metricsOpen && findMode && <OnboardingBanner tab="passport" />}
+            {!reviewOpen && !metricsOpen && findMode && auth.user && <OnboardingBanner tab="passport" />}
             {reviewOpen ? (
               <ReviewQueue onBack={closeOverlay} />
             ) : metricsOpen ? (
@@ -1798,7 +1819,6 @@ export default function App() {
             tab: filmed clips and typed text are only saved at each step's Continue, so unmounting lost them */}
         {(activeTab === 'fill' || Boolean(editListingId) || Boolean(fillOverlay && (fillOverlay === 'new' || fillListingId))) && flagsLoaded && supabaseConfigured && (
           <div className={`relative flex-1 min-h-0 w-full flex-col overflow-hidden ${activeTab === 'fill' ? 'flex' : 'hidden'}`}>
-            {!fillOverlay && !editListingId && !applicantsListingId && !statusListingId && <OnboardingBanner tab="fill" />}
             {editListingId ? (
               <FillFlow
                 key={`edit-${editListingId}-${editStartAt ?? 'start'}`}

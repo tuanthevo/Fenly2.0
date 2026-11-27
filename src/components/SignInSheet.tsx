@@ -180,7 +180,7 @@ export const SignInSheet: React.FC<SignInSheetProps> = ({ isOpen, reason, onClos
                 });
               }}
             >
-              <label htmlFor="sign-in-email" className="text-[11px] font-bold text-[#6E655F] flex items-center gap-1">
+              <label htmlFor="sign-in-email" className="text-xs font-bold text-[#6E655F] flex items-center gap-1">
                 <Mail className="w-3 h-3" /> Email me a sign-in link
               </label>
               <div className="flex gap-2">
@@ -210,7 +210,7 @@ export const SignInSheet: React.FC<SignInSheetProps> = ({ isOpen, reason, onClos
                 });
               }}
             >
-              <label htmlFor="sign-in-phone" className="text-[11px] font-bold text-[#6E655F] flex items-center gap-1">
+              <label htmlFor="sign-in-phone" className="text-xs font-bold text-[#6E655F] flex items-center gap-1">
                 <Phone className="w-3 h-3" /> Text me a code
               </label>
               <div className="flex gap-2">
@@ -236,7 +236,7 @@ export const SignInSheet: React.FC<SignInSheetProps> = ({ isOpen, reason, onClos
             {error}
           </p>
         )}
-        <p className="text-[10px] text-[#6E655F]/80 leading-relaxed">
+        <p className="text-xs text-[#6E655F] leading-relaxed">
           We only show badges to hosts (phone verified, ID verified). Your documents stay private. By continuing you agree to the{' '}
           <a href="/terms.html" target="_blank" rel="noopener" className="underline font-bold text-[#6E655F]">Terms</a> and{' '}
           <a href="/privacy.html" target="_blank" rel="noopener" className="underline font-bold text-[#6E655F]">Privacy policy</a>.

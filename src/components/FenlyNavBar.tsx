@@ -43,14 +43,14 @@ export const FenlyNavBar: React.FC<FenlyNavBarProps> = ({ activeTab, onSelectTab
           <div
             className={`relative w-8 h-6 rounded-xl flex items-center justify-center ${active ? 'bg-[#D06C4E]/15' : ''}`}
           >
-            <Icon className="w-4 h-4" />
+            <Icon className="w-5 h-5" />
             {tab === 'messages' && unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#B85B3F] text-white text-[9px] font-black flex items-center justify-center shadow">
+              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#B85B3F] text-white text-[11px] leading-none font-black flex items-center justify-center shadow">
                 {unreadCount}
               </span>
             )}
           </div>
-          <span className="text-[10px] tracking-tight">{label}</span>
+          <span className="text-xs tracking-tight">{label}</span>
         </button>
       );
     })}

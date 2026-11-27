@@ -205,6 +205,20 @@ export function photoListingsAllowed(res: Response): boolean {
   return getFlags().photo_listings || isAdminUser(currentUser(res));
 }
 
+/** The host as the shared page shows them: a first name and whether a phone or ID check backs them. Never throws. */
+async function publicHost(admin: SupabaseClient, ownerId: unknown): Promise<{ firstName: string | null; verified: boolean } | undefined> {
+  if (typeof ownerId !== "string") return undefined;
+  try {
+    const [user, pass] = await Promise.all([
+      admin.from("users").select("first_name").eq("id", ownerId).maybeSingle(),
+      admin.from("passports").select("phone_verified, id_verified").eq("user_id", ownerId).maybeSingle(),
+    ]);
+    return { firstName: user.data?.first_name ?? null, verified: pass.data?.phone_verified === true || pass.data?.id_verified === true };
+  } catch {
+    return undefined;
+  }
+}
+
 export function registerFillRoutes(app: Express): void {
   // Start a draft: the two-question start (move-out date, rent for the room).
   app.post("/api/listings", requireUser(), async (req, res) => {
@@ -234,7 +248,8 @@ export function registerFillRoutes(app: Express): void {
       .select("id, status, title, neighborhood, city, rent_cents, move_out_date, lease_permission, published_at, created_at, updated_at, media_type")
       .eq("owner_id", user.id)
       .neq("status", "archived")
-      .order("updated_at", { ascending: false })
+      // Newest first, by when it was made: a row must not jump under the host's thumb after an edit
+      .order("created_at", { ascending: false })
       .limit(50);
     if (error) return dbError(res, error, "list listings");
     // The list shows an area: the city where there's no neighborhood list
@@ -541,7 +556,7 @@ export function registerFillRoutes(app: Express): void {
       link = (direct.data as PublicLink | null) ?? null;
     }
 
-    const listingResult = await admin.from("listings").select(PUBLIC_COLUMNS).eq("id", listingId).in("status", ["published", "filled"]).maybeSingle();
+    const listingResult = await admin.from("listings").select(`${PUBLIC_COLUMNS}, owner_id`).eq("id", listingId).in("status", ["published", "filled"]).maybeSingle();
     if (!listingResult.data) return notFound();
     const listing = listingResult.data as Record<string, any>;
     const media = await admin
@@ -593,6 +608,7 @@ export function registerFillRoutes(app: Express): void {
     const applyHref = `/?apply=${listingId}${via ? `&via=${via}` : ""}`;
     res.type("html").send(
       renderListingPage({
+        host: await publicHost(admin, (listingResult.data as Record<string, any> | null)?.owner_id),
         listing: info,
         status: listing.status === "filled" ? "filled" : "published",
         metaTags: buildListingMeta(info, { url, imageUrl: posterUrl, today }),

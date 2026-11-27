@@ -165,7 +165,7 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
   if (error) {
     return (
       <div className="w-full h-full bg-[#F9F7F3] p-4 space-y-3">
-        <button type="button" onClick={onBack} className="text-xs font-bold flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Back</button>
+        <button type="button" onClick={onBack} className="min-h-10 text-xs font-bold flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Back</button>
         <p className="text-xs font-bold text-[#9A4A33]">{error}</p>
       </div>
     );
@@ -214,9 +214,9 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
             <div className="flex items-center gap-1.5">
               <span className="font-extrabold text-sm truncate">{a.firstName ?? 'Applicant'}</span>
               {a.fit.strong && a.status !== 'declined' && <Star className="w-3.5 h-3.5 text-[#7A907C] fill-[#7A907C] shrink-0" aria-label="Strong fit" />}
-              <span className={`text-[11px] font-bold shrink-0 ${a.status === 'chosen' ? 'text-[#A9513A]' : 'text-[#6E655F]'}`}>· {statusText}</span>
+              <span className={`text-xs font-bold shrink-0 ${a.status === 'chosen' ? 'text-[#A9513A]' : 'text-[#6E655F]'}`}>· {statusText}</span>
             </div>
-            <div className="text-[11px] text-[#6E655F] truncate" title={a.badges.idProvider === 'demo' ? 'Demo ID check: not a vendor verification yet' : undefined}>
+            <div className="text-xs text-[#6E655F] truncate" title={a.badges.idProvider === 'demo' ? 'Demo ID check: not a vendor verification yet' : undefined}>
               {facts.join(' · ')}
             </div>
           </div>
@@ -226,31 +226,31 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
         </div>
 
         <div className="flex flex-wrap gap-1.5">
-          <span className={`text-[11px] font-bold px-2 py-1 rounded-lg ${FIT_STYLE[a.fit.moveIn.level]}`}>
+          <span className={`text-xs font-bold px-2 py-1 rounded-lg ${FIT_STYLE[a.fit.moveIn.level]}`}>
             {a.moveInDate ? `Move-in ${formatMoveIn(a.moveInDate, today) ?? a.moveInDate}: ` : ''}
             {a.fit.moveIn.text}
           </span>
-          <span className={`text-[11px] font-bold px-2 py-1 rounded-lg ${FIT_STYLE[a.fit.budget.level]}`}>
+          <span className={`text-xs font-bold px-2 py-1 rounded-lg ${FIT_STYLE[a.fit.budget.level]}`}>
             {a.budget.maxCents != null ? `Up to ${formatRentCents(a.budget.maxCents)}: ` : ''}
             {a.fit.budget.text}
           </span>
           {a.stayLength && (
-            <span className="text-[11px] font-bold px-2 py-1 rounded-lg bg-[#F2EFE9] text-[#6E655F]">
+            <span className="text-xs font-bold px-2 py-1 rounded-lg bg-[#F2EFE9] text-[#6E655F]">
               Stay: {a.stayLength}
             </span>
           )}
         </div>
-        {aiNote && <p className="text-[11px] text-[#485B4A] font-semibold flex items-start gap-1"><Sparkles className="w-3 h-3 mt-0.5 shrink-0" />{aiNote.reason}</p>}
+        {aiNote && <p className="text-xs text-[#485B4A] font-semibold flex items-start gap-1"><Sparkles className="w-3 h-3 mt-0.5 shrink-0" />{aiNote.reason}</p>}
         {a.note && <p className={`text-xs leading-relaxed ${expanded ? '' : 'line-clamp-2'}`}>“{a.note}”</p>}
 
         {expanded && (
           <div className="space-y-2.5" data-testid={`applicant-details-${a.applicationId}`}>
             {a.introUrl && <video disablePictureInPicture src={a.introUrl} controls playsInline preload="metadata" className="w-full max-h-64 rounded-xl bg-black" />}
-            {a.bio && <p className="text-[11px] text-[#6E655F]">{a.bio}</p>}
+            {a.bio && <p className="text-xs text-[#6E655F]">{a.bio}</p>}
             {Object.keys(a.lifestyle).length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {LIFESTYLE_QUESTIONS.filter((q) => a.lifestyle[q.key]).map((q) => (
-                  <span key={q.key} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#F2EFE9] text-[#2C2724]">
+                  <span key={q.key} className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#F2EFE9] text-[#2C2724]">
                     {q.label}: {a.lifestyle[q.key]}
                   </span>
                 ))}
@@ -326,7 +326,7 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
         </button>
         <div className="flex-1 min-w-0">
           <h2 className="text-base font-extrabold truncate">Applicants</h2>
-          <div className="text-[11px] text-[#6E655F] truncate">
+          <div className="text-xs text-[#6E655F] truncate">
             {data.listing.title || `Room in ${area}`}
             {data.listing.status === 'filled' ? ' · Filled' : ''}
             {!isHost ? ' · You’re a housemate: vote, the host decides' : ''}
@@ -357,7 +357,7 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
           <p className="text-xs font-bold flex-1" data-testid="applicant-summary">{ai?.headline ?? data.summary}</p>
         </div>
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] text-[#6E655F]">Based on badges, move-in, budget and lifestyle answers only.</p>
+          <p className="text-xs text-[#6E655F]">Based on badges, move-in, budget and lifestyle answers only.</p>
           {open.length > 0 && !ai && (
             <button type="button" onClick={() => void summarize()} disabled={aiBusy} className="min-h-10 px-1 text-xs font-extrabold text-[#A9513A] flex items-center gap-1 shrink-0">
               {aiBusy && <Loader2 className="w-3 h-3 animate-spin" />} Compare with AI
@@ -423,7 +423,7 @@ export const ApplicantInbox: React.FC<ApplicantInboxProps> = ({ listingId, onBac
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-[#2C2724]/60" onClick={() => setDeclining(null)}>
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm max-h-[90dvh] overflow-y-auto bg-[#F9F7F3] border border-[#2C2724] rounded-t-3xl sm:rounded-2xl p-5 space-y-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
             <h3 className="font-extrabold text-sm">Decline {declining.firstName ?? 'this applicant'}</h3>
-            <p className="text-[11px] text-[#6E655F]">This message is sent in Inbox and by email. Edit it if you like.</p>
+            <p className="text-xs text-[#6E655F]">This message is sent in Inbox and by email. Edit it if you like.</p>
             <textarea value={declineText} maxLength={1000} onChange={(e) => setDeclineText(e.target.value)} className="w-full min-h-[120px] bg-white border border-[#2C2724]/25 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-[#D06C4E]" />
             {actionError && <p role="alert" className="text-xs font-bold text-[#9A4A33]">{actionError}</p>}
             <div className="flex gap-2">

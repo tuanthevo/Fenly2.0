@@ -82,7 +82,7 @@ export const RoomAlertsCard: React.FC<{ supabase: SupabaseClient; userId: string
         <BellRing className="w-4 h-4 text-[#6E655F] shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="text-xs font-extrabold">New rooms that match</div>
-          <div className="text-[10px] text-[#6E655F]">A daily email when new rooms fit your budget, move-in date and stay</div>
+          <div className="text-xs text-[#6E655F]">A daily email when new rooms fit your budget, move-in date and stay</div>
         </div>
         <button
           type="button"
@@ -91,16 +91,18 @@ export const RoomAlertsCard: React.FC<{ supabase: SupabaseClient; userId: string
           aria-label="New rooms that match"
           onClick={() => void save({ alert_rooms: !on })}
           data-testid="room-alerts-toggle"
-          className={`w-11 h-6 rounded-full p-0.5 transition-colors shrink-0 ${on ? 'bg-[#7A907C]' : 'bg-[#2C2724]/20'}`}
+          className="w-12 h-10 flex items-center justify-center shrink-0"
         >
-          <span className={`block w-5 h-5 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-5' : ''}`} />
+          <span className={`block w-11 h-6 rounded-full p-0.5 transition-colors ${on ? 'bg-[#485B4A]' : 'bg-[#2C2724]/30'}`}>
+            <span className={`block w-5 h-5 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-5' : ''}`} />
+          </span>
         </button>
       </div>
 
       {on && (
         <div className="space-y-2.5 pt-1 border-t border-[#2C2724]/10">
           <div>
-            <label className="text-[11px] font-bold text-[#6E655F] block mb-1 mt-2" htmlFor="room-alerts-place">
+            <label className="text-xs font-bold text-[#6E655F] block mb-1 mt-2" htmlFor="room-alerts-place">
               Near
             </label>
             <form
@@ -126,17 +128,17 @@ export const RoomAlertsCard: React.FC<{ supabase: SupabaseClient; userId: string
               </button>
             </form>
             {note ? (
-              <p className={`mt-1.5 text-[11px] font-bold flex items-center gap-1 ${note.bad ? 'text-[#A9513A]' : 'text-[#485B4A]'}`} role="status">
+              <p className={`mt-1.5 text-xs font-bold flex items-center gap-1 ${note.bad ? 'text-[#A9513A]' : 'text-[#485B4A]'}`} role="status">
                 {!note.bad && <MapPin className="w-3.5 h-3.5 shrink-0" />}
                 {note.text}
               </p>
             ) : (
-              <p className="mt-1.5 text-[11px] text-[#6E655F]">{row.alert_place ? `Rooms near ${row.alert_place}` : 'Empty: anywhere in the Bay Area'}</p>
+              <p className="mt-1.5 text-xs text-[#6E655F]">{row.alert_place ? `Rooms near ${row.alert_place}` : 'Empty: anywhere in the Bay Area'}</p>
             )}
             {row.alert_place && (
               <button
                 type="button"
-                className="min-h-10 text-[11px] font-bold text-[#A9513A] underline underline-offset-2"
+                className="min-h-10 text-xs font-bold text-[#A9513A] underline underline-offset-2"
                 onClick={() => {
                   setQuery('');
                   setNote(null);
@@ -156,7 +158,7 @@ export const RoomAlertsCard: React.FC<{ supabase: SupabaseClient; userId: string
               ))}
             </div>
           )}
-          {!emailOn && <p className="text-[11px] font-bold text-[#A9513A]">Turn on "Email me" above to get these by email.</p>}
+          {!emailOn && <p className="text-xs font-bold text-[#A9513A]">Turn on "Email me" above to get these by email.</p>}
         </div>
       )}
     </div>

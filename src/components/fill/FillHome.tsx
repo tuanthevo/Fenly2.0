@@ -3,7 +3,7 @@
  * listings' status. Signed out, the button asks to sign in first (App's gate).
  */
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, ChevronRight, Loader2, Plus } from 'lucide-react';
+import { ChevronRight, Plus } from 'lucide-react';
 import { fillApi } from '../../lib/fillApi';
 import { findApi, type HostingRow } from '../../lib/findApi';
 import { EMPTY_STATE } from '../../config/launchCopy';
@@ -13,6 +13,13 @@ import { mediaTypeOf } from '../../fill/listingRules';
 import { DeleteListing } from './DeleteListing';
 
 type Row = Awaited<ReturnType<typeof fillApi.listMine>>['listings'][number];
+
+/** What "Fill my room" asks for, shown before the sign-in so nothing is a surprise */
+const HOW_IT_WORKS: { title: string; line: string }[] = [
+  { title: 'Tell us the basics', line: 'Rent, move-out date and what is included. About 2 minutes.' },
+  { title: 'Show the room', line: 'Film 3 short shots standing still, or take photos. Fenn makes the tour.' },
+  { title: 'Share one link', line: 'Post it anywhere. Applicants reach you here, not on your phone number.' },
+];
 
 const STATUS_CHIP: Record<string, { text: string; className: string }> = {
   draft: { text: 'Draft', className: 'text-[#6E655F]' },
@@ -30,7 +37,7 @@ interface FillHomeProps {
   onBack: () => void;
 }
 
-export const FillHome: React.FC<FillHomeProps> = ({ signedIn, onStartFill, onResume, onOpenStatus, onOpenApplicants, onBack }) => {
+export const FillHome: React.FC<FillHomeProps> = ({ signedIn, onStartFill, onResume, onOpenStatus, onOpenApplicants }) => {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hosting, setHosting] = useState<HostingRow[]>([]);
@@ -66,41 +73,52 @@ export const FillHome: React.FC<FillHomeProps> = ({ signedIn, onStartFill, onRes
   }, [signedIn]);
 
   const today = todayIn(new Date());
+  const returning = signedIn && (rows?.length ?? 0) > 0;
 
   return (
-    <div className="w-full h-full bg-[#F9F7F3] text-[#2C2724] pt-4 pb-8 px-3.5 overflow-y-auto space-y-4" data-testid="fill-home">
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label="Back to Find"
-          className="w-10 h-10 rounded-xl hover:bg-[#F2EFE9] text-[#2C2724] flex items-center justify-center shrink-0 active:scale-90"
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </button>
-        <h2 className="flex-1 text-base font-extrabold">Fill a room</h2>
+    <div className="w-full h-full bg-[#F9F7F3] text-[#2C2724] pt-4 pb-8 px-3.5 overflow-y-auto flex flex-col gap-4" data-testid="fill-home">
+      <div className="px-1 pt-1">
+        <h2 className="text-2xl font-extrabold leading-tight">{returning ? 'Your rooms' : 'Moving out? Find your replacement.'}</h2>
+        {!returning && <p className="text-sm text-[#6E655F] mt-1.5">A room tour and one link, ready in about 10 minutes.</p>}
       </div>
 
-      <div className="p-4 rounded-2xl bg-white border border-[#2C2724]/10 space-y-3">
-        <div>
-          <h3 className="text-sm font-extrabold">Moving out? Find your replacement.</h3>
-          <p className="text-xs text-[#6E655F] mt-0.5 leading-relaxed">Film 3 short shots, share one link, track applicants.</p>
-        </div>
+      <div className={`p-4 rounded-2xl bg-white border border-[#2C2724]/10 space-y-4 ${returning ? 'order-last' : ''}`}>
+        {!returning && (
+        <ol className="space-y-3.5" data-testid="fill-how-it-works">
+          {HOW_IT_WORKS.map((item, i) => (
+            <li key={item.title} className="flex gap-3">
+              <span aria-hidden="true" className="w-7 h-7 rounded-full bg-[#EBF0EC] text-[#485B4A] text-sm font-extrabold flex items-center justify-center shrink-0">
+                {i + 1}
+              </span>
+              <div className="min-w-0">
+                <div className="text-sm font-extrabold">{item.title}</div>
+                <p className="text-sm text-[#6E655F] leading-snug mt-0.5">{item.line}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+        )}
         <button
           type="button"
           onClick={onStartFill}
           data-testid="fill-start"
-          className="w-full py-3 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-sm font-extrabold flex items-center justify-center gap-2 active:scale-95"
+          className="w-full min-h-12 rounded-xl bg-[#B85B3F] hover:bg-[#A9513A] text-white text-base font-extrabold flex items-center justify-center gap-2 active:scale-95 transition-all"
         >
-          <Plus className="w-4 h-4" /> Fill my room
+          <Plus className="w-5 h-5" /> {returning ? 'Fill another room' : 'Fill my room'}
         </button>
+        <p className="text-xs text-[#6E655F] text-center">
+          {signedIn ? 'Your draft saves as you go. Stop and come back any time.' : "You'll sign in first, so your draft is saved as you go."}
+        </p>
+        <a href="/help.html" target="_blank" rel="noopener" className="flex items-center justify-center min-h-10 text-sm font-extrabold text-[#A9513A] underline underline-offset-2">
+          How Fenn works
+        </a>
       </div>
 
-      {signedIn && hosting.length > 0 && onOpenApplicants && (
+      {signedIn && onOpenApplicants && hosting.some((h) => h.applicants > 0 || h.role === 'housemate') && (
         <div className="space-y-2" data-testid="fill-applicants">
           <h3 className="text-xs font-extrabold text-[#6E655F] uppercase tracking-wide px-1">Applicants</h3>
           <div className="rounded-2xl bg-white border border-[#2C2724]/10 divide-y divide-[#2C2724]/10 overflow-hidden">
-            {hosting.map((h) => (
+            {hosting.filter((h) => h.applicants > 0 || h.role === 'housemate').map((h) => (
               <button
                 key={h.id}
                 type="button"
@@ -110,14 +128,14 @@ export const FillHome: React.FC<FillHomeProps> = ({ signedIn, onStartFill, onRes
               >
                 <div className="min-w-0 flex-1">
                   <div className="text-xs font-bold truncate">{h.title || `Room in ${h.neighborhood || 'the Bay Area'}`}</div>
-                  <div className="text-[11px] text-[#6E655F]">
+                  <div className="text-xs text-[#6E655F]">
                     {h.applicants === 0 ? 'No applicants yet' : `${h.applicants} applicant${h.applicants === 1 ? '' : 's'}${h.open ? ` · ${h.open} open` : ''}`}
                     {h.status === 'filled' ? ' · Filled' : ''}
                     {h.role === 'housemate' ? ' · You’re a housemate' : ''}
                   </div>
                 </div>
                 {h.open > 0 && h.status === 'published' && (
-                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-[#B85B3F] text-white text-[10px] font-black flex items-center justify-center">{h.open}</span>
+                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-[#B85B3F] text-white text-xs font-black flex items-center justify-center">{h.open}</span>
                 )}
                 <ChevronRight className="w-4 h-4 text-[#6E655F] shrink-0" />
               </button>
@@ -128,11 +146,16 @@ export const FillHome: React.FC<FillHomeProps> = ({ signedIn, onStartFill, onRes
 
       {signedIn && (
         <div className="space-y-2">
-          <h3 className="text-xs font-extrabold text-[#6E655F] uppercase tracking-wide px-1">Your rooms</h3>
+          {!returning && <h3 className="text-xs font-extrabold text-[#6E655F] uppercase tracking-wide px-1">Your rooms</h3>}
           {error && <p className="text-xs font-bold text-[#9A4A33]">{error}</p>}
           {rows === null && !error ? (
-            <div className="flex justify-center py-6 text-[#6E655F]">
-              <Loader2 className="w-5 h-5 animate-spin" />
+            <div className="rounded-2xl bg-white border border-[#2C2724]/10 divide-y divide-[#2C2724]/10" role="status" aria-label="Loading your rooms">
+              {[0, 1].map((i) => (
+                <div key={i} className="px-4 py-3.5 space-y-2 animate-pulse">
+                  <div className="h-3.5 w-2/5 rounded bg-[#2C2724]/10" />
+                  <div className="h-3 w-3/5 rounded bg-[#2C2724]/10" />
+                </div>
+              ))}
             </div>
           ) : rows && rows.length === 0 ? (
             <p className="text-xs text-[#6E655F] px-1">{EMPTY_STATE.fillNoRooms.line}</p>
@@ -151,9 +174,20 @@ export const FillHome: React.FC<FillHomeProps> = ({ signedIn, onStartFill, onRes
                     onClick={() => (row.status === 'draft' ? onResume(row.id) : onOpenStatus(row.id))}
                     className="min-w-0 flex-1 px-4 py-3.5 flex items-center gap-3 hover:bg-[#F9F7F3] transition-colors text-left"
                   >
+                    {row.status !== 'draft' && (
+                      <img
+                        src={`/api/media/thumb/${row.id}.jpg`}
+                        alt=""
+                        loading="lazy"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                        className="w-11 h-14 rounded-lg object-cover bg-[#F2EFE9] shrink-0"
+                      />
+                    )}
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-bold truncate">{name}</div>
-                      <div className="text-[11px] text-[#6E655F] mt-0.5">
+                      <div className="text-xs text-[#6E655F] mt-0.5">
                         <span className={`font-bold ${chip.className}`}>{chip.text}</span>
                         {[
                           row.rent_cents ? `${formatRentCents(row.rent_cents)}/mo` : null,
