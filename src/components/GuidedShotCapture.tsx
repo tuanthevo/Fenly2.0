@@ -23,8 +23,7 @@ import {
   countCompletedShots,
   isLandscape,
   instructionFor,
-  SHOT_LENGTH_LABEL,
-  missingRequiredShots,
+  SHOT_GUIDE_SEC,
   recordingMsFor,
   shotsForMode,
   EXTRA_SHOT_SLOTS,
@@ -768,9 +767,9 @@ interface GuidedShotCaptureProps {
   openCameraForSlot?: number | null;
   /** Called once the camera request above has been handled */
   onCameraRequestHandled?: () => void;
-  /** 'quick' (Fenly 2.0 Fill): the 4 required areas, plus the optional perk; 'guided' (default): all 5 shots */
+  /** 'quick' (Fenly 2.0 Fill): 3 shots of 15 s, plus 2 optional extras; 'guided' (default): 5 shots of 15 s */
   mode?: CaptureMode;
-  /** Quick Tour: offer the optional perk shot */
+  /** Quick Tour: offer "Add 2 more shots for the full tour" */
   allowExtras?: boolean;
   /** Step badge in the header (1.0 Create Listing shows "2") */
   stepLabel?: string | null;
@@ -827,8 +826,7 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
 
   const completed = countCompletedShots(recordedMedia);
   const nextShot = firstMissing(recordedMedia);
-  const missingRequired = missingRequiredShots(recordedMedia);
-  const remainingToProceed = missingRequired.length;
+  const remainingToProceed = Math.max(0, MIN_SHOTS_TO_PROCEED - completed);
 
   const saveMedia = (media: RecordedViralSlotMedia) => {
     const old = recordedMedia[media.slotNumber];
@@ -1076,7 +1074,7 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
                   )}
                   <span>
                     {useNativeCamera
-                      ? `${isDone ? 'Retake' : 'Record'} · ${SHOT_LENGTH_LABEL}s`
+                      ? `${isDone ? 'Retake' : 'Record'} · ${SHOT_GUIDE_SEC}s or more`
                       : `${isDone ? 'Retake' : 'Record'} ${mode === 'quick' ? '' : 'Guided '}${seconds}s Clip`}
                   </span>
                 </button>
@@ -1132,7 +1130,7 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
           className="w-full py-2 rounded-xl bg-white hover:bg-[#F2EFE9] border border-dashed border-[#2C2724]/30 text-[#2C2724] text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95"
         >
           <Video className="w-3.5 h-3.5 text-[#D06C4E]" />
-          Add 1 more shot: the best perk (closet, laundry, balcony, view)
+          Add 2 more shots for the full tour (closet, best perk)
         </button>
       )}
 
@@ -1158,8 +1156,8 @@ export const GuidedShotCapture: React.FC<GuidedShotCaptureProps> = ({
           <>
             <Video className="w-4 h-4 shrink-0" />
             <span>
-              Film all {MIN_SHOTS_TO_PROCEED} areas to continue, {SHOT_LENGTH_LABEL} seconds each. Still needed:{' '}
-              {missingRequired.map((s) => s.name).join(', ')}.
+              Capture at least {MIN_SHOTS_TO_PROCEED} shots to continue ({remainingToProceed}{' '}
+              more to go).
             </span>
           </>
         )}

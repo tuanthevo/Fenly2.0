@@ -1,8 +1,5 @@
 /**
- * Guided video capture: the shot list, timing and beginner guardrails.
- * Four areas are required (host's rule, Nov 2026): bedroom, kitchen, shared space
- * (living room) and bathroom. The fifth shot, the best perk, is optional.
- * Slot numbers are fixed (they name saved clips); SHOT_ORDER is how they're shown.
+ * Guided 5-Shot Video Capture — shot list, timing and beginner guardrails.
  * Pure logic only (no DOM) so it can be unit tested.
  */
 import type { ViralTourSlotConfig } from './trustSafety';
@@ -19,36 +16,36 @@ export interface GuidedShot {
 export const GUIDED_SHOTS: GuidedShot[] = [
   {
     slotNumber: 1,
-    name: 'Bedroom',
+    name: 'Bedroom Hook',
     instruction:
-      'Turn ALL lights on & open blinds. Stand at the bedroom doorway and walk slowly in, about 5 small steps (5-15 sec).',
+      'Turn ALL lights on & open blinds. Stand at the bedroom doorway and walk slowly in, about 5 small steps (at least 10 sec).',
     movementCue: '5 slow steps in',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1598928506311-c55ded91a20c?auto=format&fit=crop&w=900&q=80',
   },
   {
     slotNumber: 2,
-    name: 'Kitchen',
+    name: 'Kitchen & Shared Space',
     instruction:
-      'Stand at the kitchen entrance and walk slowly toward the island or counter (5-15 sec).',
+      'Stand at the kitchen entrance and walk slowly toward the island or counter (at least 10 sec).',
     movementCue: 'Walk slowly toward the counter',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=900&q=80',
   },
   {
     slotNumber: 3,
-    name: 'Bathroom',
+    name: 'Bathroom Peek',
     instruction:
-      'Step slowly toward the open bathroom door, then hold still—keep yourself out of the mirror (5-15 sec).',
+      'Step slowly toward the open bathroom door, then hold still—keep yourself out of the mirror (at least 10 sec).',
     movementCue: 'Step toward the door • stay out of the mirror',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=900&q=80',
   },
   {
     slotNumber: 4,
-    name: 'Shared Space (Living Room)',
-    instruction: 'Turn the lights on. Stand at the edge of the living room and walk slowly toward the sofa or the window (5-15 sec).',
-    movementCue: 'Walk slowly into the room',
+    name: 'Closet & Storage',
+    instruction: 'Open the closet doors wide, take 2 slow steps forward, then hold still (at least 10 sec).',
+    movementCue: '2 slow steps, then hold',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=900&q=80',
   },
@@ -56,7 +53,7 @@ export const GUIDED_SHOTS: GuidedShot[] = [
     slotNumber: 5,
     name: 'Standout Perk',
     instruction:
-      'Walk slowly toward the best perk—closet, in-unit laundry, balcony, parking, or sunny view—then hold on it (5-15 sec).',
+      'Walk slowly toward the best perk—in-unit laundry, balcony, parking, or sunny view—then hold on it (at least 10 sec).',
     movementCue: 'Walk to the perk, then hold',
     sampleThumbnailUrl:
       'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=900&q=80',
@@ -73,17 +70,10 @@ export const GUIDED_COUNTDOWN_STEP_MS = 1000;
  * rooms a little faster rather than cut footage.
  */
 export const GUIDED_RECORDING_MS = 15000;
-/** Each clip should run 5-15 seconds (host's rule, Nov 2026). Shorter clips are turned away; longer ones are used. */
-export const MIN_CLIP_DURATION_SEC = 5;
-export const MAX_CLIP_GUIDE_SEC = 15;
-export const SHOT_LENGTH_LABEL = `${MIN_CLIP_DURATION_SEC}-${MAX_CLIP_GUIDE_SEC}`;
-/** The four areas every tour needs, in the order they're shown: bedroom, kitchen, living room, bathroom */
-export const REQUIRED_SHOT_SLOTS: readonly GuidedShot['slotNumber'][] = [1, 2, 4, 3];
-export const MIN_SHOTS_TO_PROCEED = REQUIRED_SHOT_SLOTS.length;
-/** Display order of every shot: the required four, then the optional perk */
-export const SHOT_ORDER: readonly GuidedShot['slotNumber'][] = [1, 2, 4, 3, 5];
-const inOrder = (slots: readonly GuidedShot['slotNumber'][]): GuidedShot[] =>
-  slots.map((slot) => GUIDED_SHOTS.find((s) => s.slotNumber === slot)!);
+export const MIN_CLIP_DURATION_SEC = 2;
+/** What hosts are told to film per shot (host's call, Nov 2026); longer is welcome, the editor uses it */
+export const SHOT_GUIDE_SEC = 10;
+export const MIN_SHOTS_TO_PROCEED = 3;
 
 /**
  * Slot configs for the 5 guided shots, in the shape the Gemini tour generator
@@ -136,7 +126,7 @@ export function checkCameraRollClip(meta: {
     return {
       accepted: false,
       isLandscape: false,
-      error: `This clip is only ${durationSec.toFixed(1)}s. Each clip needs to be ${SHOT_LENGTH_LABEL} seconds long.`,
+      error: `This clip is only ${durationSec.toFixed(1)}s. Pick one that's at least ${MIN_CLIP_DURATION_SEC} seconds long.`,
     };
   }
   const landscape = isLandscape(width, height);
@@ -154,37 +144,32 @@ export function countCompletedShots(media: Record<number, unknown>): number {
   return GUIDED_SHOTS.filter((s) => Boolean(media[s.slotNumber])).length;
 }
 
-/** Required areas that still have no clip, in display order. */
-export function missingRequiredShots(media: Record<number, unknown>): GuidedShot[] {
-  return inOrder(REQUIRED_SHOT_SLOTS).filter((s) => !media[s.slotNumber]);
-}
-
-/** All four required areas are filmed (the perk is optional). */
 export function canProceedWithShots(media: Record<number, unknown>): boolean {
-  return missingRequiredShots(media).length === 0;
+  return countCompletedShots(media) >= MIN_SHOTS_TO_PROCEED;
 }
 
-/** The first shot without a clip (in display order), used to highlight the next card. */
+/** The first shot without a clip, used to highlight the next card. */
 export function nextShotToCapture(media: Record<number, unknown>): number | null {
-  const next = inOrder(SHOT_ORDER).find((s) => !media[s.slotNumber]);
+  const next = GUIDED_SHOTS.find((s) => !media[s.slotNumber]);
   return next ? next.slotNumber : null;
 }
 
 /* ---------------- Fenly 2.0 Quick Tour ---------------- */
 
 /**
- * Quick Tour (Fill): the four required areas, plus the optional perk shot.
- * The in-app recorder (computers) stops at 15 s, the top of the 5-15 s range.
+ * Quick Tour: 3 shots of 15 s (room, shared space, bathroom); 2 optional extras for the full tour.
+ * 15 s like the guided tour, so 3 shots alone reach the 30 s minimum (see GUIDED_RECORDING_MS).
  */
 export const QUICK_RECORDING_MS = 15000;
-export const QUICK_SHOT_SLOTS: readonly GuidedShot['slotNumber'][] = REQUIRED_SHOT_SLOTS;
-export const EXTRA_SHOT_SLOTS: readonly GuidedShot['slotNumber'][] = [5];
+export const QUICK_SHOT_SLOTS: readonly GuidedShot['slotNumber'][] = [1, 2, 3];
+export const EXTRA_SHOT_SLOTS: readonly GuidedShot['slotNumber'][] = [4, 5];
 
 export type CaptureMode = 'guided' | 'quick';
 
 export function shotsForMode(mode: CaptureMode, includeExtras = false): GuidedShot[] {
-  if (mode === 'guided') return inOrder(SHOT_ORDER);
-  return inOrder(includeExtras ? [...QUICK_SHOT_SLOTS, ...EXTRA_SHOT_SLOTS] : QUICK_SHOT_SLOTS);
+  if (mode === 'guided') return GUIDED_SHOTS;
+  const slots = includeExtras ? [...QUICK_SHOT_SLOTS, ...EXTRA_SHOT_SLOTS] : QUICK_SHOT_SLOTS;
+  return GUIDED_SHOTS.filter((shot) => slots.includes(shot.slotNumber));
 }
 
 export function recordingMsFor(mode: CaptureMode): number {
@@ -193,8 +178,8 @@ export function recordingMsFor(mode: CaptureMode): number {
 
 /**
  * The shot's instruction with its clip length set to exactly `seconds`, for the in-app
- * recorder, which stops by itself. The cards show shot.instruction ("5-15 sec").
+ * recorder, which stops by itself. The cards show shot.instruction ("at least 10 sec").
  */
 export function instructionFor(shot: GuidedShot, seconds: number): string {
-  return shot.instruction.replace(/\((?:at least )?\d+(?:-\d+)?(?:\.\d+)?\s*sec\)/i, `(${seconds} sec)`);
+  return shot.instruction.replace(/\((?:at least )?\d+(?:\.\d+)?\s*sec\)/i, `(${seconds} sec)`);
 }

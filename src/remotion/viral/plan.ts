@@ -154,7 +154,7 @@ export const CUT_CYCLE: ViralCutKind[] = ['whip-left', 'whip-right'];
 export const CLOSER_OVERLAY_FRAMES = 12;
 
 /** Guided slots that usually make the best opener: bedroom, perk, kitchen. */
-export const SLOT_HOOK_PRIOR: Record<number, number> = { 1: 0.1, 2: 0.06, 3: 0, 4: 0.06, 5: 0.08 };
+export const SLOT_HOOK_PRIOR: Record<number, number> = { 1: 0.1, 2: 0.06, 3: 0, 4: -0.05, 5: 0.08 };
 
 /**
  * The hook may start this much before its best frame to make room for the facts beat. Keep it

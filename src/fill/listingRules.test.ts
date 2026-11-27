@@ -121,12 +121,12 @@ test('resumeStep picks up a draft where it stopped', () => {
   assert.equal(resumeStep(null, [], 0), 'start');
   assert.equal(resumeStep(base, [], 0), 'lease');
   assert.equal(resumeStep({ ...base, lease_permission: 'not_sure' }, [], 5), 'lease');
-  assert.equal(resumeStep({ ...base, lease_permission: 'leaseholder' }, [], 3), 'tour', 'four areas are required');
-  assert.equal(resumeStep({ ...base, lease_permission: 'leaseholder' }, [], 4), 'details');
+  assert.equal(resumeStep({ ...base, lease_permission: 'leaseholder' }, [], 2), 'tour');
+  assert.equal(resumeStep({ ...base, lease_permission: 'leaseholder' }, [], 3), 'details');
   const approved = { ...base, lease_permission: 'can_replace', title: 'T', description: 'D', copy_approved_at: 'x' };
-  assert.equal(resumeStep(approved, ['raw_clip'], 4), 'video');
-  assert.equal(resumeStep(approved, ['video_full'], 4), 'video');
-  assert.equal(resumeStep(approved, ['video_full', 'thumbnail'], 4), 'publish');
+  assert.equal(resumeStep(approved, ['raw_clip'], 3), 'video');
+  assert.equal(resumeStep(approved, ['video_full'], 3), 'video');
+  assert.equal(resumeStep(approved, ['video_full', 'thumbnail'], 3), 'publish');
   assert.equal(resumeStep({ ...approved, status: 'published' }, [], 0), 'share');
 });
 
