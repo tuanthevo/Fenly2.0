@@ -84,7 +84,7 @@ export const FillHome: React.FC<FillHomeProps> = ({ signedIn, onStartFill, onRes
       <div className="p-4 rounded-2xl bg-white border border-[#2C2724]/10 space-y-3">
         <div>
           <h3 className="text-sm font-extrabold">Moving out? Find your replacement.</h3>
-          <p className="text-xs text-[#6E655F] mt-0.5 leading-relaxed">Film 3 short shots, share one link, track applicants.</p>
+          <p className="text-xs text-[#6E655F] mt-0.5 leading-relaxed">Film 4 short clips, share one link, track applicants.</p>
         </div>
         <button
           type="button"

@@ -689,7 +689,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
       return void submitPhotos();
     }
     if (step === 'tour') {
-      if (!enoughShots) return setError('Film 3 shots to continue.');
+      if (!enoughShots) return setError('Film all 4 areas to continue: bedroom, kitchen, living room and bathroom.');
       return void submitTour();
     }
     if (step === 'details') return void submitDetails();
@@ -773,7 +773,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                       <p className="text-xs text-[#6E655F] mt-1">
                         {photoAllowed
                           ? 'The basics, then a short video or a few photos. About 10 minutes in all.'
-                          : 'The basics, then three shots of 10 seconds or more. About 10 minutes in all.'}
+                          : 'The basics, then four short clips (bedroom, kitchen, living room, bathroom), 5-15 seconds each. About 10 minutes in all.'}
                       </p>
                     </div>
                     <div>
@@ -1040,7 +1040,7 @@ export const FillFlow: React.FC<FillFlowProps> = ({ listingId: requestedId, onCl
                   {uploadProgress !== null && <Progress value={uploadProgress} text="Saving your clips" />}
                   <button type="button" className={primaryBtn} disabled={!enoughShots || busy !== null} onClick={() => void submitTour()} data-testid="fill-tour-continue">
                     {busy === 'tour' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                    {enoughShots ? 'Continue' : 'Film 3 shots to continue'}
+                    {enoughShots ? 'Continue' : 'Film all 4 areas to continue'}
                   </button>
                   {switchMedia && (
                     <button type="button" className={secondaryBtn} disabled={busy !== null} onClick={() => void chooseMedia('photos')} data-testid="fill-switch-photos">

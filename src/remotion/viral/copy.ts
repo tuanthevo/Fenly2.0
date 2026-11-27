@@ -278,7 +278,7 @@ export function pickPerk(amenities: string[]): string {
  */
 export const PERK_FALLBACK_LABEL = 'Worth the wait';
 
-/** Default callout per guided shot slot (1 bedroom, 2 kitchen, 3 bath, 4 closet, 5 perk). */
+/** Default callout per guided shot slot (1 bedroom, 2 kitchen, 3 bath, 4 living room, 5 perk). */
 export function defaultTags(listing: ViralListingInfo): Record<number, string> {
   const bedroom: Record<string, string> = {
     'Master Suite': 'Primary suite',
@@ -290,7 +290,7 @@ export function defaultTags(listing: ViralListingInfo): Record<number, string> {
     1: bedroom[listing.roomType ?? ''] ?? 'Your room',
     2: 'Full kitchen',
     3: listing.amenities.includes('Private Bath') ? 'Private bath' : 'The bathroom',
-    4: 'Closet space',
+    4: 'Living room',
     5: PERK_FALLBACK_LABEL,
   };
 }

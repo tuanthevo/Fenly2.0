@@ -129,7 +129,7 @@ export type ClipAnalysis = {
 export type ViralClipInput = {
   /** Guided shot slot 1..5 */
   slotNumber: number;
-  /** Guided shot name, e.g. "Kitchen & Shared Space" */
+  /** Guided shot name, e.g. "Kitchen" */
   room: string;
   /** blob:, https: or staticFile() URL */
   src: string;
