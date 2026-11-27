@@ -402,7 +402,7 @@ export function gradePlan(
     ? [...new Set(plan.shots.map((s) => s.slotNumber))].sort((a, b) => usable(a) - usable(b)).slice(0, 2)
     : [];
   const lengthNote = tooShort
-    ? `${lengthSec} s is too short: with ${roomCount} rooms a tour needs ${MIN_TOUR_TOTAL_SEC}-${MAX_TOUR_TOTAL_SEC} s. Film the shortest rooms again for 15 seconds or more, walking slowly, or add another room.`
+    ? `${lengthSec} s is too short: with ${roomCount} rooms a tour needs ${MIN_TOUR_TOTAL_SEC}-${MAX_TOUR_TOTAL_SEC} s. Film the shortest rooms again, closer to 15 seconds each and walking slowly, or add the perk shot.`
     : tooLong
     ? `${lengthSec} s is over the ${MAX_TOUR_TOTAL_SEC} s limit.`
     : null;

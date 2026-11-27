@@ -235,7 +235,7 @@ export function resumeStep(
   if (!listing) return 'start';
   if (listing.status === 'published' || listing.status === 'filled') return 'share';
   if (!listing.lease_permission || listing.lease_permission === 'not_sure') return 'lease';
-  if (rawClipCount < 3) return 'tour';
+  if (rawClipCount < 4) return 'tour'; // the four required areas (guidedShots.ts REQUIRED_SHOT_SLOTS)
   if (!listing.copy_approved_at || !listing.title?.trim() || !listing.description?.trim()) return 'details';
   if (!mediaKinds.includes('video_full') || !mediaKinds.includes('thumbnail')) return 'video';
   return 'publish';

@@ -71,7 +71,10 @@ shot, matching the grader's change-rate row. Three clips of exactly 10 s still g
 
 ### Fenly 2.0 Quick Tour (Fill tab)
 
-The Fill flow films 3 shots of 15 s (room, shared space, bathroom; `guidedShots.ts`
+Since late Nov 2026 the Fill flow needs four areas (bedroom, kitchen, living room,
+bathroom; `REQUIRED_SHOT_SLOTS`), 5-15 s each, plus an optional perk shot. Test clips:
+4 × 5 s ≈ 22 s, 4 × 8 s ≈ 29 s, 4 × 10 s ≈ 31 s, 4 × 15 s ≈ 48 s, so clips under ~10 s
+fall below the 30 s rule. Before that, the Fill flow filmed 3 shots of 15 s (room, shared space, bathroom; `guidedShots.ts`
 `shotsForMode('quick')`; 5 s until Nov 2026), with 2 optional extras (closet,
 perk) for a fuller tour. With 15 s shots each room gets two moments, so 3 shots
 give a ~36 s tour; the extras take it to ~47-50 s. Fill exports only the full tour
